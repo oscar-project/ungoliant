@@ -22,6 +22,9 @@ impl From<reqwest::Error> for Error {
         Error::Reqwest(err)
     }
 }
+
+/// holds urls to download and 
+/// http client that will make the requests.
 pub struct Downloader {
     urls: Vec<reqwest::Url>,
     client: reqwest::blocking::Client,
