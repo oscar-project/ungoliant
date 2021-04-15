@@ -36,9 +36,9 @@ pub fn strip_warc(path: &PathBuf) -> Result<(), Error> {
     let gzip_file = File::open(path)?;
     let gzip_stream = GzipReader::new(gzip_file)?;
 
-    // we use a different reader from the default one in the warc crate to 
+    // we use a different reader from the default one in the warc crate to
     // manage multipart gzipped content.
-    let reader = BufReader::with_capacity(10*MB, gzip_stream);
+    let reader = BufReader::with_capacity(10 * MB, gzip_stream);
 
     let gzd = WarcReader::new(reader);
     for record in gzd {
@@ -48,5 +48,4 @@ pub fn strip_warc(path: &PathBuf) -> Result<(), Error> {
         }
     }
     Ok(())
-
 }

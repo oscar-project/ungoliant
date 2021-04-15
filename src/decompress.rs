@@ -3,6 +3,7 @@ use std::io::Write;
 use std::{
     fs::File,
     io::{BufReader, Read},
+    path::Path,
     path::PathBuf,
 };
 
@@ -17,7 +18,7 @@ impl From<std::io::Error> for Error {
         Error::Io(err)
     }
 }
-pub fn decompress(file: &PathBuf) -> Result<PathBuf, Error> {
+pub fn decompress(file: &Path) -> Result<PathBuf, Error> {
     //open file handler
     let f = File::open(file)?;
 
@@ -44,5 +45,5 @@ pub fn decompress(file: &PathBuf) -> Result<PathBuf, Error> {
     // (out, &mut out_file)?;
 
     // out_file
-    Ok(file.clone())
+    Ok(file.to_path_buf())
 }
