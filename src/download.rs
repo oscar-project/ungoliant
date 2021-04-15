@@ -1,7 +1,7 @@
 use log::Level;
 use reqwest::Url;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::{fs::File, path::PathBuf};
 
 const BASE_URL: &str = "https://commoncrawl.s3.amazonaws.com/";
 
@@ -23,7 +23,7 @@ impl From<reqwest::Error> for Error {
     }
 }
 
-/// holds urls to download and 
+/// holds urls to download and
 /// http client that will make the requests.
 pub struct Downloader {
     urls: Vec<reqwest::Url>,
@@ -84,20 +84,21 @@ impl Downloader {
     }
 
     /// attempt to download from `url`, storing the result in result/`id`.txt
-    fn download_blocking(&self, url: &Url, id: usize) -> Result<(), Error> {
+    fn download_blocking(&self, url: &Url, id: usize) -> Result<PathBuf, Error> {
         //fire blocking request, create out file,
         //load content into buffer and copy buffer into file.
         debug!("downloading {}", &url);
         let response = self.client.get(url.clone()).send()?;
-        let mut out = File::create(format!("result/{}.txt.gz", id))?;
+        let path: PathBuf = PathBuf::from(format!("result/{}.txt.gz", id));
+        let mut out = File::create(&path)?;
         let mut buf = BufReader::new(response);
         std::io::copy(&mut buf, &mut out)?;
 
-        Ok(())
+        Ok(path)
     }
 
     /// sequentially download paths
-    pub fn download_all_blocking(&self) -> Vec<Result<(), Error>> {
+    pub fn download_all_blocking(&self) -> Vec<Result<PathBuf, Error>> {
         let nb_links = self.urls.len();
         self.urls
             .iter()
