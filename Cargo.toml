@@ -15,3 +15,7 @@ flate2 = { version = "1.0.20", features= ["miniz-sys"]}
 structopt = "0.3.21"
 env_logger = "0.8.3"
 log = "*"
+rayon = "1.5"
+itertools = "0.10.0"
+libflate = "1"
+warc = {git = "https://github.com/jedireza/warc"}
