@@ -29,12 +29,18 @@ fn main() -> Result<(), std::io::Error> {
     let mut log_file = File::create("log.txt").expect("failed to create log file");
 
     let warc_record = warc::Wet::from_path_gzip(opt.file)?;
-    let classifier = classify::Classifier::new().spawn().expect("oops");
+    let mut classifier = classify::Classifier::new().expect("oops");
+
+    // FIX for robots: line
+    let warc_record = warc_record.into_iter().skip(1);
+
     for record in warc_record {
         let record = record.unwrap();
-        for line in record.lines() {
-            println!("{}", line);
-        }
+        classifier.predict(&record)?;
+        // for line in record.lines() {
+        //     classifier.predict_record(line);
+        //     // println!("{}", line);
+        // }
     }
     // let d = Downloader::from_paths_file(&File::open(opt.file)?)?;
 

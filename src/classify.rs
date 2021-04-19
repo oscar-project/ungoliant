@@ -1,5 +1,11 @@
-use std::io::{Read, Write};
+use std::os::unix::io::AsRawFd;
 use std::process::{Child, Command, Stdio};
+use std::{
+    io::{Read, Write},
+    process::{ChildStdin, ChildStdout},
+};
+
+use crate::warc;
 
 const MIN_SENTENCE_LEN: usize = 100;
 
@@ -11,70 +17,111 @@ const MIN_SENTENCE_LEN: usize = 100;
 /// We have to use from_utf8 and catch failing strings
 ///
 /// We also use chars(), that gives Unicode scalar values, not graphemes.
-pub fn valid(sentence: &str) -> bool {
+fn valid(sentence: &str) -> bool {
     // no checking in utf8 validity since 8
     sentence.chars().count() > MIN_SENTENCE_LEN
 }
 
 /// Used to identify language on strings
+// Ensure that we respect that:
+// https://doc.rust-lang.org/std/process/struct.Child.html#warning
 pub struct Classifier {
     process: Command,
-    child: Option<Child>,
+    child: Child,
+    // stdin: ChildStdin,
+    // stdout: ChildStdout,
 }
 
 impl Classifier {
     /// Create a new fasttext command ready to be launched.
     /// Does *not* check if fastText is installed
-    pub fn new() -> Self {
+    pub fn new() -> std::io::Result<Self> {
         let mut process = Command::new("fastText/fasttext");
         process
             .arg("predict-prob")
-            .arg("fasttext/lid.176.bin")
+            .arg("fastText/lid.176.bin")
+            .arg("-")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped());
 
-        Classifier {
+        let mut child = process.spawn()?;
+        // let stdin = child.stdin.take().unwrap();
+        // let stdout = child.stdout.take().unwrap();
+        Ok(Classifier {
             process,
-            child: None,
-        }
+            child,
+            // stdin,
+            // stdout
+        })
     }
 
     /// Run fasttext command that will wait for input
     pub fn spawn(&mut self) -> std::io::Result<()> {
-        self.child = Some(self.process.spawn()?);
+        self.child = self.process.spawn()?;
         Ok(())
     }
 
-    pub fn predict(&mut self, str: &str) -> std::io::Result<Option<(String, f64)>> {
-        let child = match &mut self.child {
-            Some(ref child) => child,
-            None => {
-                self.spawn()?;
-                self.child.as_ref().unwrap()
+    pub fn predict(&mut self, record: &str) -> std::io::Result<Option<(String, f64)>> {
+        warn!("Very ineffective!!");
+        let mut child = self.process.spawn()?;
+        debug!("{:?}", child.id());
+
+        match child.stdin.take() {
+            None => panic!("no stdin"),
+            Some(mut stdin) => {
+                let valid_lines = record.lines().filter(|line| valid(line));
+                for line in valid_lines {
+                    stdin.write_all(line.as_bytes())?;
+                }
             }
-        };
+        }
 
+        let mut s = String::new();
+        match child.stdout.take() {
+            None => panic!("no stdout"),
+            Some(mut stdout) => {
+                s.clear();
+                stdout.read_to_string(&mut s);
+                println!("{:?}", s);
+            }
+        }
 
-        let s = String::new();
-        // match child.stdout.unwrap().read_to_string(&mut s) {
-        //     Err(why) => panic!("couldn't read wc stdout: {}", why),
-        //     Ok(_) => print!("wc responded with:\n{}", s),
-        // }
-        // match child.stdin.unwrap().write_all(str.as_bytes()) {
-        //     Err(why) => panic!("couldn't write to wc stdin: {}", why),
-        //     Ok(_) => println!("sent pangram to wc"),
-        // }
-
-        // let mut s = String::new();
-        // match self.child.unwrap().stdout.unwrap().read_to_string(&mut s) {
-        //     Err(why) => panic!("couldn't read wc stdout: {}", why),
-        //     Ok(_) => print!("wc responded with:\n{}", s),
-        // }
-
-        Ok(Some((s, 1f64)))
+        child.wait();
+        Ok(Some((("yes".to_string()), 1f64)))
     }
-    /// Check if fasttext is on
-    pub fn is_running(&self) -> bool {
-        self.child.is_some()
+    pub fn predict_record(&mut self, record: &str) -> std::io::Result<Option<(String, f64)>> {
+        // let stdin = self.child.stdin.take().unwrap();
+        // let stdout = self.child.stdout.take().unwrap();
+        let valid_lines = record.lines().filter(|line| valid(line));
+
+        {
+            // let mut stdin = self.child.stdin.take().unwrap();
+            let mut stdin = self.child.stdin.as_mut().unwrap();
+            for line in valid_lines {
+                println!("sending: {}", line);
+                stdin.write_all(line.as_bytes())?;
+            }
+
+            stdin.flush()?;
+            // drop(stdin);
+        }
+
+        {
+            let mut stdout = self.child.stdout.as_mut().unwrap();
+            let mut s = String::new();
+
+            stdout.read_to_string(&mut s)?;
+
+            println!("{}", &s);
+        }
+        // let mut s = String::new();
+        // match self.child.stdout.take().unwrap().read_to_string(&mut s) {
+        //     Err(e) => panic!("uhh"),
+        //     Ok(res) => println!("good")
+        // };
+
+        // println!("{}", s);
+
+        Ok(Some((("yes".to_string()), 1f64)))
     }
 }
