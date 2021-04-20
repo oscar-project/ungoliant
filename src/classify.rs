@@ -5,6 +5,9 @@ use std::{
     process::{ChildStdin, ChildStdout},
 };
 
+use itertools::Itertools;
+
+use fasttext::FastText;
 use crate::warc;
 
 const MIN_SENTENCE_LEN: usize = 100;
@@ -38,8 +41,9 @@ impl Classifier {
     pub fn new() -> std::io::Result<Self> {
         let mut process = Command::new("fastText/fasttext");
         process
-            .arg("predict-prob")
-            .arg("fastText/lid.176.bin")
+            // .arg("predict-prob")
+            // .arg("fastText/lid.176.bin")
+            .arg("cat")
             .arg("-")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped());
@@ -89,31 +93,45 @@ impl Classifier {
         child.wait();
         Ok(Some((("yes".to_string()), 1f64)))
     }
+
     pub fn predict_record(&mut self, record: &str) -> std::io::Result<Option<(String, f64)>> {
         // let stdin = self.child.stdin.take().unwrap();
         // let stdout = self.child.stdout.take().unwrap();
-        let valid_lines = record.lines().filter(|line| valid(line));
+        let valid_lines = record.lines().filter(|line| valid(line)).join("\n");
 
-        {
-            // let mut stdin = self.child.stdin.take().unwrap();
-            let mut stdin = self.child.stdin.as_mut().unwrap();
-            for line in valid_lines {
-                println!("sending: {}", line);
-                stdin.write_all(line.as_bytes())?;
-            }
+        let mut stdout = self.child.stdout.as_mut().unwrap();
+        let mut stdin = self.child.stdin.as_mut().unwrap();
+        debug!("sending {:?}", &valid_lines);
+        stdin.write_all(valid_lines.as_bytes())?;
+        debug!("stdin {:?}", &stdin);
+        let mut s = String::new();
+        // stdout.read_to_string(&mut s)?;
+        debug!("getting {:?}", &s);
+        // {
 
-            stdin.flush()?;
-            // drop(stdin);
-        }
+        //     for line in valid_lines {
+        //         println!("sending: {}", line);
+        //         stdin.write_all(line.as_bytes())?;
+        //     }
 
-        {
-            let mut stdout = self.child.stdout.as_mut().unwrap();
-            let mut s = String::new();
+        //     // stdin.flush()?;
+        //     let mut s = String::new();
+        //     let mut buf = vec![0; 10];
+        //     // stdout.read(&mut buf)?;
+        //     stdout.read_to_string(&mut s)?;
 
-            stdout.read_to_string(&mut s)?;
+        //     println!("read {:?}", s);
+        //     s.clear();
+        // }
 
-            println!("{}", &s);
-        }
+        // {
+        //     let mut stdout = self.child.stdout.as_mut().unwrap();
+        //     let mut s = String::new();
+
+        //     stdout.read_to_string(&mut s)?;
+
+        //     println!("{}", &s);
+        // }
         // let mut s = String::new();
         // match self.child.stdout.take().unwrap().read_to_string(&mut s) {
         //     Err(e) => panic!("uhh"),

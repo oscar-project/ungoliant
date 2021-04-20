@@ -19,3 +19,4 @@ rayon = "1.5"
 itertools = "0.10.0"
 libflate = "1"
 warc = {git = "https://github.com/jedireza/warc"}
+fasttext = "0.5"

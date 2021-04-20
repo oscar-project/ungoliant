@@ -84,6 +84,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c0496836a84f8d0495758516b8621a622beb77c0fed418570e50764093ced48"
 
 [[package]]
+name = "cfasttext-sys"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a34e2c91ab1c597a5b282b9eef446139f082710b67ff147417d89834e99bc727"
+dependencies = [
+ "cmake",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -115,6 +124,15 @@ dependencies = [
  "textwrap",
  "unicode-width",
  "vec_map",
+]
+
+[[package]]
+name = "cmake"
+version = "0.1.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb6210b637171dfba4cda12e579ac6dc73f5165ad56133e5d72ef3131f320855"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -213,6 +231,15 @@ dependencies = [
  "log",
  "regex",
  "termcolor",
+]
+
+[[package]]
+name = "fasttext"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ee9837a8289715c21e79c8779621fb5aa2c48303dd840bf93d561bf520d2453"
+dependencies = [
+ "cfasttext-sys",
 ]
 
 [[package]]
@@ -1253,6 +1280,7 @@ name = "ungoliant"
 version = "0.1.0"
 dependencies = [
  "env_logger",
+ "fasttext",
  "flate2",
  "itertools",
  "libflate",

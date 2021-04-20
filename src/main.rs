@@ -2,6 +2,8 @@ use download::Downloader;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 
+extern crate fasttext;
+
 #[macro_use]
 extern crate log;
 
@@ -36,7 +38,7 @@ fn main() -> Result<(), std::io::Error> {
 
     for record in warc_record {
         let record = record.unwrap();
-        classifier.predict(&record)?;
+        classifier.predict_record(&record)?;
         // for line in record.lines() {
         //     classifier.predict_record(line);
         //     // println!("{}", line);
