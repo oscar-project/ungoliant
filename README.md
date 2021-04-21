@@ -1,6 +1,6 @@
 # Ungoliant
 
-A mysterious project named after a spider that consumes everything :spider:.
+:spider: Ungoliant is the upcoming pipeline to obtain an [OSCAR corpus](https://oscar-corpus.com) from a [Common Crawl](https://commoncrawl.org) dump. This pipeline replaces the original [goclassy](https://github.com/oscar-corpus/goclassy) pipeline.
 
 ## Compilation
 
