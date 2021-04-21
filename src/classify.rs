@@ -40,9 +40,12 @@ pub struct Classifier {
 
 impl Classifier {
     /// Create a new fasttext classifier allowing to identify
-    /// language of strings.
+    /// language of strings. 
     ///
-    /// *Having `lid.176.bin` at `.` is mandatory*
+    /// - [Self::k] is set to 1
+    /// - [Self::threshold] is set to .8
+    ///
+    /// **Having `lid.176.bin` at `.` is mandatory**
     ///
     /// # Errors
     /// Propagates [fasttext::FastText] errors.
