@@ -34,16 +34,18 @@ fn main() -> Result<(), std::io::Error> {
     let mut classifier = classify::Classifier::new_lid().expect("oops");
 
     // FIX for robots: line
-    let warc_record = warc_record.into_iter().skip(1);
+    let mut warc_record = warc_record.into_iter().skip(1);
+    println!("{:?}", warc_record.next());
 
     for record in warc_record {
         let record = record.unwrap();
+        // println!("{:?}", record);
         let predictions: Vec<(Result<Vec<fasttext::Prediction>, String>, &str)> = record
             .lines()
             .map(|line| (classifier.predict(line), line))
             .filter(|pair| !pair.0.as_ref().unwrap_or(&vec![]).is_empty())
             .collect();
-        println!("{:#?}", predictions);
+        // println!("{:#?}", predictions);
     }
     // let d = Downloader::from_paths_file(&File::open(opt.file)?)?;
 
