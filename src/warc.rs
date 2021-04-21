@@ -1,17 +1,7 @@
-use std::{
-    fs::File,
-    io::{BufReader, BufWriter, Write},
-    path::Path,
-    thread::current,
-};
+use std::{fs::File, io::BufReader, path::Path};
 
-use flate2::bufread::{GzDecoder, MultiGzDecoder};
-use itertools::Itertools;
-// use libflate::gzip::Decoder as GzipReader;
 use libflate::gzip::MultiDecoder;
 use std::io::BufRead;
-use std::path::PathBuf;
-use warc::header::WarcHeader;
 use warc::WarcReader;
 
 // from warc code
