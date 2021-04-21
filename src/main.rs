@@ -31,18 +31,19 @@ fn main() -> Result<(), std::io::Error> {
     let mut log_file = File::create("log.txt").expect("failed to create log file");
 
     let warc_record = warc::Wet::from_path_gzip(opt.file)?;
-    let mut classifier = classify::Classifier::new().expect("oops");
+    let mut classifier = classify::Classifier::new_lid().expect("oops");
 
     // FIX for robots: line
     let warc_record = warc_record.into_iter().skip(1);
 
     for record in warc_record {
         let record = record.unwrap();
-        classifier.predict_record(&record)?;
-        // for line in record.lines() {
-        //     classifier.predict_record(line);
-        //     // println!("{}", line);
-        // }
+        let predictions: Vec<(Result<Vec<fasttext::Prediction>, String>, &str)> = record
+            .lines()
+            .map(|line| (classifier.predict(line), line))
+            .filter(|pair| !pair.0.as_ref().unwrap_or(&vec![]).is_empty())
+            .collect();
+        println!("{:#?}", predictions);
     }
     // let d = Downloader::from_paths_file(&File::open(opt.file)?)?;
 

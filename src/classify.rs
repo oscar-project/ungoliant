@@ -1,16 +1,20 @@
-use std::os::unix::io::AsRawFd;
-use std::process::{Child, Command, Stdio};
-use std::{
-    io::{Read, Write},
-    process::{ChildStdin, ChildStdout},
-};
-
-use itertools::Itertools;
-
-use fasttext::FastText;
-use crate::warc;
+use fasttext::{FastText, Prediction};
 
 const MIN_SENTENCE_LEN: usize = 100;
+
+/// changes the label field from `__label__xx` into `xx`
+fn clean_prediction(prediction: Prediction) -> Result<Prediction, String> {
+    if prediction.label.chars().count() < 9 {
+        return Err(format!(
+            "Label is too short to be cleaned: {}",
+            prediction.label
+        ));
+    }
+    Ok(Prediction {
+        prob: prediction.prob,
+        label: prediction.label.chars().skip(9).collect(),
+    })
+}
 
 /// ensure that sentences meet valid requirements
 /// to be sent to fasttext:
@@ -25,121 +29,54 @@ fn valid(sentence: &str) -> bool {
     sentence.chars().count() > MIN_SENTENCE_LEN
 }
 
-/// Used to identify language on strings
-// Ensure that we respect that:
-// https://doc.rust-lang.org/std/process/struct.Child.html#warning
+/// A [fasttext::FastText] instance.
+/// Should be replaced for a more generic struct allowing different
+/// predictors.
 pub struct Classifier {
-    process: Command,
-    child: Child,
-    // stdin: ChildStdin,
-    // stdout: ChildStdout,
+    predictor: FastText,
+    pub k: i32,
+    pub threshold: f32,
 }
 
 impl Classifier {
-    /// Create a new fasttext command ready to be launched.
-    /// Does *not* check if fastText is installed
-    pub fn new() -> std::io::Result<Self> {
-        let mut process = Command::new("fastText/fasttext");
-        process
-            // .arg("predict-prob")
-            // .arg("fastText/lid.176.bin")
-            .arg("cat")
-            .arg("-")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped());
+    /// Create a new fasttext classifier allowing to identify
+    /// language of strings.
+    ///
+    /// *Having `lid.176.bin` at `.` is mandatory*
+    ///
+    /// # Errors
+    /// Propagates [fasttext::FastText] errors.
+    pub fn new_lid() -> Result<Self, String> {
+        Self::new("lid.176.bin", 1, 0.8)
+    }
 
-        let mut child = process.spawn()?;
-        // let stdin = child.stdin.take().unwrap();
-        // let stdout = child.stdout.take().unwrap();
+    /// Create a new fasttext classifier.
+    ///
+    /// filename has to be a path to a `bin` file.
+    ///
+    /// See [fasttext::FastText::predict] for other parameters explanation
+    pub fn new(filename: &str, k: i32, threshold: f32) -> Result<Self, String> {
+        let mut predictor = FastText::new();
+        predictor.load_model(filename)?;
         Ok(Classifier {
-            process,
-            child,
-            // stdin,
-            // stdout
+            predictor,
+            k,
+            threshold,
         })
     }
 
-    /// Run fasttext command that will wait for input
-    pub fn spawn(&mut self) -> std::io::Result<()> {
-        self.child = self.process.spawn()?;
-        Ok(())
-    }
-
-    pub fn predict(&mut self, record: &str) -> std::io::Result<Option<(String, f64)>> {
-        warn!("Very ineffective!!");
-        let mut child = self.process.spawn()?;
-        debug!("{:?}", child.id());
-
-        match child.stdin.take() {
-            None => panic!("no stdin"),
-            Some(mut stdin) => {
-                let valid_lines = record.lines().filter(|line| valid(line));
-                for line in valid_lines {
-                    stdin.write_all(line.as_bytes())?;
-                }
-            }
+    /// predict for supplied sentence.
+    /// returned [Vec] is empty if no prediction passes threshold or if sentence
+    /// does not pass [valid].
+    pub fn predict(&self, sentence: &str) -> Result<Vec<Prediction>, String> {
+        if !valid(sentence) {
+            return Ok(vec![]);
         }
+        let predictions = self.predictor.predict(sentence, self.k, self.threshold)?;
 
-        let mut s = String::new();
-        match child.stdout.take() {
-            None => panic!("no stdout"),
-            Some(mut stdout) => {
-                s.clear();
-                stdout.read_to_string(&mut s);
-                println!("{:?}", s);
-            }
-        }
-
-        child.wait();
-        Ok(Some((("yes".to_string()), 1f64)))
-    }
-
-    pub fn predict_record(&mut self, record: &str) -> std::io::Result<Option<(String, f64)>> {
-        // let stdin = self.child.stdin.take().unwrap();
-        // let stdout = self.child.stdout.take().unwrap();
-        let valid_lines = record.lines().filter(|line| valid(line)).join("\n");
-
-        let mut stdout = self.child.stdout.as_mut().unwrap();
-        let mut stdin = self.child.stdin.as_mut().unwrap();
-        debug!("sending {:?}", &valid_lines);
-        stdin.write_all(valid_lines.as_bytes())?;
-        debug!("stdin {:?}", &stdin);
-        let mut s = String::new();
-        // stdout.read_to_string(&mut s)?;
-        debug!("getting {:?}", &s);
-        // {
-
-        //     for line in valid_lines {
-        //         println!("sending: {}", line);
-        //         stdin.write_all(line.as_bytes())?;
-        //     }
-
-        //     // stdin.flush()?;
-        //     let mut s = String::new();
-        //     let mut buf = vec![0; 10];
-        //     // stdout.read(&mut buf)?;
-        //     stdout.read_to_string(&mut s)?;
-
-        //     println!("read {:?}", s);
-        //     s.clear();
-        // }
-
-        // {
-        //     let mut stdout = self.child.stdout.as_mut().unwrap();
-        //     let mut s = String::new();
-
-        //     stdout.read_to_string(&mut s)?;
-
-        //     println!("{}", &s);
-        // }
-        // let mut s = String::new();
-        // match self.child.stdout.take().unwrap().read_to_string(&mut s) {
-        //     Err(e) => panic!("uhh"),
-        //     Ok(res) => println!("good")
-        // };
-
-        // println!("{}", s);
-
-        Ok(Some((("yes".to_string()), 1f64)))
+        Ok(predictions
+            .into_iter()
+            .map(|p| clean_prediction(p).unwrap())
+            .collect())
     }
 }
