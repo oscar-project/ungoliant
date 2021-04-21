@@ -3,7 +3,7 @@ name = "ungoliant"
 version = "0.1.0"
 authors = ["Pedro J. Ortiz <pedro@pjortiz.com>"]
 edition = "2018"
-description = "A mysterious project named after a spider that consumes everything."
+description = "The pipeline for the OSCAR corpus."
 license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
