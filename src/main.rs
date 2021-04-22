@@ -38,14 +38,18 @@ fn main() -> Result<(), std::io::Error> {
     println!("{:?}", warc_record.next());
 
     for record in warc_record {
-        let record = record.unwrap();
-        // println!("{:?}", record);
-        let predictions: Vec<(Result<Vec<fasttext::Prediction>, String>, &str)> = record
+        let record = record.expect("could not fetch record");
+        let predictions: Vec<_> = record
             .lines()
-            .map(|line| (classifier.predict(line), line))
-            .filter(|pair| !pair.0.as_ref().unwrap_or(&vec![]).is_empty())
+            .filter(|line| classify::valid_len(line))
+            .map(|line| (classifier.predict(line).unwrap_or(None), line))
+            .filter(|pair| pair.0.is_some())
+            .map(|pair| (pair.0.unwrap(), pair.1))
             .collect();
-        // println!("{:#?}", predictions);
+
+        for p in predictions {
+            println!("{:?}", p);
+        }
     }
     // let d = Downloader::from_paths_file(&File::open(opt.file)?)?;
 
