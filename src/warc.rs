@@ -39,12 +39,30 @@ impl Wet<BufReader<MultiDecoder<File>>> {
     }
 }
 
+// impl<R: BufRead> Iterator for Wet<R> {
+//     type Item = Result<Vec<u8>, warc::Error>;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         if let Some(n) = self.reader.next() {
+//             match n {
+//                 // Ok(record) => Some(Ok(String::from_utf8_lossy(&record.body).to_string())),
+//                 Ok(record) => Some(Ok(record.body)),
+//                 Err(e) => Some(Err(e)),
+//             }
+//         } else {
+//             None
+//         }
+//     }
+// }
+
 impl<R: BufRead> Iterator for Wet<R> {
     type Item = Result<String, warc::Error>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(n) = self.reader.next() {
             match n {
-                Ok(record) => Some(Ok(String::from_utf8_lossy(&record.body).to_string())),
+                Ok(record) => {
+                    let str = String::from_utf8_lossy(&record.body).escape_default();
+                    Some(Ok(String::from_utf8_lossy(&record.body).to_string()))
+                }
                 Err(e) => Some(Err(e)),
             }
         } else {
