@@ -71,7 +71,6 @@ impl Classifier {
     /// predict for supplied sentence.
     /// returns Ok(None) if no reliable identification has been done.
     pub fn predict(&self, sentence: &str) -> Result<Option<Vec<Prediction>>, String> {
-        let sentence = sentence.escape_default().to_string();
         let predictions = self.predictor.predict(&sentence, self.k, self.threshold)?;
 
         if predictions.is_empty() {

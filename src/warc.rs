@@ -60,8 +60,8 @@ impl<R: BufRead> Iterator for Wet<R> {
         if let Some(n) = self.reader.next() {
             match n {
                 Ok(record) => {
-                    let str = String::from_utf8_lossy(&record.body).escape_default();
-                    Some(Ok(String::from_utf8_lossy(&record.body).to_string()))
+                    let str = String::from_utf8_lossy(&record.body).escape_default().to_string();
+                    Some(Ok(str))
                 }
                 Err(e) => Some(Err(e)),
             }
