@@ -1,7 +1,12 @@
 use log::Level;
 use reqwest::Url;
-use std::io::{BufRead, BufReader};
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, io::Read, path::PathBuf, stream::Stream};
+use std::{
+    io::{BufRead, BufReader},
+    path::Path,
+};
+
+use bytes::Buf;
 
 const BASE_URL: &str = "https://commoncrawl.s3.amazonaws.com/";
 
@@ -23,11 +28,49 @@ impl From<reqwest::Error> for Error {
     }
 }
 
+pub struct Download<'a> {
+    src: reqwest::Url,
+    client: &'a reqwest::Client,
+}
+
+impl<'a> Download<'a> {
+    pub async fn save_to(&self, dst: &Path) -> Result<(), Error> {
+        let resp = self
+            .client
+            .get(self.src.clone())
+            .send()
+            .await?
+            .bytes()
+            .await?;
+        let mut file = File::create(dst)?;
+
+        std::io::copy(&mut resp.reader(), &mut file);
+
+        Ok(())
+    }
+
+    pub async fn stream(&self) -> Result<(), Error> {
+        let resp = self
+            .client
+            .get(self.src.clone())
+            .send()
+            .await?
+            .bytes_stream();
+
+        Ok(())
+    }
+}
 /// holds urls to download and
 /// http client that will make the requests.
 pub struct Downloader {
     urls: Vec<reqwest::Url>,
     client: reqwest::blocking::Client,
+}
+
+impl From<crate::cli::Download> for Downloader {
+    fn from(d: crate::cli::Download) -> Self {
+        todo!();
+    }
 }
 
 impl Downloader {
@@ -108,5 +151,42 @@ impl Downloader {
                 self.download_blocking(url, id)
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sha1::Digest;
+    #[tokio::test]
+    pub async fn test_download_async() {
+        let test_file_path = Path::new("tests/1Mio.dat");
+
+        let client = reqwest::Client::new();
+        let d = Download {
+            src: reqwest::Url::parse("http://www.ovh.net/files/1Mio.dat")
+                .expect("wrong url format"),
+            client: &client,
+        };
+
+        d.save_to(test_file_path)
+            .await
+            .expect("could not download test file");
+
+        let mut hasher = sha1::Sha1::new();
+
+        let mut file = File::open(test_file_path).expect("could not open file");
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf).expect("could not read file");
+
+        hasher.update(buf);
+
+        let hash = hasher.finalize();
+        assert_eq!(
+            format!("{:x}", hash),
+            "22c952ea2b497171d37b76f0830ef8d9911cfe9b".to_string()
+        );
+
+        std::fs::remove_file(test_file_path).expect("could not remove test file");
     }
 }
