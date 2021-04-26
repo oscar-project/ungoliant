@@ -1,12 +1,15 @@
+use bytes::{Bytes};
+use futures::TryFutureExt;
+use futures_core::stream::Stream;
+use futures_util::{TryStreamExt};
 use log::Level;
 use reqwest::Url;
-use std::{fs::File, io::Read, path::PathBuf, stream::Stream};
+use std::{fs::File, path::PathBuf};
 use std::{
     io::{BufRead, BufReader},
     path::Path,
 };
-
-use bytes::Buf;
+use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 const BASE_URL: &str = "https://commoncrawl.s3.amazonaws.com/";
 
@@ -30,36 +33,43 @@ impl From<reqwest::Error> for Error {
 
 pub struct Download<'a> {
     src: reqwest::Url,
-    client: &'a reqwest::Client,
+    pub client: &'a reqwest::Client,
 }
 
+/// An async downloader
 impl<'a> Download<'a> {
+    /// asynchonously download and save to provided destination
     pub async fn save_to(&self, dst: &Path) -> Result<(), Error> {
-        let resp = self
-            .client
-            .get(self.src.clone())
-            .send()
-            .await?
-            .bytes()
-            .await?;
-        let mut file = File::create(dst)?;
+        // get stream of bytes and convert into tokio-compatible reader
+        let mut resp = self.stream().await?.into_async_read().compat();
 
-        std::io::copy(&mut resp.reader(), &mut file);
+        let mut file = tokio::fs::File::create(dst).await?;
+
+        // copy bytes from response to file
+        tokio::io::copy(&mut resp, &mut file).await?;
 
         Ok(())
     }
 
-    pub async fn stream(&self) -> Result<(), Error> {
+    /// get stream of bytes from request
+    ///
+    /// Streams fetched from this method are not tokio-compatible.
+    /// See tokio-compat [example](https://github.com/benkay86/async-applied/tree/master/reqwest-tokio-compat)
+    /// or [Self::save_to] sourcecode
+    pub async fn stream(&self) -> Result<impl Stream<Item = futures::io::Result<Bytes>>, Error> {
         let resp = self
             .client
             .get(self.src.clone())
             .send()
             .await?
-            .bytes_stream();
+            .error_for_status()?
+            .bytes_stream()
+            .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e));
 
-        Ok(())
+        Ok(resp)
     }
 }
+
 /// holds urls to download and
 /// http client that will make the requests.
 pub struct Downloader {
@@ -178,6 +188,51 @@ mod tests {
         let mut file = File::open(test_file_path).expect("could not open file");
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).expect("could not read file");
+
+        hasher.update(buf);
+
+        let hash = hasher.finalize();
+        assert_eq!(
+            format!("{:x}", hash),
+            "22c952ea2b497171d37b76f0830ef8d9911cfe9b".to_string()
+        );
+
+        std::fs::remove_file(test_file_path).expect("could not remove test file");
+    }
+
+    #[tokio::test]
+    pub async fn test_download_async_stream() {
+        use tokio::fs::File;
+        use tokio::io::AsyncReadExt;
+        use tokio::io::AsyncWriteExt;
+
+        let test_file_path = Path::new("tests/1Mio_async.dat");
+
+        let client = reqwest::Client::new();
+        let d = Download {
+            src: reqwest::Url::parse("http://www.ovh.net/files/1Mio.dat")
+                .expect("wrong url format"),
+            client: &client,
+        };
+
+        let mut st = d.stream().await.unwrap();
+        let mut file = File::create(test_file_path)
+            .await
+            .expect("failed to open file");
+
+        while let Some(bytes) = st.next().await {
+            file.write_all(&bytes.unwrap()).await.unwrap();
+        }
+
+        let mut hasher = sha1::Sha1::new();
+
+        let mut file = File::open(test_file_path)
+            .await
+            .expect("could not open file");
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)
+            .await
+            .expect("could not read file");
 
         hasher.update(buf);
 
