@@ -20,7 +20,17 @@ async fn main() -> Result<(), std::io::Error> {
     debug!("cli args\n{:#?}", opt);
 
     match opt {
-        _ => {}
+        cli::Ungoliant::Download(e) => {
+            let paths = File::open(e.paths_file)?;
+            let mut dl = Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?;
+            let results = dl.download(&e.dst).await;
+            for failure in results.iter().filter(|result| result.is_err()) {
+                error!("Error during download:\n {:?}", failure);
+            }
+        }
+        _ => {
+            unimplemented!();
+        }
     };
     // let mut err_file = File::create("errors.txt").expect("failed to create error file");
     // let mut log_file = File::create("log.txt").expect("failed to create log file");

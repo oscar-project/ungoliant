@@ -1,12 +1,12 @@
-use bytes::{Bytes};
-use futures::TryFutureExt;
+use bytes::Bytes;
+use futures::{stream, StreamExt};
 use futures_core::stream::Stream;
-use futures_util::{TryStreamExt};
+use futures_util::TryStreamExt;
 use log::Level;
-use reqwest::Url;
+use reqwest::{Client, Url};
 use std::{fs::File, path::PathBuf};
 use std::{
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read},
     path::Path,
 };
 use tokio_util::compat::FuturesAsyncReadCompatExt;
@@ -17,6 +17,7 @@ const BASE_URL: &str = "https://commoncrawl.s3.amazonaws.com/";
 pub enum Error {
     Reqwest(reqwest::Error),
     Io(std::io::Error),
+    Join(tokio::task::JoinError),
 }
 
 impl From<std::io::Error> for Error {
@@ -31,15 +32,18 @@ impl From<reqwest::Error> for Error {
     }
 }
 
-pub struct Download<'a> {
+/// async downloader of a single file.
+///
+/// Should not be used alone, as it is created by [Downloader].
+struct Download<'a> {
     src: reqwest::Url,
     pub client: &'a reqwest::Client,
 }
 
-/// An async downloader
 impl<'a> Download<'a> {
+
     /// asynchonously download and save to provided destination
-    pub async fn save_to(&self, dst: &Path) -> Result<(), Error> {
+    pub async fn save_to(&self, dst: &Path) -> Result<PathBuf, Error> {
         // get stream of bytes and convert into tokio-compatible reader
         let mut resp = self.stream().await?.into_async_read().compat();
 
@@ -47,8 +51,8 @@ impl<'a> Download<'a> {
 
         // copy bytes from response to file
         tokio::io::copy(&mut resp, &mut file).await?;
-
-        Ok(())
+        info!("saved to {:?}", dst);
+        Ok(PathBuf::from(dst))
     }
 
     /// get stream of bytes from request
@@ -56,7 +60,10 @@ impl<'a> Download<'a> {
     /// Streams fetched from this method are not tokio-compatible.
     /// See tokio-compat [example](https://github.com/benkay86/async-applied/tree/master/reqwest-tokio-compat)
     /// or [Self::save_to] sourcecode
+    ///
+    /// See [reqwest#482](https://github.com/seanmonstar/reqwest/issues/482) for more context.
     pub async fn stream(&self) -> Result<impl Stream<Item = futures::io::Result<Bytes>>, Error> {
+        debug!("getting {}", self.src);
         let resp = self
             .client
             .get(self.src.clone())
@@ -70,24 +77,33 @@ impl<'a> Download<'a> {
     }
 }
 
-/// holds urls to download and
-/// http client that will make the requests.
+/// async downloader that downloads numerous files from
+/// a provided `wet.paths` file.
+/// 
+/// - [Downloader::urls] holds valid parsed urls from `wet/paths` file 
+/// - [Downloader::n_tasks] corresponds to the number of tasks spawned by [tokio].
 pub struct Downloader {
     urls: Vec<reqwest::Url>,
-    client: reqwest::blocking::Client,
+    n_tasks: usize,
 }
 
+// note: does it makes sense? 
+// conversion is not cheap and contains business logic
 impl From<crate::cli::Download> for Downloader {
     fn from(d: crate::cli::Download) -> Self {
-        todo!();
+        unimplemented!();
     }
 }
 
 impl Downloader {
     /// Construct a vector of urls to download from
-    /// from a .paths file
-    /// TODO: maybe rename? from is for type conversions.
-    pub fn from_paths_file(paths_file: &std::fs::File) -> Result<Self, std::io::Error> {
+    /// from a wet.paths file
+    // TODO: maybe rename? from is for type conversions.
+    // TODO: watch for those `unwrap`.
+    pub fn from_paths_file(
+        paths_file: &std::fs::File,
+        n_tasks: usize,
+    ) -> Result<Self, std::io::Error> {
         debug!("Downloader using {:#?}", paths_file);
         let f = BufReader::new(paths_file);
 
@@ -104,7 +120,7 @@ impl Downloader {
 
         //print failed lines
         for failure in failures {
-            eprintln!("{:?}", failure.unwrap_err());
+            error!("{:?}", failure.unwrap_err());
         }
 
         // in the same fashion, attempt to parse urls
@@ -124,46 +140,74 @@ impl Downloader {
 
         // print failures
         for failure in failures {
-            eprintln!("{:?}", failure.unwrap_err());
+            error!("{:?}", failure.unwrap_err());
         }
 
         // unwrap successful paths
         let urls = urls.into_iter().map(Result::unwrap).collect();
 
-        Ok(Downloader {
-            urls,
-            client: reqwest::blocking::Client::new(),
-        })
+        Ok(Downloader { urls, n_tasks})
     }
 
-    /// attempt to download from `url`, storing the result in result/`id`.txt
-    fn download_blocking(&self, url: &Url, id: usize) -> Result<PathBuf, Error> {
-        //fire blocking request, create out file,
-        //load content into buffer and copy buffer into file.
-        debug!("downloading {}", &url);
-        let response = self.client.get(url.clone()).send()?;
-        let path: PathBuf = PathBuf::from(format!("result/{}.txt.gz", id));
-        let mut out = File::create(&path)?;
-        let mut buf = BufReader::new(response);
-        std::io::copy(&mut buf, &mut out)?;
+    /// launch downloading of urls
+    /// on [Self::n_parallel] tasks.
+    ///
+    /// See this [SO post](https://stackoverflow.com/questions/51044467/how-can-i-perform-parallel-asynchronous-http-get-requests-with-reqwest)
+    /// for more info.
+    pub async fn download(&mut self, dst: &Path) -> Vec<Result<PathBuf, Error>> {
+        // creates a new pathbuf that concats dst and i.gz
+        let to_pathbuf = |i| {
+            [dst, &Path::new(&format!("{}.gz", i))]
+                .iter()
+                .collect::<PathBuf>()
+        };
 
-        Ok(path)
-    }
-
-    /// sequentially download paths
-    pub fn download_all_blocking(&self) -> Vec<Result<PathBuf, Error>> {
-        let nb_links = self.urls.len();
-        self.urls
-            .iter()
+        // map above closure on url stream
+        let urls = stream::iter(&self.urls)
             .enumerate()
-            .map(|(id, url)| {
-                println!("downloading {}/{}", id + 1, nb_links);
-                self.download_blocking(url, id)
+            .map(|(i, url)| (url, to_pathbuf(i)));
+
+        // create reqwests client.
+        // this will be cloned for each task.
+        let client = Client::new();
+
+        let paths = urls
+            .map(|(url, path)| {
+                // clone client to use client pool
+                // See https://github.com/seanmonstar/reqwest/issues/600
+                // url to comply with 'static lifetime required by tokio
+                // note: we could also use Arc?
+                info!("initiating {}", url);
+
+                let client = client.clone();
+                let url = url.clone();
+
+                tokio::spawn(async move {
+                    // launch download and return path or failure
+                    let dl = Download {
+                        src: url,
+                        client: &client,
+                    };
+                    dl.save_to(&path).await
+                })
             })
-            .collect()
+            .buffer_unordered(self.n_tasks);
+
+        // flatten nested errors
+        paths.map(|result| flatten_error(result)).collect().await
     }
 }
 
+#[inline]
+/// transforms a nested `Result<Result<PathBuf, Error>` into a `Result<PathBuf, Error>`.
+fn flatten_error(
+    e: Result<Result<PathBuf, Error>, tokio::task::JoinError>,
+) -> Result<PathBuf, Error> {
+    match e {
+        Ok(e) => e,
+        Err(e) => Err(Error::Join(e)),
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,5 +287,42 @@ mod tests {
         );
 
         std::fs::remove_file(test_file_path).expect("could not remove test file");
+    }
+
+    #[tokio::test]
+    pub async fn test_downloader_init() {
+        let valid_file_path = "tests/res/test.wet.paths";
+        let f = File::open(&valid_file_path).expect("could not open");
+        let d = Downloader::from_paths_file(&f, 4).expect("could not build downloader");
+
+        assert_eq!(d.urls.len(), 4);
+    }
+
+    #[tokio::test]
+    pub async fn test_downloader_init_invalid_url() {
+        use std::io::Seek;
+        use std::io::SeekFrom;
+        let invalid_file_path = "tests/res/test.invalid.wet.paths";
+        let mut f = File::open(&invalid_file_path).expect("could not open");
+        let mut s = String::new();
+        f.read_to_string(&mut s)
+            .expect("could not read from wet file");
+        f.seek(SeekFrom::Start(0))
+            .expect("could not seek from wet file");
+        assert_eq!(s.lines().count(), 4);
+        let d = Downloader::from_paths_file(&f, 4).expect("could not build downloader");
+
+        assert_eq!(d.urls.len(), 4);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    pub async fn test_downloader_download() {
+        let valid_file_path = "tests/res/test.wet.paths";
+        let f = File::open(&valid_file_path).expect("could not open");
+        let mut d = Downloader::from_paths_file(&f, 4).expect("could not build downloader");
+        std::fs::create_dir("tests/dl").unwrap();
+        d.download(Path::new("tests/dl")).await;
+        assert!(false);
     }
 }

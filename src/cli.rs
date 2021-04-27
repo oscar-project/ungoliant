@@ -13,11 +13,11 @@ pub enum Ungoliant {
 #[derive(Debug, StructOpt)]
 pub struct Download {
     #[structopt(parse(from_os_str), help = "path to wet.paths file")]
-    pathfile: PathBuf,
+    pub paths_file: PathBuf,
     #[structopt(parse(from_os_str), help = "download destination")]
-    dst: PathBuf,
-    #[structopt(short = "J", help = "number of download threads. Default is 1")]
-    n_threads: Option<u32>,
-    #[structopt(short = "n", help = "number of files to fetch")]
-    n_files: Option<u32>,
+    pub dst: PathBuf,
+    #[structopt(short = "t", help = "number of tokio tasks. Default is 4.")]
+    pub n_tasks: Option<usize>,
+    // #[structopt(short = "n", help = "number of files to fetch")]
+    // n_files: Option<u32>,
 }
