@@ -125,6 +125,7 @@ impl Downloader {
 
         // in the same fashion, attempt to parse urls
         // and collect failures
+        // unwrap() is deemed safe because we filtered failures previously
         let (urls, failures): (Vec<_>, Vec<_>) = urls
             .into_iter()
             .map(|link| Url::parse(&format!("{}{}", BASE_URL, link.unwrap())))
@@ -198,7 +199,6 @@ impl Downloader {
     }
 }
 
-#[inline]
 /// transforms a nested `Result<Result<PathBuf, Error>` into a `Result<PathBuf, Error>`.
 fn flatten_error(
     e: Result<Result<PathBuf, Error>, tokio::task::JoinError>,
