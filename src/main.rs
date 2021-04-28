@@ -1,5 +1,6 @@
 use download::Downloader;
 use std::{fs::File, path::PathBuf};
+use std::io::Write;
 use structopt::StructOpt;
 
 extern crate fasttext;
@@ -24,8 +25,16 @@ async fn main() -> Result<(), std::io::Error> {
             let paths = File::open(e.paths_file)?;
             let mut dl = Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?;
             let results = dl.download(&e.dst).await;
+
+            let mut error_file = File::create("errors.txt")?;
             for failure in results.iter().filter(|result| result.is_err()) {
                 error!("Error during download:\n {:?}", failure);
+                match failure.as_ref().unwrap_err() {
+                    download::Error::Download(e) => {
+                        write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
+                    }
+                    _ =>(),
+                };
             }
         }
         _ => {

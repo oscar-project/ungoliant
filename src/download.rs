@@ -18,6 +18,17 @@ pub enum Error {
     Reqwest(reqwest::Error),
     Io(std::io::Error),
     Join(tokio::task::JoinError),
+    Download(DownloadError)
+}
+
+/// wraps a reqwest::Error
+/// with info about failed download, 
+/// namely destionation path and id
+#[derive(Debug)]
+pub struct DownloadError {
+    pub err: reqwest::Error,
+    pub path: PathBuf,
+    pub id: usize
 }
 
 impl From<std::io::Error> for Error {
@@ -166,14 +177,14 @@ impl Downloader {
         // map above closure on url stream
         let urls = stream::iter(&self.urls)
             .enumerate()
-            .map(|(i, url)| (url, to_pathbuf(i)));
+            .map(|(i, url)| (url, i, to_pathbuf(i)));
 
         // create reqwests client.
         // this will be cloned for each task.
         let client = Client::new();
 
         let paths = urls
-            .map(|(url, path)| {
+            .map(|(url, idx, path)| {
                 // clone client to use client pool
                 // See https://github.com/seanmonstar/reqwest/issues/600
                 // url to comply with 'static lifetime required by tokio
@@ -189,7 +200,16 @@ impl Downloader {
                         src: url,
                         client: &client,
                     };
-                    dl.save_to(&path).await
+
+                    // wrap eventual Reqwest errors into DownloadErrors
+                    // to add context
+                    dl.save_to(&path).await.map_err(|e| {
+                        match e {
+                            Error::Reqwest(e) => Error::Download(DownloadError {err: e, path: path, id: idx}),
+                            _ => e,
+                            
+                        }
+                    })
                 })
             })
             .buffer_unordered(self.n_tasks);
