@@ -172,7 +172,7 @@ impl Downloader {
     ) -> Vec<Result<PathBuf, Error>> {
         // creates a new pathbuf that concats dst and i.gz
         let to_pathbuf = |i| {
-            [dst, &Path::new(&format!("{}.gz", i))]
+            [dst, &Path::new(&format!("{}.txt.gz", i))]
                 .iter()
                 .collect::<PathBuf>()
         };
@@ -198,7 +198,7 @@ impl Downloader {
                 // See https://github.com/seanmonstar/reqwest/issues/600
                 // url to comply with 'static lifetime required by tokio
                 // note: we could also use Arc?
-                info!("initiating {}", url);
+                println!("Crawling {} to file {}.txt.gz", url, idx);
 
                 let client = client.clone();
                 let url = url.clone();
