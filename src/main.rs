@@ -1,4 +1,5 @@
 use download::Downloader;
+use std::io::Write;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
 
@@ -23,9 +24,19 @@ async fn main() -> Result<(), std::io::Error> {
         cli::Ungoliant::Download(e) => {
             let paths = File::open(e.paths_file)?;
             let mut dl = Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?;
-            let results = dl.download(&e.dst).await;
+            let results = dl.download(&e.dst, e.offset).await;
+
+            let mut error_file = File::create("errors.txt")?;
+
+            // write eventual download errors
             for failure in results.iter().filter(|result| result.is_err()) {
                 error!("Error during download:\n {:?}", failure);
+                match failure.as_ref().unwrap_err() {
+                    download::Error::Download(e) => {
+                        write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
+                    }
+                    _ => (),
+                };
             }
         }
         _ => {

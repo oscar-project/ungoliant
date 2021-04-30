@@ -4,7 +4,7 @@ use futures_core::stream::Stream;
 use futures_util::TryStreamExt;
 use log::Level;
 use reqwest::{Client, Url};
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, iter::Enumerate, path::PathBuf};
 use std::{
     io::{BufRead, BufReader, Read},
     path::Path,
@@ -18,6 +18,17 @@ pub enum Error {
     Reqwest(reqwest::Error),
     Io(std::io::Error),
     Join(tokio::task::JoinError),
+    Download(DownloadError),
+}
+
+/// wraps a reqwest::Error
+/// with info about failed download,
+/// namely destionation path and id
+#[derive(Debug)]
+pub struct DownloadError {
+    pub err: reqwest::Error,
+    pub path: PathBuf,
+    pub id: usize,
 }
 
 impl From<std::io::Error> for Error {
@@ -41,7 +52,6 @@ struct Download<'a> {
 }
 
 impl<'a> Download<'a> {
-
     /// asynchonously download and save to provided destination
     pub async fn save_to(&self, dst: &Path) -> Result<PathBuf, Error> {
         // get stream of bytes and convert into tokio-compatible reader
@@ -79,15 +89,15 @@ impl<'a> Download<'a> {
 
 /// async downloader that downloads numerous files from
 /// a provided `wet.paths` file.
-/// 
-/// - [Downloader::urls] holds valid parsed urls from `wet/paths` file 
+///
+/// - [Downloader::urls] holds valid parsed urls from `wet/paths` file
 /// - [Downloader::n_tasks] corresponds to the number of tasks spawned by [tokio].
 pub struct Downloader {
     urls: Vec<reqwest::Url>,
     n_tasks: usize,
 }
 
-// note: does it makes sense? 
+// note: does it makes sense?
 // conversion is not cheap and contains business logic
 impl From<crate::cli::Download> for Downloader {
     fn from(d: crate::cli::Download) -> Self {
@@ -147,7 +157,7 @@ impl Downloader {
         // unwrap successful paths
         let urls = urls.into_iter().map(Result::unwrap).collect();
 
-        Ok(Downloader { urls, n_tasks})
+        Ok(Downloader { urls, n_tasks })
     }
 
     /// launch downloading of urls
@@ -155,7 +165,11 @@ impl Downloader {
     ///
     /// See this [SO post](https://stackoverflow.com/questions/51044467/how-can-i-perform-parallel-asynchronous-http-get-requests-with-reqwest)
     /// for more info.
-    pub async fn download(&mut self, dst: &Path) -> Vec<Result<PathBuf, Error>> {
+    pub async fn download(
+        &mut self,
+        dst: &Path,
+        idx_offset: Option<usize>,
+    ) -> Vec<Result<PathBuf, Error>> {
         // creates a new pathbuf that concats dst and i.gz
         let to_pathbuf = |i| {
             [dst, &Path::new(&format!("{}.gz", i))]
@@ -163,17 +177,23 @@ impl Downloader {
                 .collect::<PathBuf>()
         };
 
-        // map above closure on url stream
-        let urls = stream::iter(&self.urls)
-            .enumerate()
-            .map(|(i, url)| (url, to_pathbuf(i)));
+        // skipping urls to offset
+        let urls = if let Some(offset) = idx_offset {
+            self.urls.iter().enumerate().skip(offset)
+        } else {
+            // we use skip(0) to have the same types
+            // at if and else blocks.
+            self.urls.iter().enumerate().skip(0)
+        }
+        .map(|(i, url)| (url, i, to_pathbuf(i)));
 
+        let urls = stream::iter(urls);
         // create reqwests client.
         // this will be cloned for each task.
         let client = Client::new();
 
         let paths = urls
-            .map(|(url, path)| {
+            .map(|(url, idx, path)| {
                 // clone client to use client pool
                 // See https://github.com/seanmonstar/reqwest/issues/600
                 // url to comply with 'static lifetime required by tokio
@@ -189,7 +209,17 @@ impl Downloader {
                         src: url,
                         client: &client,
                     };
-                    dl.save_to(&path).await
+
+                    // wrap eventual Reqwest errors into DownloadErrors
+                    // to add context
+                    dl.save_to(&path).await.map_err(|e| match e {
+                        Error::Reqwest(e) => Error::Download(DownloadError {
+                            err: e,
+                            path: path,
+                            id: idx,
+                        }),
+                        _ => e,
+                    })
                 })
             })
             .buffer_unordered(self.n_tasks);
@@ -210,6 +240,7 @@ fn flatten_error(
 }
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use sha1::Digest;
     #[tokio::test]
@@ -322,7 +353,36 @@ mod tests {
         let f = File::open(&valid_file_path).expect("could not open");
         let mut d = Downloader::from_paths_file(&f, 4).expect("could not build downloader");
         std::fs::create_dir("tests/dl").unwrap();
-        d.download(Path::new("tests/dl")).await;
+        d.download(Path::new("tests/dl"), Some(0)).await;
         assert!(false);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    // test fails if test.wet.paths does not have 4 lines.
+    pub async fn test_downloader_download_offset() {
+        use std::collections::HashSet;
+
+        let test_file_path = "tests/dl";
+        let valid_file_path = "tests/res/test.wet.paths";
+        let f = File::open(&valid_file_path).expect("could not open");
+        let mut d = Downloader::from_paths_file(&f, 4).expect("could not build downloader");
+        std::fs::create_dir(test_file_path).unwrap();
+        d.download(Path::new(test_file_path), Some(2)).await;
+
+        let mut expected_paths = HashSet::new();
+        expected_paths.insert(PathBuf::from("tests/dl/2.gz"));
+        expected_paths.insert(PathBuf::from("tests/dl/3.gz"));
+        let paths: HashSet<PathBuf> = std::fs::read_dir(test_file_path)
+            .unwrap()
+            .map(|d| d.unwrap().path())
+            .collect();
+        println!("{:?}", paths);
+        assert_eq!(paths, expected_paths);
+
+        for path in paths {
+            std::fs::remove_file(path).unwrap();
+        }
+        std::fs::remove_dir(test_file_path).unwrap();
     }
 }

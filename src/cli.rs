@@ -11,6 +11,9 @@ pub enum Ungoliant {
 }
 
 #[derive(Debug, StructOpt)]
+/// Download command and parameters.
+// should it be merged with the "real" download one?
+// or at least download::Downloader implement From<Download> 
 pub struct Download {
     #[structopt(parse(from_os_str), help = "path to wet.paths file")]
     pub paths_file: PathBuf,
@@ -18,6 +21,6 @@ pub struct Download {
     pub dst: PathBuf,
     #[structopt(short = "t", help = "number of tokio tasks. Default is 4.")]
     pub n_tasks: Option<usize>,
-    // #[structopt(short = "n", help = "number of files to fetch")]
-    // n_files: Option<u32>,
+    #[structopt(short = "o", help = "number of files to skip. Default is 0.")]
+    pub offset: Option<usize>,
 }
