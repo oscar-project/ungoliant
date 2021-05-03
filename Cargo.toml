@@ -25,6 +25,16 @@ libflate = "1"
 warc = {git = "https://github.com/jedireza/warc"}
 fasttext = "0.5"
 bytes = "1"
+rayon = "1"
 
 [dev-dependencies]
 sha-1 = "0.9"
+criterion = "0.3"
+
+[[bench]]
+name = "fasttext_bench"
+harness = false
+
+[[bench]]
+name = "pipeline_bench"
+harness = false

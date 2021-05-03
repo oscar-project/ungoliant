@@ -1,6 +1,8 @@
 use std::{fs::File, io::BufReader, path::Path};
 
 use libflate::gzip::MultiDecoder;
+use rayon::iter::ParallelIterator;
+use std::convert::TryFrom;
 use std::io::BufRead;
 use warc::WarcReader;
 
@@ -40,12 +42,16 @@ impl Wet<BufReader<MultiDecoder<File>>> {
 }
 
 // impl<R: BufRead> Iterator for Wet<R> {
-//     type Item = Result<Vec<u8>, warc::Error>;
+//     type Item = Result<String, warc::Error>;
 //     fn next(&mut self) -> Option<Self::Item> {
 //         if let Some(n) = self.reader.next() {
 //             match n {
-//                 // Ok(record) => Some(Ok(String::from_utf8_lossy(&record.body).to_string())),
-//                 Ok(record) => Some(Ok(record.body)),
+//                 Ok(record) => {
+//                     let str = String::from_utf8_lossy(&record.body)
+//                         .escape_default()
+//                         .to_string();
+//                     Some(Ok(str))
+//                 }
 //                 Err(e) => Some(Err(e)),
 //             }
 //         } else {
@@ -55,14 +61,11 @@ impl Wet<BufReader<MultiDecoder<File>>> {
 // }
 
 impl<R: BufRead> Iterator for Wet<R> {
-    type Item = Result<String, warc::Error>;
+    type Item = Result<warc::RawRecord, warc::Error>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(n) = self.reader.next() {
             match n {
-                Ok(record) => {
-                    let str = String::from_utf8_lossy(&record.body).escape_default().to_string();
-                    Some(Ok(str))
-                }
+                Ok(record) => Some(Ok(record)),
                 Err(e) => Some(Err(e)),
             }
         } else {
