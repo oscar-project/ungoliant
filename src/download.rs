@@ -6,6 +6,7 @@ use log::Level;
 use reqwest::{Client, Url};
 use std::{fs::File, iter::Enumerate, path::PathBuf};
 use std::{
+    str::FromStr,
     io::{BufRead, BufReader, Read},
     path::Path,
 };
@@ -110,7 +111,7 @@ impl Downloader {
     /// from a wet.paths file
     // TODO: maybe rename? from is for type conversions.
     // TODO: watch for those `unwrap`.
-    pub fn from_paths_file(
+pub fn from_paths_file(
         paths_file: &std::fs::File,
         n_tasks: usize,
         fail_file: bool,
@@ -165,6 +166,89 @@ impl Downloader {
         Ok(Downloader { urls, n_tasks })
     }
 
+    fn parse_error_file(
+        error_file: &std::fs::File
+    ) -> Result<Vec<(String, usize)>, Error> {
+
+        let f = BufReader::new(error_file);
+
+        // get all lines and partition by result state
+        let lines = f.lines().map(|line| {
+            match line {
+                Ok(line) => {
+                    let tokens = line.split("\t");
+
+                    let url = tokens.next();
+                    let index = tokens.next();
+
+                    Ok((url, index))
+                }
+                Err(e) => Err(e)
+            }
+        });
+        Ok(Vec::new)
+    }
+
+    pub fn from_error_file(
+        error_file: &std::fs::File,
+        n_tasks: usize,
+    ) -> Result<Self, std::io::Error> {
+        debug!("Downloader using {:#?}", error_file);
+        let f = BufReader::new(error_file);
+
+        // get all lines and partition by result state
+        let lines = f.lines().map(|line| {
+            match line {
+                Ok(line) => {
+                    let tokens = line.split("\t");
+                    let url = tokens.next();
+                    let index = tokens.next();
+
+                    Ok((url, index))
+                }
+                Err(e) => Err(e)
+            }
+        });
+
+        if log_enabled!(Level::Debug) {
+            debug!(
+                "Got {valid}/{total} valid lines",
+                valid = urls.len(),
+                total = urls.len() + failures.len()
+            )
+        }
+
+        //print failed lines
+        for failure in failures {
+            error!("{:?}", failure.unwrap_err());
+        }
+
+        // in the same fashion, attempt to parse urls
+        // and collect failures
+        // unwrap() is deemed safe because we filtered failures previously
+        let (urls, failures): (Vec<_>, Vec<_>) = urls
+            .into_iter()
+            .map(|link| Url::parse(&format!("{}{}", BASE_URL, link.unwrap())))
+            .partition(Result::is_ok);
+
+        if log_enabled!(Level::Debug) {
+            debug!(
+                "Got {valid}/{total} valid URLs",
+                valid = urls.len(),
+                total = urls.len() + failures.len()
+            )
+        }
+
+        // print failures
+        for failure in failures {
+            error!("{:?}", failure.unwrap_err());
+        }
+
+        // unwrap successful paths
+        let urls = urls.into_iter().map(Result::unwrap).collect();
+
+        Ok(Downloader { urls, n_tasks })
+    }
     /// launch downloading of urls
     /// on [Self::n_parallel] tasks.
     ///
