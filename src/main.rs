@@ -23,7 +23,7 @@ async fn main() -> Result<(), std::io::Error> {
     match opt {
         cli::Ungoliant::Download(e) => {
             let paths = File::open(e.paths_file)?;
-            let mut dl = Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?;
+            let mut dl = Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4), e.fail_file)?;
             let results = dl.download(&e.dst, e.offset).await;
 
             let mut error_file = File::create("errors.txt")?;

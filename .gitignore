@@ -4,4 +4,6 @@ fastText/
 test.wet.paths
 wet.paths
 errors.txt
+errors1.txt
+errors.test.txt
 log.txt

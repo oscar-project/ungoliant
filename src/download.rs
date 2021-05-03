@@ -113,12 +113,17 @@ impl Downloader {
     pub fn from_paths_file(
         paths_file: &std::fs::File,
         n_tasks: usize,
+        fail_file: bool,
     ) -> Result<Self, std::io::Error> {
         debug!("Downloader using {:#?}", paths_file);
         let f = BufReader::new(paths_file);
 
         // get all lines and partition by result state
-        let (urls, failures): (Vec<_>, Vec<_>) = f.lines().partition(Result::is_ok);
+        if fail_file{
+            let (urls, ids): (Vec<_>, Vec<_>) = f.lines().split("\t").collect();
+        } else {
+            let (urls, failures): (Vec<_>, Vec<_>) = f.lines().partition(Result::is_ok);
+        }
 
         if log_enabled!(Level::Debug) {
             debug!(
