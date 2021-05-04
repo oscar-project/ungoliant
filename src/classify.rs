@@ -99,11 +99,11 @@ mod tests {
         let id = classifier
             .predict(short_sentence)
             .expect("could not predict sentence");
-            println!("{:?}", id);
+        println!("{:?}", id);
         assert!(id.is_none());
     }
 
-    // unilingual longish sentence that should yield a single lang with a high confidence 
+    // unilingual longish sentence that should yield a single lang with a high confidence
     #[test]
     fn test_id_en() {
         let classifier = Classifier::new_lid().expect("could not instantiate a classifier");
@@ -129,5 +129,25 @@ mod tests {
         classifier
             .predict(&garbage_default)
             .expect("could not predict sentence");
+    }
+
+    // ensures that any null character in string
+    // does not crash classifier.
+    #[test]
+    fn test_null_terminated() {
+        let classifier = Classifier::new_lid().expect("could not instantiate a classifier");
+        let nullstring = String::from(char::from(0));
+        let mut nullstring2 = String::from("hello");
+        nullstring2.push(char::from(0));
+        nullstring2.push_str(" world!");
+
+        let cls1= classifier
+            .predict(&nullstring);
+
+        let cls2 =classifier
+            .predict(&nullstring);
+
+        assert!(cls1.is_err());
+        assert!(cls2.is_err());
     }
 }

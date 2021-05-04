@@ -23,7 +23,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = {version="0.6.6", features=["compat"]}
 libflate = "1"
 warc = {git = "https://github.com/jedireza/warc"}
-fasttext = "0.5"
+fasttext = {git = "https://github.com/Uinelj/fasttext-rs"}
 bytes = "1"
 rayon = "1"
 
