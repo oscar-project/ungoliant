@@ -12,3 +12,9 @@ export OPENSSL_LIB_DIR=/path/to/anaconda/lib
 export OPENSSL_INCLUDE_DIR=/path/to/anaconda/include
 export OPENSSL_STATIC=1
 ```
+
+## Benchmarking
+
+Use `cargo bench` to run benchmarking.
+
+See results in `target/criterion/report/index.html`
