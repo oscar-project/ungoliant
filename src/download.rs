@@ -244,6 +244,7 @@ mod tests {
     use super::*;
     use sha1::Digest;
     #[tokio::test]
+    #[ignore]
     pub async fn test_download_async() {
         let test_file_path = Path::new("tests/1Mio.dat");
 
@@ -276,6 +277,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     pub async fn test_download_async_stream() {
         use tokio::fs::File;
         use tokio::io::AsyncReadExt;

@@ -141,11 +141,9 @@ mod tests {
         nullstring2.push(char::from(0));
         nullstring2.push_str(" world!");
 
-        let cls1= classifier
-            .predict(&nullstring);
+        let cls1 = classifier.predict(&nullstring);
 
-        let cls2 =classifier
-            .predict(&nullstring);
+        let cls2 = classifier.predict(&nullstring);
 
         assert!(cls1.is_err());
         assert!(cls2.is_err());
