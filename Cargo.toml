@@ -36,5 +36,5 @@ name = "fasttext_bench"
 harness = false
 
 [[bench]]
-name = "pipeline_bench"
+name = "pipeline_bench_rayon"
 harness = false
