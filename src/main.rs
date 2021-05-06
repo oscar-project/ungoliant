@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use std::io::Write;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
-use warc::{RawRecord, header::WarcHeader};
+use warc::{header::WarcHeader, RawRecord};
 
 extern crate fasttext;
 
@@ -14,11 +14,13 @@ extern crate log;
 mod classify;
 mod cli;
 mod download;
+mod error;
+mod lang;
 mod pipeline;
 mod wet;
 
 #[tokio::main]
-async fn main() -> Result<(), std::io::Error> {
+async fn main() -> Result<(), error::Error> {
     env_logger::init();
 
     let opt = cli::Ungoliant::from_args();
@@ -45,33 +47,8 @@ async fn main() -> Result<(), std::io::Error> {
         }
 
         cli::Ungoliant::Pipeline(p) => {
-            for file in std::fs::read_dir(p.src)? {
-                let file = file?;
-                println!("{:?}", &file);
-                let records = wet::Wet::from_path_gzip(file.path()).expect("error opening warc");
-
-                let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
-                for c in records.chunks(4).into_iter() {
-                    let c : Vec<RawRecord> = c
-                        .filter(Result::is_ok)
-                        .map(Result::unwrap).collect();
-                    
-                    let c = c.par_iter().for_each(|record| {
-                        match record.headers.get(&lang_tag) {
-                            Some(lang) => println!("{:#?}", String::from_utf8_lossy(lang)),
-                            None => (),
-                        }
-                    });
-                }
-                // for record in records {
-                //     let record = record.unwrap();
-                //     match record.headers.get(&lang_tag) {
-                //         Some(lang) => println!("{:#?}", String::from_utf8_lossy(lang)),
-                //         None => (),
-                //     };
-                // }
-            }
-            // println!("{:?}", std::fs::read_dir(p.src));
+            let p = pipeline::Pipeline::new(p.src, p.dst);
+            p.run()?;
             unimplemented!();
         }
         _ => {

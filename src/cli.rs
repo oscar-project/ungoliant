@@ -8,6 +8,7 @@ use structopt::StructOpt;
 pub enum Ungoliant {
     #[structopt(about = "Downloading of CommonCrawl")]
     Download(Download),
+    #[structopt(about = "Run pipeline")]
     Pipeline(Pipeline),
 }
 
