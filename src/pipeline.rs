@@ -10,6 +10,8 @@ use crate::lang::LangFiles;
 use crate::lang::LANG;
 use itertools::Itertools;
 use rayon::prelude::*;
+use std::hash::BuildHasherDefault;
+use twox_hash::XxHash64;
 use ungoliant::wet::Wet;
 use warc::RawRecord;
 
@@ -24,7 +26,11 @@ pub struct Pipeline {
 
 #[derive(Debug)]
 struct ShardContent {
-    pub inner: HashMap<&'static str, HashSet<String>>,
+    pub inner: HashMap<
+        &'static str,
+        HashSet<String, BuildHasherDefault<XxHash64>>,
+        BuildHasherDefault<XxHash64>,
+    >,
 }
 
 /// holds a hashmap over (lang, sentences)
@@ -33,7 +39,7 @@ struct ShardContent {
 impl ShardContent {
     pub fn new() -> Self {
         ShardContent {
-            inner: HashMap::new(),
+            inner: Default::default(),
         }
     }
 
@@ -44,7 +50,7 @@ impl ShardContent {
         if let Some(sentences) = self.inner.get_mut(&lang) {
             sentences.insert(sentence)
         } else {
-            let mut hs = HashSet::new();
+            let mut hs: HashSet<String, BuildHasherDefault<XxHash64>> = Default::default();
             let ret = hs.insert(sentence);
             self.inner.insert(lang, hs);
             ret
@@ -70,6 +76,7 @@ impl Pipeline {
             .filter_map(|shard| shard.ok())
             .filter_map(|shard| Wet::from_path_gzip(&shard.path()).ok());
 
+        let results = results.take(4);
         // convert to parallel iterator
         // /!\: We use par_bridge, that is suboptimal
         //      compared to implementing IntoParallelIterator
@@ -85,7 +92,7 @@ impl Pipeline {
 
             info!("processing shard {:?}", idx);
 
-            for record in wetfile {
+            for record in wetfile.take(500) {
                 let record = record.unwrap();
                 let body = String::from_utf8(record.body).ok();
                 if let Some(sentences) = body {

@@ -49,7 +49,6 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::Pipeline(p) => {
             let p = pipeline::Pipeline::new(p.src, p.dst);
             p.run()?;
-            unimplemented!();
         }
         _ => {
             unimplemented!();

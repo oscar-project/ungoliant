@@ -26,6 +26,7 @@ warc = {git = "https://github.com/jedireza/warc"}
 fasttext = {git = "https://github.com/Uinelj/fasttext-rs"}
 bytes = "1"
 rayon = "1"
+twox-hash = "1.6"
 
 [dev-dependencies]
 sha-1 = "0.9"
