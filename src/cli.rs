@@ -23,6 +23,4 @@ pub struct Download {
     pub n_tasks: Option<usize>,
     #[structopt(short = "o", help = "number of files to skip. Default is 0.")]
     pub offset: Option<usize>,
-    #[structopt(short = "f", help = "The file is an error file")]
-    pub fail_file: bool,
 }

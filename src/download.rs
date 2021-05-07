@@ -114,17 +114,13 @@ impl Downloader {
 pub fn from_paths_file(
         paths_file: &std::fs::File,
         n_tasks: usize,
-        fail_file: bool,
     ) -> Result<Self, std::io::Error> {
         debug!("Downloader using {:#?}", paths_file);
         let f = BufReader::new(paths_file);
 
         // get all lines and partition by result state
-        if fail_file{
-            let (urls, ids): (Vec<_>, Vec<_>) = f.lines().split("\t").collect();
-        } else {
             let (urls, failures): (Vec<_>, Vec<_>) = f.lines().partition(Result::is_ok);
-        }
+
 
         if log_enabled!(Level::Debug) {
             debug!(
@@ -166,89 +162,89 @@ pub fn from_paths_file(
         Ok(Downloader { urls, n_tasks })
     }
 
-    fn parse_error_file(
-        error_file: &std::fs::File
-    ) -> Result<Vec<(String, usize)>, Error> {
-
-        let f = BufReader::new(error_file);
-
-        // get all lines and partition by result state
-        let lines = f.lines().map(|line| {
-            match line {
-                Ok(line) => {
-                    let tokens = line.split("\t");
-
-                    let url = tokens.next();
-                    let index = tokens.next();
-
-                    Ok((url, index))
-                }
-                Err(e) => Err(e)
-            }
-        });
-        Ok(Vec::new)
-    }
-
-    pub fn from_error_file(
+    pub fn parse_error_file(
         error_file: &std::fs::File,
         n_tasks: usize,
-    ) -> Result<Self, std::io::Error> {
-        debug!("Downloader using {:#?}", error_file);
+    ) -> Result<(Self, Vec<usize>), std::io::Error> {
+
         let f = BufReader::new(error_file);
 
-        // get all lines and partition by result state
-        let lines = f.lines().map(|line| {
-            match line {
-                Ok(line) => {
-                    let tokens = line.split("\t");
-                    let url = tokens.next();
-                    let index = tokens.next();
+        let mut urls: Vec<reqwest::Url> = Vec::new();
+        let mut index: Vec<usize> = Vec::new();
 
-                    Ok((url, index))
-                }
-                Err(e) => Err(e)
-            }
-        });
-
-        if log_enabled!(Level::Debug) {
-            debug!(
-                "Got {valid}/{total} valid lines",
-                valid = urls.len(),
-                total = urls.len() + failures.len()
-            )
+        for line in f.lines() {
+            let line = line.unwrap();
+            let mut tokens = line.split("\t");
+            urls.push(Url::parse(&format!("{}{}", BASE_URL, tokens.next().unwrap())).unwrap());
+            index.push(tokens.next().unwrap().parse::<usize>().unwrap());
         }
-
-        //print failed lines
-        for failure in failures {
-            error!("{:?}", failure.unwrap_err());
-        }
-
-        // in the same fashion, attempt to parse urls
-        // and collect failures
-        // unwrap() is deemed safe because we filtered failures previously
-        let (urls, failures): (Vec<_>, Vec<_>) = urls
-            .into_iter()
-            .map(|link| Url::parse(&format!("{}{}", BASE_URL, link.unwrap())))
-            .partition(Result::is_ok);
-
-        if log_enabled!(Level::Debug) {
-            debug!(
-                "Got {valid}/{total} valid URLs",
-                valid = urls.len(),
-                total = urls.len() + failures.len()
-            )
-        }
-
-        // print failures
-        for failure in failures {
-            error!("{:?}", failure.unwrap_err());
-        }
-
-        // unwrap successful paths
-        let urls = urls.into_iter().map(Result::unwrap).collect();
-
-        Ok(Downloader { urls, n_tasks })
+        Ok((Downloader { urls, n_tasks }, index))
     }
+
+
+    /// launch downloading of urls
+    /// on [Self::n_parallel] tasks.
+    ///
+    /// See this [SO post](https://stackoverflow.com/questions/51044467/how-can-i-perform-parallel-asynchronous-http-get-requests-with-reqwest)
+    /// for more info.
+    pub async fn download_errors (
+        &mut self,
+        dst: &Path,
+        index: &Vec<usize>,
+    ) -> Vec<Result<PathBuf, Error>> {
+        // creates a new pathbuf that concats dst and i.gz
+        let to_pathbuf = |i| {
+            [dst, &Path::new(&format!("{}.txt.gz", i))]
+                .iter()
+                .collect::<PathBuf>()
+        };
+
+        // skipping urls to offset
+        let urls = index.into_iter()
+        .zip(self.urls.iter())
+        .map(|(i, url)| (url, i, to_pathbuf(i)));
+
+        let urls = stream::iter(urls);
+        // create reqwests client.
+        // this will be cloned for each task.
+        let client = Client::new();
+
+        let paths = urls
+            .map(|(url, idx, path)| {
+                // clone client to use client pool
+                // See https://github.com/seanmonstar/reqwest/issues/600
+                // url to comply with 'static lifetime required by tokio
+                // note: we could also use Arc?
+                println!("Crawling {} to file {}.txt.gz", url, idx);
+
+                let client = client.clone();
+                let url = url.clone();
+
+                tokio::spawn(async move {
+                    // launch download and return path or failure
+                    let dl = Download {
+                        src: url,
+                        client: &client,
+                    };
+
+                    // wrap eventual Reqwest errors into DownloadErrors
+                    // to add context
+                    dl.save_to(&path).await.map_err(|e| match e {
+                        Error::Reqwest(e) => Error::Download(DownloadError {
+                            err: e,
+                            path: path,
+                            id: *idx,
+                        }),
+                        _ => e,
+                    })
+                })
+            })
+            .buffer_unordered(self.n_tasks);
+
+        // flatten nested errors
+        paths.map(|result| flatten_error(result)).collect().await
+    }
+
     /// launch downloading of urls
     /// on [Self::n_parallel] tasks.
     ///
