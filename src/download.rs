@@ -220,6 +220,7 @@ pub fn from_paths_file(
                 let client = client.clone();
                 let url = url.clone();
 
+                let idx = idx.clone();
                 tokio::spawn(async move {
                     // launch download and return path or failure
                     let dl = Download {
@@ -233,7 +234,7 @@ pub fn from_paths_file(
                         Error::Reqwest(e) => Error::Download(DownloadError {
                             err: e,
                             path: path,
-                            id: *idx,
+                            id: idx,
                         }),
                         _ => e,
                     })
