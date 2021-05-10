@@ -109,6 +109,57 @@ fn pipeline_wet_par_rec_seq_sen_seq() {
     });
 }
 
+// parallel on WET and sentences
+fn pipeline_wet_par_rec_seq_sen_par() {
+    let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+    let cls = Classifier::new_lid().unwrap();
+    let results = std::fs::read_dir("results/")
+        .unwrap()
+        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
+    let results = results.par_bridge();
+    results.for_each(|wetfile| {
+        let records = wetfile.take(NB_RECORDS);
+        for record in records {
+            let record = record.unwrap();
+            let body = String::from_utf8(record.body).ok();
+            if let Some(sentences) = body {
+                let sentences = sentences
+                    .lines()
+                    .filter(|line| line.chars().count() > 100)
+                    .par_bridge();
+                sentences.for_each(|s| {
+                    cls.predict(s);
+                });
+            }
+        }
+    });
+}
+
+fn pipeline_wet_par_rec_par_sen_par() {
+    let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+    let cls = Classifier::new_lid().unwrap();
+    let results = std::fs::read_dir("results/")
+        .unwrap()
+        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
+    let results = results.par_bridge();
+    results.for_each(|wetfile| {
+        let records = wetfile.take(NB_RECORDS).par_bridge();
+        records.for_each(|record| {
+            let record = record.unwrap();
+            let body = String::from_utf8(record.body).ok();
+            if let Some(sentences) = body {
+                let sentences = sentences
+                    .lines()
+                    .filter(|line| line.chars().count() > 100)
+                    .par_bridge();
+                sentences.for_each(|s| {
+                    cls.predict(s);
+                });
+            }
+        });
+    });
+}
+
 fn bench_pipelines(c: &mut Criterion) {
     let mut group = c.benchmark_group("Pipeline");
     group.bench_function(BenchmarkId::new("wet=seq rec=seq sen=seq", 1), |b| {
@@ -122,6 +173,12 @@ fn bench_pipelines(c: &mut Criterion) {
     });
     group.bench_function(BenchmarkId::new("wet=par rec=seq sen=seq", 4), |b| {
         b.iter(pipeline_wet_par_rec_seq_sen_seq)
+    });
+    group.bench_function(BenchmarkId::new("wet=par rec=seq sen=par", 5), |b| {
+        b.iter(pipeline_wet_par_rec_seq_sen_par)
+    });
+    group.bench_function(BenchmarkId::new("wet=par rec=par sen=par", 6), |b| {
+        b.iter(pipeline_wet_par_rec_seq_sen_par)
     });
     group.finish();
 }
