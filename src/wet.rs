@@ -1,5 +1,6 @@
 use std::{fs::File, io::BufReader, path::Path};
 
+use flate2::read::MultiGzDecoder;
 use libflate::gzip::MultiDecoder;
 use rayon::iter::ParallelIterator;
 use std::convert::TryFrom;
@@ -26,14 +27,14 @@ pub struct Wet<T> {
     reader: WarcReader<T>,
 }
 
-impl Wet<BufReader<MultiDecoder<File>>> {
+impl Wet<BufReader<MultiGzDecoder<File>>> {
     pub fn from_path_gzip<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let gzip_file = File::open(path)?;
-        let gzip_stream = MultiDecoder::new(gzip_file)?;
+        let gzip_stream = MultiGzDecoder::new(gzip_file);
 
         // we use a different reader from the default one in the warc crate to
         // manage multipart gzipped content.
-        let bufreader = BufReader::with_capacity(100 * MB, gzip_stream);
+        let bufreader = BufReader::new(gzip_stream);
 
         let reader = WarcReader::new(bufreader);
 
