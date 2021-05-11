@@ -27,7 +27,6 @@ struct ShardContent {
 }
 
 impl ShardContent {
-
     /// create a new, empty [ShardContent]. Uses [Default::default] for initialization
     pub fn new() -> Self {
         ShardContent {
@@ -58,6 +57,52 @@ impl Pipeline {
         Pipeline { src, dst }
     }
 
+    /// Process a provided record.
+    fn process_record(record: RawRecord, cls: &Classifier) -> Option<Vec<(String, &'static str)>> {
+        let body = String::from_utf8(record.body).ok();
+
+        // process record if body is utf8-valid
+        if let Some(sentences) = body {
+            // filter out lines that does not contain 100 characters.
+            // then convert into a parallel iterator
+            let sentences = sentences
+                .lines()
+                .filter(|line| line.chars().count() > 100)
+                .par_bridge();
+
+            let results: Vec<(String, &'static str)> = sentences
+                // predict for each sentence, discarding
+                // predictions that does not meet threshold
+                .filter_map(|sentence| {
+                    let prediction = cls.predict(&sentence).ok();
+
+                    if let Some(Some(lang)) = prediction {
+                        //TODO: rewrite these two lines more elegantly
+                        //      we can unwrap since predict returns None if no predictions are
+                        //      found
+                        let lang = lang.get(0).unwrap();
+
+                        // check if fasttext provided lang exists
+                        // return None if not
+                        match LANG.get(lang.label.as_str()) {
+                            Some(lang) => Some((sentence.to_string(), *lang)),
+                            None => {
+                                warn!("lang {} does not exist!", lang.label);
+                                return None;
+                            }
+                        }
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            Some(results)
+        } else {
+            None
+        }
+    }
+
     /// Run the whole pipeline
     pub fn run(&self) -> Result<(), Error> {
         let cls = Classifier::new_lid()?;
@@ -79,7 +124,7 @@ impl Pipeline {
         let results = results.enumerate().par_bridge();
 
         // holds file handles
-        let mut langfiles = LangFiles::new(&self.dst).unwrap();
+        let langfiles = LangFiles::new(&self.dst)?;
 
         // iterate over shards
         results.for_each(|(idx, shard)| {
@@ -87,53 +132,21 @@ impl Pipeline {
             info!("processing shard {:?}", idx);
 
             // convert into a parallel iterator
-            let wetfile = shard.par_bridge();
+            let wetfile = shard.enumerate().par_bridge();
 
             let shard_results: Vec<Vec<(String, &'static str)>> = wetfile
-                .filter_map(|record| {
-
-                    //TODO: remove the unwrap
-                    let record = record.unwrap();
-                    let body = String::from_utf8(record.body).ok();
-
-                    // process record if body is utf8-valid
-                    if let Some(sentences) = body {
-
-                        // filter out lines that does not contain 100 characters.
-                        let sentences = sentences
-                            .lines()
-                            .filter(|line| line.chars().count() > 100)
-                            .par_bridge();
-
-                        let results: Vec<(String, &'static str)> = sentences
-
-                            // predict for each sentence, discarding 
-                            // predictions that does not meet threshold
-                            .filter_map(|sentence| {
-                                let prediction = cls.predict(&sentence).ok();
-                                if let Some(Some(lang)) = prediction {
-
-                                    //TODO: rewrite these two lines more elegantly 
-                                    //      we can unwrap since predict returns None if no predictions are
-                                    //      found
-                                    let lang = lang.get(0).unwrap();
-                                    let lang = LANG.get(lang.label.as_str()).unwrap();
-
-                                    return Some((sentence.to_string(), *lang));
-                                } else {
-                                    return None;
-                                }
-                            })
-                            .collect();
-
-                        Some(results)
-                    } else {
-                        None
+                .filter_map(|(idx_record, record)| {
+                    match record {
+                        Ok(record) => Pipeline::process_record(record, &cls),
+                        Err(e) => {
+                            warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
+                            return None;
+                        },
                     }
                 })
                 .collect(); //TODO: test with a for_each and a channel to send?
 
-            // store predictions into ShardContent
+            // store predictions into sorted_sentences
             for record in shard_results {
                 record
                     .into_iter()
@@ -148,6 +161,7 @@ impl Pipeline {
                 fd.write_all(&content.as_bytes()).unwrap();
             }
         });
+
         Ok(())
     }
 }
