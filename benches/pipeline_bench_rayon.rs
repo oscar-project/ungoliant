@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use itertools::Itertools;
 use rayon::prelude::*;
 use ungoliant::classify::Classifier;
-use ungoliant::wet::Wet;
+use ungoliant::shard::wet::Wet;
 use warc::{header::WarcHeader, RawRecord};
 
 const NB_RECORDS: usize = 250;
