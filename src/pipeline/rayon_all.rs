@@ -13,7 +13,7 @@ use itertools::Itertools;
 use rayon::prelude::*;
 use std::hash::BuildHasherDefault;
 use twox_hash::XxHash64;
-use ungoliant::wet::Wet;
+use ungoliant::shard::wet::Wet;
 use warc::RawRecord;
 
 pub struct RayonAll {

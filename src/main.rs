@@ -18,7 +18,7 @@ mod download;
 mod error;
 mod lang;
 mod pipeline;
-mod wet;
+mod shard;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
