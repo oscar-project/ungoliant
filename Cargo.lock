@@ -1651,6 +1651,8 @@ dependencies = [
  "num_cpus",
  "rayon",
  "reqwest",
+ "serde",
+ "serde_json",
  "sha-1",
  "structopt",
  "tokio",
@@ -1758,11 +1760,12 @@ dependencies = [
 [[package]]
 name = "warc"
 version = "0.3.0"
-source = "git+https://github.com/jedireza/warc#8759b40ed2c34233c56746e2085d22cd6ec7ba56"
+source = "git+https://github.com/uinelj/warc#e28fc3651ec7e0529e2d8437520fd7a91ce9c1e4"
 dependencies = [
  "chrono",
  "libflate",
  "nom",
+ "serde",
  "uuid",
 ]
 
