@@ -17,6 +17,7 @@ mod cli;
 mod download;
 mod error;
 mod lang;
+mod metadata;
 mod pipeline;
 mod shard;
 
