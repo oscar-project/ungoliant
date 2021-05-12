@@ -1,7 +1,9 @@
 use std::{
     collections::{HashMap, HashSet},
     io::Write,
+    ops::Range,
     path::PathBuf,
+    vec::IntoIter,
 };
 
 use crate::classify::Classifier;
@@ -14,12 +16,15 @@ use rayon::prelude::*;
 use std::hash::BuildHasherDefault;
 use twox_hash::XxHash64;
 use ungoliant::shard::wet::Wet;
-use warc::RawRecord;
+use warc::{header::WarcHeader, RawRecord};
 
 pub struct RayonAll {
     src: PathBuf,
     dst: PathBuf,
+    with_metadata: bool,
 }
+
+type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
 /// container for (lang, sentences) pairs
 #[derive(Debug)]
@@ -59,7 +64,10 @@ impl RayonAll {
     }
 
     /// Process a provided record.
-    fn process_record(record: RawRecord, cls: &Classifier) -> Option<Vec<(String, &'static str)>> {
+    fn process_record(
+        record: RawRecord,
+        cls: &Classifier,
+    ) -> Option<(Vec<(String, &'static str)>, WarcHeaders)> {
         let body = String::from_utf8(record.body).ok();
 
         // process record if body is utf8-valid
@@ -98,7 +106,7 @@ impl RayonAll {
                 })
                 .collect();
 
-            Some(results)
+            Some((results, record.headers))
         } else {
             None
         }
@@ -136,7 +144,7 @@ impl Pipeline<()> for RayonAll {
             // convert into a parallel iterator
             let wetfile = shard.enumerate().par_bridge();
 
-            let shard_results: Vec<Vec<(String, &'static str)>> = wetfile
+            let shard_results: Vec<(Vec<(String, &'static str)>, WarcHeaders)> = wetfile
                 .filter_map(|(idx_record, record)| match record {
                     Ok(record) => RayonAll::process_record(record, &cls),
                     Err(e) => {
@@ -144,24 +152,75 @@ impl Pipeline<()> for RayonAll {
                         return None;
                     }
                 })
+                // collect here is blocking
+                // because we can't write concurrently into a HashMap
+                // and using Mutexes might ruin performance.
                 .collect(); //TODO: test with a for_each and a channel to send?
 
             // store predictions into sorted_sentences
-            for record in shard_results {
-                record
-                    .into_iter()
-                    .for_each(|(sentence, lang)| sorted_sentences.insert(sentence, lang));
-            }
+            if !self.with_metadata {
+                for (record, _) in shard_results {
+                    record
+                        .into_iter()
+                        .for_each(|(sentence, lang)| sorted_sentences.insert(sentence, lang));
+                }
 
-            // write to disk
-            debug!("writing shard {:?} into lang files", idx);
-            for (lang, sentences) in sorted_sentences.inner {
-                let mut fd = langfiles.get(&lang).unwrap();
-                let content = sentences.into_iter().join("\n");
-                fd.write_all(&content.as_bytes()).unwrap();
+                // write to disk
+                debug!("writing shard {:?} into lang files", idx);
+                for (lang, sentences) in sorted_sentences.inner {
+                    let mut fd = langfiles.get(&lang).unwrap();
+                    let content = sentences.into_iter().join("\n");
+                    fd.write_all(&content.as_bytes()).unwrap();
+                }
+            } else {
+                for (record, header) in shard_results {
+                    Self::link_metadata(record, header);
+                }
             }
         });
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    #[test]
+    fn link_metadata() {
+        // we should have 4 "paragraphs"
+        let sentences = vec![
+            ("Hello, how are you?", "en"),
+            ("Bonjour, comment allez-vous?", "fr"),
+            ("Je vais bien merci, et vous?", "fr"),
+            ("Yo soy un gaucho, pero no vivo a la pampa.", "es"),
+            ("This is a new paragraph from the same record.", "en"),
+        ]
+        .into_iter()
+        .map(|(sen, lang)| (sen.to_string(), *LANG.get(lang).unwrap()))
+        .collect();
+
+        let mut header: WarcHeaders = HashMap::new();
+        header.insert(WarcHeader::ContentLength, vec![0]);
+        Pipeline::link_metadata(sentences, header);
+    }
+    #[test]
+    fn link_metadata_2() {
+        // we should have 3 "paragraphs"
+        let sentences = vec![
+            ("Hello, how are you?", "en"),
+            ("Bonjour, comment allez-vous?", "fr"),
+            ("Je vais bien merci, et vous?", "fr"),
+            ("Yo soy un gaucho, pero no vivo a la pampa.", "es"),
+            ("Donde esta la biblioteca?", "es"),
+        ]
+        .into_iter()
+        .map(|(sen, lang)| (sen.to_string(), *LANG.get(lang).unwrap()))
+        .collect();
+
+        let mut header: WarcHeaders = HashMap::new();
+        header.insert(WarcHeader::ContentLength, vec![0]);
+        Pipeline::link_metadata(sentences, header);
     }
 }

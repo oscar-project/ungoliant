@@ -33,4 +33,6 @@ pub struct Pipeline {
     pub src: PathBuf,
     #[structopt(parse(from_os_str), help = "pipeline result destination")]
     pub dst: PathBuf,
+    #[structopt(short = "m", long = "with_metadata", help = "extract metadata")]
+    pub with_metadata: bool,
 }
