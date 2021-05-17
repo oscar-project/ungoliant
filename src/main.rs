@@ -1,5 +1,6 @@
 use download::Downloader;
 use itertools::Itertools;
+use pipeline::pipeline::Pipeline;
 use rayon::prelude::*;
 use std::io::Write;
 use std::{fs::File, path::PathBuf};
@@ -47,7 +48,7 @@ async fn main() -> Result<(), error::Error> {
         }
 
         cli::Ungoliant::Pipeline(p) => {
-            let p = pipeline::Pipeline::new(p.src, p.dst);
+            let p = pipeline::rayon_all::RayonAll::new(p.src, p.dst);
             p.run()?;
         }
         _ => {

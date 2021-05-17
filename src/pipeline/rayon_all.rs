@@ -8,6 +8,7 @@ use crate::classify::Classifier;
 use crate::error::Error;
 use crate::lang::LangFiles;
 use crate::lang::LANG;
+use crate::pipeline::pipeline::Pipeline;
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::hash::BuildHasherDefault;
@@ -15,7 +16,7 @@ use twox_hash::XxHash64;
 use ungoliant::wet::Wet;
 use warc::RawRecord;
 
-pub struct Pipeline {
+pub struct RayonAll {
     src: PathBuf,
     dst: PathBuf,
 }
@@ -52,9 +53,9 @@ impl ShardContent {
 /// Processing pipeline.
 ///
 /// May be changed into a Trait to allow for more implementation flexibility
-impl Pipeline {
+impl RayonAll {
     pub fn new(src: PathBuf, dst: PathBuf) -> Self {
-        Pipeline { src, dst }
+        Self { src, dst }
     }
 
     /// Process a provided record.
@@ -102,9 +103,10 @@ impl Pipeline {
             None
         }
     }
+}
 
-    /// Run the whole pipeline
-    pub fn run(&self) -> Result<(), Error> {
+impl Pipeline<()> for RayonAll {
+    fn run(&self) -> Result<(), Error> {
         let cls = Classifier::new_lid()?;
 
         // list files in source folder,
@@ -135,13 +137,11 @@ impl Pipeline {
             let wetfile = shard.enumerate().par_bridge();
 
             let shard_results: Vec<Vec<(String, &'static str)>> = wetfile
-                .filter_map(|(idx_record, record)| {
-                    match record {
-                        Ok(record) => Pipeline::process_record(record, &cls),
-                        Err(e) => {
-                            warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
-                            return None;
-                        },
+                .filter_map(|(idx_record, record)| match record {
+                    Ok(record) => RayonAll::process_record(record, &cls),
+                    Err(e) => {
+                        warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
+                        return None;
                     }
                 })
                 .collect(); //TODO: test with a for_each and a channel to send?
