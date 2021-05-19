@@ -5,7 +5,7 @@ use ungoliant::classify::Classifier;
 use ungoliant::wet::Wet;
 use warc::{header::WarcHeader, RawRecord};
 
-const NB_RECORDS: usize = 200;
+const NB_RECORDS: usize = 250;
 // bench protocol:
 //
 // We take 4 files (TODO: 8 in order to have files>cores/threads)
@@ -17,12 +17,12 @@ const NB_RECORDS: usize = 200;
 // - Parallel on WET, Sequential on Sentences and Records
 
 // Full sequential
-fn pipeline_wet_seq_rec_seq_sen_seq() {
-    let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+fn sequential(nb_shards: usize) {
     let cls = Classifier::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
-        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
+        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
+        .take(nb_shards);
 
     for wetfile in results {
         for record in wetfile.take(NB_RECORDS) {
@@ -39,12 +39,13 @@ fn pipeline_wet_seq_rec_seq_sen_seq() {
 }
 
 // Sequential on WET files and records, concurrent on lines.
-fn pipeline_wet_seq_rec_seq_sen_par() {
-    let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+fn parallel_on_sentences(nb_shards: usize) {
     let cls = Classifier::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
-        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
+        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
+        .take(nb_shards);
+
     for wetfile in results {
         for record in wetfile.take(NB_RECORDS) {
             let record = record.unwrap();
@@ -63,12 +64,12 @@ fn pipeline_wet_seq_rec_seq_sen_par() {
 }
 
 // parallel on records
-fn pipeline_wet_seq_rec_par_sen_seq() {
-    let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+fn parallel_on_records(nb_shards: usize) {
     let cls = Classifier::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
-        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
+        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
+        .take(nb_shards);
     for wetfile in results {
         let records = wetfile.into_iter().take(NB_RECORDS).par_bridge();
         records.for_each(|record| {
@@ -88,12 +89,12 @@ fn pipeline_wet_seq_rec_par_sen_seq() {
 }
 
 // parallel on WET
-fn pipeline_wet_par_rec_seq_sen_seq() {
-    let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+fn parallel_on_shards(nb_shards: usize) {
     let cls = Classifier::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
-        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
+        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
+        .take(nb_shards);
     let results = results.par_bridge();
     results.for_each(|wetfile| {
         let records = wetfile.take(NB_RECORDS);
@@ -110,12 +111,13 @@ fn pipeline_wet_par_rec_seq_sen_seq() {
 }
 
 // parallel on WET and sentences
-fn pipeline_wet_par_rec_seq_sen_par() {
-    let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+fn parallel_on_shards_and_sentences(nb_shards: usize) {
     let cls = Classifier::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
-        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
+        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
+        .take(nb_shards);
+
     let results = results.par_bridge();
     results.for_each(|wetfile| {
         let records = wetfile.take(NB_RECORDS);
@@ -135,12 +137,13 @@ fn pipeline_wet_par_rec_seq_sen_par() {
     });
 }
 
-fn pipeline_wet_par_rec_par_sen_par() {
-    let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+fn parallel_all(nb_shards: usize) {
     let cls = Classifier::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
-        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
+        .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
+        .take(nb_shards);
+
     let results = results.par_bridge();
     results.for_each(|wetfile| {
         let records = wetfile.take(NB_RECORDS).par_bridge();
@@ -162,24 +165,24 @@ fn pipeline_wet_par_rec_par_sen_par() {
 
 fn bench_pipelines(c: &mut Criterion) {
     let mut group = c.benchmark_group("Pipeline");
-    group.bench_function(BenchmarkId::new("wet=seq rec=seq sen=seq", 1), |b| {
-        b.iter(pipeline_wet_seq_rec_seq_sen_seq)
-    });
-    group.bench_function(BenchmarkId::new("wet=seq rec=seq sen=par", 2), |b| {
-        b.iter(pipeline_wet_seq_rec_seq_sen_par)
-    });
-    group.bench_function(BenchmarkId::new("wet=seq rec=par sen=seq", 3), |b| {
-        b.iter(pipeline_wet_seq_rec_par_sen_seq)
-    });
-    group.bench_function(BenchmarkId::new("wet=par rec=seq sen=seq", 4), |b| {
-        b.iter(pipeline_wet_par_rec_seq_sen_seq)
-    });
-    group.bench_function(BenchmarkId::new("wet=par rec=seq sen=par", 5), |b| {
-        b.iter(pipeline_wet_par_rec_seq_sen_par)
-    });
-    group.bench_function(BenchmarkId::new("wet=par rec=par sen=par", 6), |b| {
-        b.iter(pipeline_wet_par_rec_seq_sen_par)
-    });
+    // for nb_shards in vec![1, 10, 25] {
+    for nb_shards in vec![25] {
+        group.bench_with_input(
+            BenchmarkId::new("parallel on records", nb_shards),
+            &nb_shards,
+            |b, nb_shards| b.iter(|| parallel_on_records(*nb_shards)),
+        );
+        group.bench_with_input(
+            BenchmarkId::new("parallel on shards", nb_shards),
+            &nb_shards,
+            |b, nb_shards| b.iter(|| parallel_on_shards(*nb_shards)),
+        );
+        group.bench_with_input(
+            BenchmarkId::new("parallel on all", nb_shards),
+            &nb_shards,
+            |b, nb_shards| b.iter(|| parallel_all(*nb_shards)),
+        );
+    }
     group.finish();
 }
 
