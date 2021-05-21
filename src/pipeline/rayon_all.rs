@@ -221,6 +221,6 @@ mod tests {
 
         let mut header: WarcHeaders = HashMap::new();
         header.insert(WarcHeader::ContentLength, vec![0]);
-        Pipeline::link_metadata(sentences, header);
+        let ret = Pipeline::link_metadata(sentences, header);
     }
 }
