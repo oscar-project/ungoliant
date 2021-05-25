@@ -159,7 +159,6 @@ impl Pipeline<()> for RayonAll {
 
             //TODO continue
             //shows records where there's more than one language detected.
-            //TODO replace Range by RangeInclusive.
             for (sentences, header) in shard_results[..300].iter() {
                 let langs: Vec<&&str> = sentences.iter().map(|(_, lang)| lang).collect();
                 let grouped = Self::group_by(langs);
@@ -183,10 +182,43 @@ impl Pipeline<()> for RayonAll {
                     let mut fd = langfiles.get(&lang).unwrap();
                     let content = sentences.into_iter().join("\n");
                     fd.write_all(&content.as_bytes()).unwrap();
+                    println!("{:?}", fd);
                 }
             } else {
+                let mut offsets: HashMap<&str, usize> = HashMap::new();
+
+                // iterate over records
                 for (record, header) in shard_results {
-                    Self::link_metadata(record, header);
+                    // holds references to identified languages of each sentence
+                    let langs: Vec<&&str> = record.iter().map(|(_, lang)| lang).collect();
+
+                    // chunk references by langid
+                    let chunks = Pipeline::group_by(langs);
+
+                    println!(
+                        "{:?}",
+                        String::from_utf8_lossy(header.get(&WarcHeader::RecordID).unwrap())
+                    );
+                    // write sentences for each identified language
+                    for (lang, ranges) in chunks {
+                        let mut fd = langfiles.get(lang).unwrap();
+
+                        // sums ranges for each identified language
+                        // this way we know which offset to provide for next iteration
+                        let nb_sentences = ranges
+                            .iter()
+                            .fold(0, |acc, x| acc + x.end() - x.start() + 1);
+
+                        // register/bump offsets
+                        match offsets.get_mut(lang) {
+                            Some(offset) => *offset += nb_sentences,
+                            None => {
+                                offsets.insert(lang, nb_sentences);
+                            }
+                        };
+
+                        println!("\t{:?}: {:?} ({:?} sen.)", lang, ranges, nb_sentences);
+                    }
                 }
             }
         });
