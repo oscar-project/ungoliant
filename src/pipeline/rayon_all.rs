@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     io::Write,
-    ops::Range,
+    ops::{Range, RangeInclusive},
     path::PathBuf,
     vec::IntoIter,
 };
@@ -170,25 +170,25 @@ impl Pipeline<()> for RayonAll {
             }
 
             // store predictions into sorted_sentences
-            // if !self.with_metadata {
-            //     for (record, _) in shard_results {
-            //         record
-            //             .into_iter()
-            //             .for_each(|(sentence, lang)| sorted_sentences.insert(sentence, lang));
-            //     }
+            if !self.with_metadata {
+                for (record, _) in shard_results {
+                    record
+                        .into_iter()
+                        .for_each(|(sentence, lang)| sorted_sentences.insert(sentence, lang));
+                }
 
-            //     // write to disk
-            //     debug!("writing shard {:?} into lang files", idx);
-            //     for (lang, sentences) in sorted_sentences.inner {
-            //         let mut fd = langfiles.get(&lang).unwrap();
-            //         let content = sentences.into_iter().join("\n");
-            //         fd.write_all(&content.as_bytes()).unwrap();
-            //     }
-            // } else {
-            //     for (record, header) in shard_results {
-            //         Self::link_metadata(record, header);
-            //     }
-            // }
+                // write to disk
+                debug!("writing shard {:?} into lang files", idx);
+                for (lang, sentences) in sorted_sentences.inner {
+                    let mut fd = langfiles.get(&lang).unwrap();
+                    let content = sentences.into_iter().join("\n");
+                    fd.write_all(&content.as_bytes()).unwrap();
+                }
+            } else {
+                for (record, header) in shard_results {
+                    Self::link_metadata(record, header);
+                }
+            }
         });
 
         Ok(())
@@ -201,7 +201,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn group_by() {
+    fn group_by_simple() {
         // simple case
         let langs = vec![
             "en", "en", //
@@ -211,51 +211,59 @@ mod tests {
             "es", "es", "es", "es", //
         ];
 
-        let mut expected: HashMap<&str, Vec<Range<usize>>> = HashMap::new();
-        expected.insert("en", vec![0..2, 6..8]);
-        expected.insert("fr", vec![2..6, 8..10]);
-        expected.insert("es", vec![10..13]);
+        let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
+        expected.insert("en", vec![0..=1, 6..=7]);
+        expected.insert("fr", vec![2..=5, 8..=9]);
+        expected.insert("es", vec![10..=13]);
 
         let r = Pipeline::group_by(langs);
-        println!("{:?}", &r);
+        println!("expected: {:?}", &expected);
+        println!("result  : {:?}", &r);
         for (k, v) in r {
             assert_eq!(&v, expected.get(k).unwrap());
         }
     }
-    #[test]
-    fn link_metadata() {
-        // we should have 4 "paragraphs"
-        let sentences = vec![
-            ("Hello, how are you?", "en"),
-            ("Bonjour, comment allez-vous?", "fr"),
-            ("Je vais bien merci, et vous?", "fr"),
-            ("Yo soy un gaucho, pero no vivo a la pampa.", "es"),
-            ("This is a new paragraph from the same record.", "en"),
-        ]
-        .into_iter()
-        .map(|(sen, lang)| (sen.to_string(), *LANG.get(lang).unwrap()))
-        .collect();
 
-        let mut header: WarcHeaders = HashMap::new();
-        header.insert(WarcHeader::ContentLength, vec![0]);
-        Pipeline::link_metadata(sentences, header);
+    #[test]
+    fn group_by_empty() {
+        let langs: Vec<&str> = Vec::new();
+
+        let r = Pipeline::group_by(langs);
+        assert!(r.is_empty());
+    }
+
+    #[test]
+    fn group_by_uniq() {
+        let langs = vec!["fr"; 10];
+
+        let r = Pipeline::group_by(langs);
+        let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
+        expected.insert("fr", vec![0..=9]);
+        assert_eq!(r, expected);
+    }
+
+    #[test]
+    fn group_by_uniq_but_first() {
+        let mut langs = vec!["fr"; 10];
+        langs.insert(0, "it");
+
+        let r = Pipeline::group_by(langs);
+        let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
+        expected.insert("it", vec![0..=0]);
+        expected.insert("fr", vec![1..=10]);
+        println!("{:?}", r);
+        assert_eq!(r, expected);
     }
     #[test]
-    fn link_metadata_2() {
-        // we should have 3 "paragraphs"
-        let sentences = vec![
-            ("Hello, how are you?", "en"),
-            ("Bonjour, comment allez-vous?", "fr"),
-            ("Je vais bien merci, et vous?", "fr"),
-            ("Yo soy un gaucho, pero no vivo a la pampa.", "es"),
-            ("Donde esta la biblioteca?", "es"),
-        ]
-        .into_iter()
-        .map(|(sen, lang)| (sen.to_string(), *LANG.get(lang).unwrap()))
-        .collect();
+    fn group_by_uniq_but_last() {
+        let mut langs = vec!["fr"; 10];
+        langs.push("it");
 
-        let mut header: WarcHeaders = HashMap::new();
-        header.insert(WarcHeader::ContentLength, vec![0]);
-        let ret = Pipeline::link_metadata(sentences, header);
+        let r = Pipeline::group_by(langs);
+        let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
+        expected.insert("fr", vec![0..=9]);
+        expected.insert("it", vec![10..=10]);
+        println!("{:?}", r);
+        assert_eq!(r, expected);
     }
 }
