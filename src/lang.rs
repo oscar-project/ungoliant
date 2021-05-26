@@ -222,6 +222,23 @@ impl LangFiles {
         Ok(LangFiles { handles })
     }
 
+    pub fn new_meta(src: &Path) -> Result<Self, std::io::Error> {
+        let mut options = OpenOptions::new();
+        options.read(true).append(true).create(true);
+        let mut handles = HashMap::new();
+        for lang in LANG.iter() {
+            let mut filename = lang.to_string();
+            filename.push_str("_meta");
+            let mut file_path: PathBuf = [src, &Path::new(&filename)].iter().collect();
+            file_path.set_extension("txt");
+            debug!("creating/opening {:?}", file_path);
+            let fh = options.clone().open(file_path)?;
+            handles.insert(*lang, fh);
+        }
+
+        Ok(LangFiles { handles })
+    }
+
     /// binds to [HashMap::get].
     pub fn get(&self, key: &'static str) -> Option<&File> {
         self.handles.get(key)

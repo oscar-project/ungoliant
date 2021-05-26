@@ -2,11 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     io::Write,
     ops::{Range, RangeInclusive},
-    path::PathBuf,
+    path::{Path, PathBuf},
     vec::IntoIter,
 };
 
-use crate::classify::Classifier;
 use crate::error::Error;
 use crate::lang::LangFiles;
 use crate::lang::LANG;
@@ -186,7 +185,7 @@ impl Pipeline<()> for RayonAll {
                 }
             } else {
                 let mut offsets: HashMap<&str, usize> = HashMap::new();
-
+                let meta_files = LangFiles::new_meta(Path::new("dst_meta")).unwrap();
                 // iterate over records
                 for (record, header) in shard_results {
                     // holds references to identified languages of each sentence
@@ -205,6 +204,7 @@ impl Pipeline<()> for RayonAll {
                     // write sentences for each identified language
                     for (lang, ranges) in chunks {
                         let mut fd = langfiles.get(lang).unwrap();
+                        let mut fd_meta = meta_files.get(lang).unwrap();
 
                         // sums ranges for each identified language
                         // this way we know which offset to provide for next iteration
@@ -213,10 +213,16 @@ impl Pipeline<()> for RayonAll {
                             .fold(0, |acc, x| acc + x.end() - x.start() + 1);
 
                         // register/bump offsets
-                        match offsets.get_mut(lang) {
-                            Some(offset) => *offset += nb_sentences,
+                        // and return starting offset of content
+                        let offset: usize = match offsets.get_mut(lang) {
+                            Some(offset) => {
+                                *offset += nb_sentences;
+                                *offset - nb_sentences
+                            }
                             None => {
                                 offsets.insert(lang, nb_sentences);
+                                0
+                                // nb_sentences
                             }
                         };
 
@@ -226,6 +232,17 @@ impl Pipeline<()> for RayonAll {
                             sen += &sentences[range].join("\n");
                         }
                         fd.write_all(&mut sen.as_bytes()).unwrap();
+                        let header_str: HashMap<WarcHeader, String> = header
+                            .iter()
+                            .map(|(k, v)| (k.clone(), String::from_utf8_lossy(v).to_string()))
+                            .collect();
+                        let meta = metadata::Metadata {
+                            headers: header_str,
+                            offset: offset,
+                        };
+                        fd_meta
+                            .write_all(&mut serde_json::to_string_pretty(&meta).unwrap().as_bytes())
+                            .unwrap();
                     }
                 }
             }

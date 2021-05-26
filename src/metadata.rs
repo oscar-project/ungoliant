@@ -9,9 +9,9 @@ use warc::header::WarcHeader;
 /// Each metadata is linked to a specific paragraph/text zone
 /// TODO enhance doc here to explain usage
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-struct Metadata {
-    headers: HashMap<WarcHeader, String>,
-    offset: usize,
+pub struct Metadata {
+    pub headers: HashMap<WarcHeader, String>,
+    pub offset: usize,
 }
 
 #[cfg(test)]
