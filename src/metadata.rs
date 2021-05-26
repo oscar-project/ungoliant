@@ -12,6 +12,7 @@ use warc::header::WarcHeader;
 pub struct Metadata {
     pub headers: HashMap<WarcHeader, String>,
     pub offset: usize,
+    pub nb_sentences: usize,
 }
 
 #[cfg(test)]
@@ -27,7 +28,11 @@ mod tests {
             WarcHeader::Unknown("warc-identified-content-language".to_string()),
             "zho".to_string(),
         );
-        let metadata = Metadata { headers, offset: 0 };
+        let metadata = Metadata {
+            headers,
+            offset: 0,
+            nb_sentences: 0,
+        };
 
         assert!(serde_json::to_string(&metadata).is_ok());
     }
@@ -42,7 +47,11 @@ mod tests {
             WarcHeader::Unknown("warc-identified-content-language".to_string()),
             "zho".to_string(),
         );
-        let expected = Metadata { headers, offset: 0 };
+        let expected = Metadata {
+            headers,
+            offset: 0,
+            nb_sentences: 0,
+        };
         let result: Metadata = serde_json::from_str(&meta_json).unwrap();
         assert_eq!(result, expected);
     }

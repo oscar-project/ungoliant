@@ -134,9 +134,11 @@ impl Pipeline<()> for RayonAll {
 
         // holds file handles
         let langfiles = LangFiles::new(&self.dst)?;
+        let meta_files = LangFiles::new_meta(Path::new("dst_meta")).unwrap();
 
         // iterate over shards
         results.for_each(|(idx, shard)| {
+            let mut offsets: HashMap<&str, usize> = HashMap::new();
             let mut sorted_sentences = ShardContent::new();
             info!("processing shard {:?}", idx);
 
@@ -156,36 +158,23 @@ impl Pipeline<()> for RayonAll {
                 // and using Mutexes might ruin performance.
                 .collect(); //TODO: test with a for_each and a channel to send?
 
-            //TODO continue
-            //shows records where there's more than one language detected.
-            for (sentences, header) in shard_results[..300].iter() {
-                let langs: Vec<&&str> = sentences.iter().map(|(_, lang)| lang).collect();
-                let grouped = Self::group_by(langs);
-                if grouped.len() > 1 {
-                    println!("{:#?}", sentences);
-                    println!("{:#?}", grouped);
-                }
-            }
-
             // store predictions into sorted_sentences
-            if !self.with_metadata {
-                for (record, _) in shard_results {
-                    record
-                        .into_iter()
-                        .for_each(|(sentence, lang)| sorted_sentences.insert(sentence, lang));
-                }
+            // if !self.with_metadata {
+            //     for (record, _) in shard_results {
+            //         record
+            //             .into_iter()
+            //             .for_each(|(sentence, lang)| sorted_sentences.insert(sentence, lang));
+            //     }
 
-                // write to disk
-                debug!("writing shard {:?} into lang files", idx);
-                for (lang, sentences) in sorted_sentences.inner {
-                    let mut fd = langfiles.get(&lang).unwrap();
-                    let content = sentences.into_iter().join("\n");
-                    fd.write_all(&content.as_bytes()).unwrap();
-                    println!("{:?}", fd);
-                }
-            } else {
-                let mut offsets: HashMap<&str, usize> = HashMap::new();
-                let meta_files = LangFiles::new_meta(Path::new("dst_meta")).unwrap();
+            //     // write to disk
+            //     debug!("writing shard {:?} into lang files", idx);
+            //     for (lang, sentences) in sorted_sentences.inner {
+            //         let mut fd = langfiles.get(&lang).unwrap();
+            //         let content = sentences.into_iter().join("\n");
+            //         fd.write_all(&content.as_bytes()).unwrap();
+            //         println!("{:?}", fd);
+            //     }
+            if self.with_metadata {
                 // iterate over records
                 for (record, header) in shard_results {
                     // holds references to identified languages of each sentence
@@ -195,11 +184,6 @@ impl Pipeline<()> for RayonAll {
                         record.into_iter().map(|(sentences, _)| sentences).collect();
                     // chunk references by langid
                     let chunks = Pipeline::group_by(langs);
-
-                    println!(
-                        "{:?}",
-                        String::from_utf8_lossy(header.get(&WarcHeader::RecordID).unwrap())
-                    );
 
                     // write sentences for each identified language
                     for (lang, ranges) in chunks {
@@ -215,9 +199,9 @@ impl Pipeline<()> for RayonAll {
                         // register/bump offsets
                         // and return starting offset of content
                         let offset: usize = match offsets.get_mut(lang) {
-                            Some(offset) => {
-                                *offset += nb_sentences;
-                                *offset - nb_sentences
+                            Some(off) => {
+                                *off += nb_sentences;
+                                *off - nb_sentences
                             }
                             None => {
                                 offsets.insert(lang, nb_sentences);
@@ -226,10 +210,10 @@ impl Pipeline<()> for RayonAll {
                             }
                         };
 
-                        println!("\t{:?}: {:?} ({:?} sen.)", lang, ranges, nb_sentences);
                         let mut sen = String::new();
                         for range in ranges {
                             sen += &sentences[range].join("\n");
+                            sen += "\n";
                         }
                         fd.write_all(&mut sen.as_bytes()).unwrap();
                         let header_str: HashMap<WarcHeader, String> = header
@@ -239,6 +223,7 @@ impl Pipeline<()> for RayonAll {
                         let meta = metadata::Metadata {
                             headers: header_str,
                             offset: offset,
+                            nb_sentences,
                         };
                         fd_meta
                             .write_all(&mut serde_json::to_string_pretty(&meta).unwrap().as_bytes())
