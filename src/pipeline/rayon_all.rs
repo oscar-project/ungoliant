@@ -158,79 +158,46 @@ impl Pipeline<()> for RayonAll {
                 // and using Mutexes might ruin performance.
                 .collect(); //TODO: test with a for_each and a channel to send?
 
-            // store predictions into sorted_sentences
-            // if !self.with_metadata {
-            //     for (record, _) in shard_results {
-            //         record
-            //             .into_iter()
-            //             .for_each(|(sentence, lang)| sorted_sentences.insert(sentence, lang));
-            //     }
+            let shard_results = shard_results.into_iter().map(|(record, header)| {
+                // split between langs and sentences
+                let langs: Vec<&str> = record.iter().map(|(_, lang)| lang.clone()).collect();
+                let sentences: Vec<String> =
+                    record.into_iter().map(|(sentences, _)| sentences).collect();
 
-            //     // write to disk
-            //     debug!("writing shard {:?} into lang files", idx);
-            //     for (lang, sentences) in sorted_sentences.inner {
-            //         let mut fd = langfiles.get(&lang).unwrap();
-            //         let content = sentences.into_iter().join("\n");
-            //         fd.write_all(&content.as_bytes()).unwrap();
-            //         println!("{:?}", fd);
-            //     }
-            if self.with_metadata {
-                // iterate over records
-                for (record, header) in shard_results {
-                    // holds references to identified languages of each sentence
-                    //TODO: see if we can spare the copy here
-                    let langs: Vec<&str> = record.iter().map(|(_, lang)| lang.clone()).collect();
-                    let sentences: Vec<String> =
-                        record.into_iter().map(|(sentences, _)| sentences).collect();
-                    // chunk references by langid
-                    let chunks = Pipeline::group_by(langs);
+                // chunk references by langid
+                let chunks = Pipeline::group_by(langs);
 
-                    // write sentences for each identified language
-                    for (lang, ranges) in chunks {
-                        let mut fd = langfiles.get(lang).unwrap();
-                        let mut fd_meta = meta_files.get(lang).unwrap();
+                // transform vector of chunks (that are (lang, ranges)) into
+                //  (String, Metadata), where Metadata's offset is shard-scoped.
+                let processed_chunks: Vec<(String, metadata::Metadata)> = chunks
+                    .into_iter()
+                    .map(|(lang, ranges)| {
+                        Pipeline::process_chunk(lang, &sentences, &header, ranges, &mut offsets)
+                    })
+                    .collect();
 
-                        // sums ranges for each identified language
-                        // this way we know which offset to provide for next iteration
-                        let nb_sentences = ranges
-                            .iter()
-                            .fold(0, |acc, x| acc + x.end() - x.start() + 1);
+                processed_chunks
+            });
 
-                        // register/bump offsets
-                        // and return starting offset of content
-                        let offset: usize = match offsets.get_mut(lang) {
-                            Some(off) => {
-                                *off += nb_sentences;
-                                *off - nb_sentences
-                            }
-                            None => {
-                                offsets.insert(lang, nb_sentences);
-                                0
-                                // nb_sentences
-                            }
-                        };
-
-                        let mut sen = String::new();
-                        for range in ranges {
-                            sen += &sentences[range].join("\n");
-                            sen += "\n";
-                        }
-                        fd.write_all(&mut sen.as_bytes()).unwrap();
-                        let header_str: HashMap<WarcHeader, String> = header
-                            .iter()
-                            .map(|(k, v)| (k.clone(), String::from_utf8_lossy(v).to_string()))
-                            .collect();
-                        let meta = metadata::Metadata {
-                            headers: header_str,
-                            offset: offset,
-                            nb_sentences,
-                        };
-                        fd_meta
-                            .write_all(&mut serde_json::to_string_pretty(&meta).unwrap().as_bytes())
-                            .unwrap();
-                    }
-                }
+            // use global scope offset and mutex to increase/check offset on files.
+            // (or find a way to get the info from file?)
+            for res in shard_results {
+                println!("{:#?}", res);
             }
+            // for (record, header) in shard_results {
+            //     // holds references to identified languages of each sentence
+            //     //TODO: see if we can spare the copy here
+            //     let langs: Vec<&str> = record.iter().map(|(_, lang)| lang.clone()).collect();
+            //     let sentences: Vec<String> =
+            //         record.into_iter().map(|(sentences, _)| sentences).collect();
+            //     // chunk references by langid
+            //     let chunks = Pipeline::group_by(langs);
+
+            //     // write sentences for each identified language
+            //     let processed_chunks = chunks.into_iter().map(|(lang, ranges)| {
+            //         Pipeline::process_chunk(lang, &sentences, &header, ranges, &mut offsets)
+            //     });
+            // }
         });
 
         Ok(())
