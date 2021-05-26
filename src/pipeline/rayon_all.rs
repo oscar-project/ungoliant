@@ -190,8 +190,10 @@ impl Pipeline<()> for RayonAll {
                 // iterate over records
                 for (record, header) in shard_results {
                     // holds references to identified languages of each sentence
-                    let langs: Vec<&&str> = record.iter().map(|(_, lang)| lang).collect();
-
+                    //TODO: see if we can spare the copy here
+                    let langs: Vec<&str> = record.iter().map(|(_, lang)| lang.clone()).collect();
+                    let sentences: Vec<String> =
+                        record.into_iter().map(|(sentences, _)| sentences).collect();
                     // chunk references by langid
                     let chunks = Pipeline::group_by(langs);
 
@@ -199,6 +201,7 @@ impl Pipeline<()> for RayonAll {
                         "{:?}",
                         String::from_utf8_lossy(header.get(&WarcHeader::RecordID).unwrap())
                     );
+
                     // write sentences for each identified language
                     for (lang, ranges) in chunks {
                         let mut fd = langfiles.get(lang).unwrap();
@@ -218,6 +221,11 @@ impl Pipeline<()> for RayonAll {
                         };
 
                         println!("\t{:?}: {:?} ({:?} sen.)", lang, ranges, nb_sentences);
+                        let mut sen = String::new();
+                        for range in ranges {
+                            sen += &sentences[range].join("\n");
+                        }
+                        fd.write_all(&mut sen.as_bytes()).unwrap();
                     }
                 }
             }
