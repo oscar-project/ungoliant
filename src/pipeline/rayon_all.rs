@@ -1,8 +1,10 @@
 use std::{
+    borrow::BorrowMut,
     collections::{HashMap, HashSet},
     io::Write,
     ops::{Range, RangeInclusive},
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
     vec::IntoIter,
 };
 
@@ -135,10 +137,13 @@ impl Pipeline<()> for RayonAll {
         // holds file handles
         let langfiles = LangFiles::new(&self.dst)?;
         let meta_files = LangFiles::new_meta(Path::new("dst_meta")).unwrap();
+        let mut offsets_global: Arc<Mutex<HashMap<&'static str, usize>>> =
+            Arc::new(Mutex::new(HashMap::new()));
 
         // iterate over shards
         results.for_each(|(idx, shard)| {
             let mut offsets: HashMap<&str, usize> = HashMap::new();
+            let global_offsets = offsets_global.clone();
             let mut sorted_sentences = ShardContent::new();
             info!("processing shard {:?}", idx);
 
@@ -158,46 +163,83 @@ impl Pipeline<()> for RayonAll {
                 // and using Mutexes might ruin performance.
                 .collect(); //TODO: test with a for_each and a channel to send?
 
-            let shard_results = shard_results.into_iter().map(|(record, header)| {
-                // split between langs and sentences
-                let langs: Vec<&str> = record.iter().map(|(_, lang)| lang.clone()).collect();
-                let sentences: Vec<String> =
-                    record.into_iter().map(|(sentences, _)| sentences).collect();
-
-                // chunk references by langid
-                let chunks = Pipeline::group_by(langs);
-
-                // transform vector of chunks (that are (lang, ranges)) into
-                //  (String, Metadata), where Metadata's offset is shard-scoped.
-                let processed_chunks: Vec<(String, metadata::Metadata)> = chunks
+            let mut shard_results: Vec<Vec<(String, &'static str, metadata::Metadata)>> =
+                shard_results
                     .into_iter()
-                    .map(|(lang, ranges)| {
-                        Pipeline::process_chunk(lang, &sentences, &header, ranges, &mut offsets)
+                    .map(|(record, header)| {
+                        // split between langs and sentences
+                        let langs: Vec<&str> =
+                            record.iter().map(|(_, lang)| lang.clone()).collect();
+                        let sentences: Vec<String> =
+                            record.into_iter().map(|(sentences, _)| sentences).collect();
+
+                        // chunk references by langid
+                        let chunks = Pipeline::group_by(langs);
+
+                        // transform vector of chunks (that are (lang, ranges)) into
+                        //  (String, Metadata), where Metadata's offset is shard-scoped.
+                        let processed_chunks: Vec<(String, &'static str, metadata::Metadata)> =
+                            chunks
+                                .into_iter()
+                                .map(|(lang, ranges)| {
+                                    Pipeline::process_chunk(
+                                        lang,
+                                        &sentences,
+                                        &header,
+                                        ranges,
+                                        &mut offsets,
+                                    )
+                                })
+                                .collect();
+
+                        processed_chunks
                     })
                     .collect();
 
-                processed_chunks
-            });
+            {
+                let mut o = global_offsets.lock().unwrap();
 
-            // use global scope offset and mutex to increase/check offset on files.
-            // (or find a way to get the info from file?)
-            for res in shard_results {
-                println!("{:#?}", res);
+                // update metadata with global offsets
+                // TODO: flatten shard_results into a vec of records?
+                for record in &mut shard_results {
+                    for (_, lang, meta) in record {
+                        match o.get(lang) {
+                            Some(global_offset) => meta.offset += global_offset,
+                            None => (),
+                        }
+                    }
+                }
+
+                // update global offsets
+                for (lang, offset) in offsets {
+                    match o.get_mut(lang) {
+                        Some(g_offset) => *g_offset += offset,
+                        None => {
+                            o.insert(lang, offset);
+                        }
+                    }
+                }
+
+                //mutex drop due to end of scope
             }
-            // for (record, header) in shard_results {
-            //     // holds references to identified languages of each sentence
-            //     //TODO: see if we can spare the copy here
-            //     let langs: Vec<&str> = record.iter().map(|(_, lang)| lang.clone()).collect();
-            //     let sentences: Vec<String> =
-            //         record.into_iter().map(|(sentences, _)| sentences).collect();
-            //     // chunk references by langid
-            //     let chunks = Pipeline::group_by(langs);
 
-            //     // write sentences for each identified language
-            //     let processed_chunks = chunks.into_iter().map(|(lang, ranges)| {
-            //         Pipeline::process_chunk(lang, &sentences, &header, ranges, &mut offsets)
-            //     });
-            // }
+            //TODO: group into a single write
+            //      by grouping writes by lang
+            //      and metadata writes by lang too (use a hm<lang, vec<meta>>?)
+            for record in shard_results {
+                for (sentences, lang, meta) in record {
+                    match langfiles.get(lang) {
+                        Some(mut fd) => fd.write_all(sentences.as_bytes()).unwrap(),
+                        None => error!("could not write to {} file", lang),
+                    }
+                    match meta_files.get(lang) {
+                        Some(mut fd) => fd
+                            .write_all(serde_json::to_string_pretty(&meta).unwrap().as_bytes())
+                            .unwrap(),
+                        None => error!("could not write to {} file", lang),
+                    }
+                }
+            }
         });
 
         Ok(())
