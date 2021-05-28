@@ -1,6 +1,6 @@
 use std::{
     borrow::BorrowMut,
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     io::Write,
     ops::{Range, RangeInclusive},
     path::{Path, PathBuf},
@@ -8,7 +8,6 @@ use std::{
     vec::IntoIter,
 };
 
-use crate::error::Error;
 use crate::lang::LangFiles;
 use crate::lang::LANG;
 use crate::pipeline::pipeline::Pipeline;
@@ -223,20 +222,52 @@ impl Pipeline<()> for RayonAll {
                 //mutex drop due to end of scope
             }
 
-            //TODO: group into a single write
-            //      by grouping writes by lang
-            //      and metadata writes by lang too (use a hm<lang, vec<meta>>?)
-            for record in shard_results {
-                for (sentences, lang, meta) in record {
-                    match langfiles.get(lang) {
-                        Some(mut fd) => fd.write_all(sentences.as_bytes()).unwrap(),
-                        None => error!("could not write to {} file", lang),
-                    }
-                    match meta_files.get(lang) {
-                        Some(mut fd) => fd
-                            .write_all(serde_json::to_string_pretty(&meta).unwrap().as_bytes())
-                            .unwrap(),
-                        None => error!("could not write to {} file", lang),
+            // group by lang to limit number of writes.
+            if GROUPING {
+                let mut sentences_to_write: HashMap<&'static str, String> = HashMap::new();
+                let mut metadata_to_write: HashMap<&'static str, Vec<Metadata>> = HashMap::new();
+                for (s, l, m) in shard_results.into_iter().flatten() {
+                    sentences_to_write
+                        .entry(l)
+                        .and_modify(|v| *v += &s)
+                        .or_insert(s);
+
+                    match metadata_to_write.get_mut(l) {
+                        Some(meta) => meta.push(m),
+                        None => {
+                            metadata_to_write.insert(l, vec![m]);
+                        }
+                    };
+                }
+
+                for lang in sentences_to_write.keys() {
+                    let mut fd = langfiles.get(lang).unwrap();
+                    let mut fd_meta = meta_files.get(lang).unwrap();
+
+                    fd.write_all(sentences_to_write.get(lang).unwrap().as_bytes())
+                        .unwrap();
+                    fd_meta
+                        .write_all(
+                            serde_json::to_string_pretty(metadata_to_write.get(lang).unwrap())
+                                .unwrap()
+                                .as_bytes(),
+                        )
+                        .unwrap();
+                }
+            } else {
+                //without grouping
+                for record in shard_results {
+                    for (sentences, lang, meta) in record {
+                        match langfiles.get(lang) {
+                            Some(mut fd) => fd.write_all(sentences.as_bytes()).unwrap(),
+                            None => error!("could not write to {} file", lang),
+                        }
+                        match meta_files.get(lang) {
+                            Some(mut fd) => fd
+                                .write_all(serde_json::to_string_pretty(&meta).unwrap().as_bytes())
+                                .unwrap(),
+                            None => error!("could not write to {} file", lang),
+                        }
                     }
                 }
             }
