@@ -49,7 +49,8 @@ async fn main() -> Result<(), error::Error> {
         }
 
         cli::Ungoliant::Pipeline(p) => {
-            let p = pipeline::rayon_all::RayonAll::new(p.src, p.dst);
+            // let p = pipeline::rayon_all::RayonAll::new(p.src, p.dst);
+            let p = pipeline::oscar_metadata::OscarMetadata::new(p.src, p.dst);
             p.run()?;
         }
         _ => {

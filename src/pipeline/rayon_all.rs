@@ -8,20 +8,19 @@ use std::{
     vec::IntoIter,
 };
 
-use crate::lang::LangFiles;
 use crate::lang::LANG;
 use crate::pipeline::pipeline::Pipeline;
+use crate::{error::Error, lang::LangFiles};
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::hash::BuildHasherDefault;
 use twox_hash::XxHash64;
-use ungoliant::shard::wet::Wet;
+use ungoliant::{classify::Classifier, shard::wet::Wet};
 use warc::{header::WarcHeader, RawRecord};
 
 pub struct RayonAll {
     src: PathBuf,
     dst: PathBuf,
-    with_metadata: bool,
 }
 
 type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
@@ -64,10 +63,8 @@ impl RayonAll {
     }
 
     /// Process a provided record.
-    fn process_record(
-        record: RawRecord,
-        cls: &Classifier,
-    ) -> Option<(Vec<(String, &'static str)>, WarcHeaders)> {
+    /// Process a provided record.
+    fn process_record(record: RawRecord, cls: &Classifier) -> Option<Vec<(String, &'static str)>> {
         let body = String::from_utf8(record.body).ok();
 
         // process record if body is utf8-valid
@@ -106,7 +103,7 @@ impl RayonAll {
                 })
                 .collect();
 
-            Some((results, record.headers))
+            Some(results)
         } else {
             None
         }
@@ -135,21 +132,16 @@ impl Pipeline<()> for RayonAll {
 
         // holds file handles
         let langfiles = LangFiles::new(&self.dst)?;
-        let meta_files = LangFiles::new_meta(Path::new("dst_meta")).unwrap();
-        let mut offsets_global: Arc<Mutex<HashMap<&'static str, usize>>> =
-            Arc::new(Mutex::new(HashMap::new()));
 
         // iterate over shards
         results.for_each(|(idx, shard)| {
-            let mut offsets: HashMap<&str, usize> = HashMap::new();
-            let global_offsets = offsets_global.clone();
             let mut sorted_sentences = ShardContent::new();
             info!("processing shard {:?}", idx);
 
             // convert into a parallel iterator
             let wetfile = shard.enumerate().par_bridge();
 
-            let shard_results: Vec<(Vec<(String, &'static str)>, WarcHeaders)> = wetfile
+            let shard_results: Vec<Vec<(String, &'static str)>> = wetfile
                 .filter_map(|(idx_record, record)| match record {
                     Ok(record) => RayonAll::process_record(record, &cls),
                     Err(e) => {
@@ -157,110 +149,21 @@ impl Pipeline<()> for RayonAll {
                         return None;
                     }
                 })
-                // collect here is blocking
-                // because we can't write concurrently into a HashMap
-                // and using Mutexes might ruin performance.
                 .collect(); //TODO: test with a for_each and a channel to send?
 
-            let mut shard_results: Vec<Vec<(String, &'static str, metadata::Metadata)>> =
-                shard_results
+            // store predictions into sorted_sentences
+            for record in shard_results {
+                record
                     .into_iter()
-                    .map(|(record, header)| {
-                        // split between langs and sentences
-                        let langs: Vec<&str> =
-                            record.iter().map(|(_, lang)| lang.clone()).collect();
-                        let sentences: Vec<String> =
-                            record.into_iter().map(|(sentences, _)| sentences).collect();
-
-                        // chunk references by langid
-                        let chunks = Pipeline::group_by(langs);
-
-                        // transform vector of chunks (that are (lang, ranges)) into
-                        //  (String, Metadata), where Metadata's offset is shard-scoped.
-                        let processed_chunks: Vec<(String, &'static str, metadata::Metadata)> =
-                            chunks
-                                .into_iter()
-                                .map(|(lang, ranges)| {
-                                    Pipeline::process_chunk(
-                                        lang,
-                                        &sentences,
-                                        &header,
-                                        ranges,
-                                        &mut offsets,
-                                    )
-                                })
-                                .collect();
-
-                        processed_chunks
-                    })
-                    .collect();
-
-            {
-                let mut o = global_offsets.lock().unwrap();
-
-                // update metadata with global offsets
-                // TODO: flatten shard_results into a vec of records?
-                for record in &mut shard_results {
-                    for (_, lang, meta) in record {
-                        match o.get(lang) {
-                            Some(global_offset) => meta.offset += global_offset,
-                            None => (),
-                        }
-                    }
-                }
-
-                // update global offsets
-                for (lang, offset) in offsets {
-                    match o.get_mut(lang) {
-                        Some(g_offset) => *g_offset += offset,
-                        None => {
-                            o.insert(lang, offset);
-                        }
-                    }
-                }
-
-                //mutex drop due to end of scope
+                    .for_each(|(sentence, lang)| sorted_sentences.insert(sentence, lang));
             }
 
-            // group by lang to limit number of writes.
-            // TODO use clear instead of new
-            let mut sentences_to_write: HashMap<&'static str, String> = HashMap::new();
-            let mut metadata_to_write: HashMap<&'static str, Vec<Metadata>> = HashMap::new();
-
-            // flatten to get a vector of 3-uplets (sentences, lang, metadata)
-            // instead of having to iterate through records too.
-            for (s, l, m) in shard_results.into_iter().flatten() {
-                // we use entry API to concatenate or insert string
-                // TODO use this wherever it's applicable
-                sentences_to_write
-                    .entry(l)
-                    .and_modify(|v| *v += &s)
-                    .or_insert(s);
-
-                // we use a less intuitive approach
-                // because of mutability rules
-                match metadata_to_write.get_mut(l) {
-                    Some(meta) => meta.push(m),
-                    None => {
-                        metadata_to_write.insert(l, vec![m]);
-                    }
-                };
-            }
-
-            // write into files
-            for lang in sentences_to_write.keys() {
-                let mut fd = langfiles.get(lang).unwrap();
-                let mut fd_meta = meta_files.get(lang).unwrap();
-
-                fd.write_all(sentences_to_write.get(lang).unwrap().as_bytes())
-                    .unwrap();
-                fd_meta
-                    .write_all(
-                        serde_json::to_string_pretty(metadata_to_write.get(lang).unwrap())
-                            .unwrap()
-                            .as_bytes(),
-                    )
-                    .unwrap();
+            // write to disk
+            debug!("writing shard {:?} into lang files", idx);
+            for (lang, sentences) in sorted_sentences.inner {
+                let mut fd = langfiles.get(&lang).unwrap();
+                let content = sentences.into_iter().join("\n");
+                fd.write_all(&content.as_bytes()).unwrap();
             }
         });
 
@@ -268,75 +171,80 @@ impl Pipeline<()> for RayonAll {
     }
 }
 
-#[cfg(test)]
-mod tests {
+// #[cfg(test)]
+// mod tests {
 
-    use super::*;
+//     use super::*;
 
-    #[test]
-    fn group_by_simple() {
-        // simple case
-        let langs = vec![
-            "en", "en", //
-            "fr", "fr", "fr", "fr", //
-            "en", "en", //
-            "fr", "fr", //
-            "es", "es", "es", "es", //
-        ];
+//     #[test]
+//     #[ignore]
+//     fn group_by_simple() {
+//         // simple case
+//         let langs = vec![
+//             "en", "en", //
+//             "fr", "fr", "fr", "fr", //
+//             "en", "en", //
+//             "fr", "fr", //
+//             "es", "es", "es", "es", //
+//         ];
 
-        let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
-        expected.insert("en", vec![0..=1, 6..=7]);
-        expected.insert("fr", vec![2..=5, 8..=9]);
-        expected.insert("es", vec![10..=13]);
+//         let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
+//         expected.insert("en", vec![0..=1, 6..=7]);
+//         expected.insert("fr", vec![2..=5, 8..=9]);
+//         expected.insert("es", vec![10..=13]);
 
-        let r = Pipeline::group_by(langs);
-        println!("expected: {:?}", &expected);
-        println!("result  : {:?}", &r);
-        for (k, v) in r {
-            assert_eq!(&v, expected.get(k).unwrap());
-        }
-    }
+//         let r = Pipeline::group_by(langs);
+//         println!("expected: {:?}", &expected);
+//         println!("result  : {:?}", &r);
+//         for (k, v) in r {
+//             assert_eq!(&v, expected.get(k).unwrap());
+//         }
+//     }
 
-    #[test]
-    fn group_by_empty() {
-        let langs: Vec<&str> = Vec::new();
+//     #[test]
+//     #[ignore]
+//     fn group_by_empty() {
+//         let langs: Vec<&str> = Vec::new();
 
-        let r = Pipeline::group_by(langs);
-        assert!(r.is_empty());
-    }
+//         let r = Pipeline::group_by(langs);
+//         assert!(r.is_empty());
+//     }
 
-    #[test]
-    fn group_by_uniq() {
-        let langs = vec!["fr"; 10];
+//     #[test]
+//     #[ignore]
+//     fn group_by_uniq() {
+//         let langs = vec!["fr"; 10];
 
-        let r = Pipeline::group_by(langs);
-        let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
-        expected.insert("fr", vec![0..=9]);
-        assert_eq!(r, expected);
-    }
+//         let r = Pipeline::group_by(langs);
+//         let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
+//         expected.insert("fr", vec![0..=9]);
+//         assert_eq!(r, expected);
+//     }
 
-    #[test]
-    fn group_by_uniq_but_first() {
-        let mut langs = vec!["fr"; 10];
-        langs.insert(0, "it");
+//     #[test]
+//     #[ignore]
+//     fn group_by_uniq_but_first() {
+//         let mut langs = vec!["fr"; 10];
+//         langs.insert(0, "it");
 
-        let r = Pipeline::group_by(langs);
-        let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
-        expected.insert("it", vec![0..=0]);
-        expected.insert("fr", vec![1..=10]);
-        println!("{:?}", r);
-        assert_eq!(r, expected);
-    }
-    #[test]
-    fn group_by_uniq_but_last() {
-        let mut langs = vec!["fr"; 10];
-        langs.push("it");
+//         let r = Pipeline::group_by(langs);
+//         let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
+//         expected.insert("it", vec![0..=0]);
+//         expected.insert("fr", vec![1..=10]);
+//         println!("{:?}", r);
+//         assert_eq!(r, expected);
+//     }
+//     #[test]
+//     #[ignore]
+//     fn group_by_uniq_but_last() {
+//         let mut langs = vec!["fr"; 10];
+//         langs.push("it");
 
-        let r = Pipeline::group_by(langs);
-        let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
-        expected.insert("fr", vec![0..=9]);
-        expected.insert("it", vec![10..=10]);
-        println!("{:?}", r);
-        assert_eq!(r, expected);
-    }
-}
+//         let r = Pipeline::group_by(langs);
+//         let mut expected: HashMap<&str, Vec<RangeInclusive<usize>>> = HashMap::new();
+//         expected.insert("fr", vec![0..=9]);
+//         expected.insert("it", vec![10..=10]);
+//         println!("{:?}", r);
+//         assert_eq!(r, expected);
+//     }
+// }

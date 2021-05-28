@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn deserialize() {
-        let meta_json = r#"{"headers":{"warc-type":"conversion","content-length":"6231","warc-identified-content-language":"zho"},"offset":0}"#;
+        let meta_json = r#"{"headers":{"warc-type":"conversion","content-length":"6231","warc-identified-content-language":"zho"},"offset":0, "nb_sentences": 0}"#;
         let mut headers: HashMap<WarcHeader, String> = HashMap::new();
         headers.insert(WarcHeader::WarcType, "conversion".to_string());
         headers.insert(WarcHeader::ContentLength, "6231".to_string());
