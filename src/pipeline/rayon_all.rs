@@ -223,14 +223,22 @@ impl Pipeline<()> for RayonAll {
             }
 
             // group by lang to limit number of writes.
+            // TODO use clear instead of new
             let mut sentences_to_write: HashMap<&'static str, String> = HashMap::new();
             let mut metadata_to_write: HashMap<&'static str, Vec<Metadata>> = HashMap::new();
+
+            // flatten to get a vector of 3-uplets (sentences, lang, metadata)
+            // instead of having to iterate through records too.
             for (s, l, m) in shard_results.into_iter().flatten() {
+                // we use entry API to concatenate or insert string
+                // TODO use this wherever it's applicable
                 sentences_to_write
                     .entry(l)
                     .and_modify(|v| *v += &s)
                     .or_insert(s);
 
+                // we use a less intuitive approach
+                // because of mutability rules
                 match metadata_to_write.get_mut(l) {
                     Some(meta) => meta.push(m),
                     None => {
@@ -239,6 +247,7 @@ impl Pipeline<()> for RayonAll {
                 };
             }
 
+            // write into files
             for lang in sentences_to_write.keys() {
                 let mut fd = langfiles.get(lang).unwrap();
                 let mut fd_meta = meta_files.get(lang).unwrap();
