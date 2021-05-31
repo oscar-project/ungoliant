@@ -14,22 +14,74 @@ use rayon::prelude::*;
 use ungoliant::shard::wet::Wet;
 use warc::{header::WarcHeader, RawRecord};
 
+/// OSCAR v1.5 generation pipeline
+///
+/// OSCAR v1.5 is a retrocompatible corpus
+/// enhanced with metadata coming from CommonCrawl.
+///
+/// The CommonCrawl dump is composed of shards,
+/// Each shard is composed of records,
+/// Each record is composed of a metadata header and a body containing sentences.
+///
+/// # Processing
+/// _every scope is concurrent, that means green threads are created on shards, records and sentences._
+/// - We process each record separately, getting a list of sentence-language pairs, along with metadata from the document.
+/// - Once we've treated each record of a given shard, we
+///   transform out list of sentence-language pairs into chunks of contiguous same-language sentences
+///   and we store shard-level line offsets on metadata.
+///   Then we group same-language chunks for each language (on shard-level) and we write on disk.
+/// - We also keep track of disk-level line offsets to sync shard-level offsets between writes.
+///
+/// TODO: Better document this step.
 pub struct OscarMetadata {
     src: PathBuf,
     dst: PathBuf,
 }
 
+/// convinience type alias for [warc::Record] headers.
 type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
-/// Processing pipeline.
-///
-/// May be changed into a Trait to allow for more implementation flexibility
 impl OscarMetadata {
     pub fn new(src: PathBuf, dst: PathBuf) -> Self {
         Self { src, dst }
     }
 
+    /// attempt to predict language on provided sentence.
+    ///
+    /// Returns [None] if no language is detected.
+    // why return the sentence itself?
+    fn identify_sentence(sentence: &str, cls: &Classifier) -> Option<(String, &'static str)> {
+        let prediction = cls.predict(&sentence).ok();
+
+        if let Some(Some(lang)) = prediction {
+            //TODO: rewrite these two lines more elegantly
+            //      we can unwrap since predict returns None if no predictions are
+            //      found
+            let lang = lang.get(0).unwrap();
+
+            // check if fasttext provided lang exists
+            // return None if not
+            match LANG.get(lang.label.as_str()) {
+                Some(lang) => Some((sentence.to_string(), *lang)),
+                None => {
+                    warn!("lang {} does not exist!", lang.label);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    }
+
     /// Process a provided record.
+    ///
+    /// Here, sentences that are >100 chars are processed,
+    /// and the others are discarded.
+    /// See [String::chars::count].
+    ///
+    /// Then, we identify language for each sentence
+    /// and return (sentence, language) along with headers
+    /// extracted from the WARC.
     fn process_record(
         record: RawRecord,
         cls: &Classifier,
@@ -48,28 +100,7 @@ impl OscarMetadata {
             let results: Vec<(String, &'static str)> = sentences
                 // predict for each sentence, discarding
                 // predictions that does not meet threshold
-                .filter_map(|sentence| {
-                    let prediction = cls.predict(&sentence).ok();
-
-                    if let Some(Some(lang)) = prediction {
-                        //TODO: rewrite these two lines more elegantly
-                        //      we can unwrap since predict returns None if no predictions are
-                        //      found
-                        let lang = lang.get(0).unwrap();
-
-                        // check if fasttext provided lang exists
-                        // return None if not
-                        match LANG.get(lang.label.as_str()) {
-                            Some(lang) => Some((sentence.to_string(), *lang)),
-                            None => {
-                                warn!("lang {} does not exist!", lang.label);
-                                return None;
-                            }
-                        }
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(|sentence| Self::identify_sentence(sentence, cls))
                 .collect();
 
             Some((results, record.headers))
@@ -90,12 +121,13 @@ impl OscarMetadata {
     /// expected.insert(3, vec![5..=6]);
     /// assert_eq!(groups, expected);
     /// ```
+    // todo: remove copy requirement
     pub fn group_by<T: Eq + std::hash::Hash + Copy>(
         vec: Vec<T>,
     ) -> HashMap<T, Vec<RangeInclusive<usize>>> {
         let nb_sentences = vec.len();
         let mut block_start = 0;
-        let mut block_end = nb_sentences;
+        let mut block_end;
         let mut cur_group = None;
         let mut ret: HashMap<T, Vec<RangeInclusive<usize>>> = HashMap::new();
 
@@ -159,7 +191,7 @@ impl OscarMetadata {
 
     pub fn process_chunk(
         lang: &'static str,
-        sentences: &Vec<String>,
+        sentences: &[String],
         header: &HashMap<WarcHeader, Vec<u8>>,
         ranges: Vec<RangeInclusive<usize>>,
         offsets: &mut HashMap<&'static str, usize>,
@@ -180,7 +212,6 @@ impl OscarMetadata {
             None => {
                 offsets.insert(lang, nb_sentences);
                 0
-                // nb_sentences
             }
         };
 
@@ -234,7 +265,6 @@ impl OscarMetadata {
         results.for_each(|(idx, shard)| {
             let mut offsets: HashMap<&str, usize> = HashMap::new();
             let global_offsets = offsets_global.clone();
-            // let mut sorted_sentences = ShardContent::new();
             info!("processing shard {:?}", idx);
 
             // convert into a parallel iterator
@@ -245,7 +275,7 @@ impl OscarMetadata {
                     Ok(record) => OscarMetadata::process_record(record, &cls),
                     Err(e) => {
                         warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
-                        return None;
+                        None
                     }
                 })
                 // collect here is blocking
@@ -293,9 +323,8 @@ impl OscarMetadata {
                 // TODO: flatten shard_results into a vec of records?
                 for record in &mut shard_results {
                     for (_, lang, meta) in record {
-                        match o.get(lang) {
-                            Some(global_offset) => meta.offset += global_offset,
-                            None => (),
+                        if let Some(global_offset) = o.get(lang) {
+                            meta.offset += global_offset;
                         }
                     }
                 }
@@ -314,7 +343,6 @@ impl OscarMetadata {
             }
 
             // group by lang to limit number of writes.
-            // TODO use clear instead of new
             let mut sentences_to_write: HashMap<&'static str, String> = HashMap::new();
             let mut metadata_to_write: HashMap<&'static str, Vec<Metadata>> = HashMap::new();
 
