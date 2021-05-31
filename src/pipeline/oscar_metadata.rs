@@ -255,11 +255,16 @@ impl OscarMetadata {
 
         // holds file handles
         let langfiles = LangFiles::new(&self.dst)?;
-        let metafiles = LangFiles::new_meta(&self.dst)?;
+        let mut metafiles = LangFiles::new_meta(&self.dst)?;
 
         //corpus-scoped line offsets
         let mut offsets_global: Arc<Mutex<HashMap<&'static str, usize>>> =
             Arc::new(Mutex::new(HashMap::new()));
+
+        // put json array starting token
+        for meta_file in metafiles.values_mut() {
+            meta_file.write(b"[")?;
+        }
 
         // iterate over shards
         results.for_each(|(idx, shard)| {
@@ -373,15 +378,29 @@ impl OscarMetadata {
 
                 fd.write_all(sentences_to_write.get(lang).unwrap().as_bytes())
                     .unwrap();
-                fd_meta
-                    .write_all(
-                        serde_json::to_string_pretty(metadata_to_write.get(lang).unwrap())
-                            .unwrap()
-                            .as_bytes(),
-                    )
-                    .unwrap();
+
+                let metadata_string = metadata_to_write
+                    .get(lang)
+                    .unwrap()
+                    .iter()
+                    .fold(String::new(), |acc, x| {
+                        acc + &serde_json::to_string_pretty(x).unwrap() + ","
+                    });
+                fd_meta.write_all(metadata_string.as_bytes());
+                // fd_meta
+                //     .write_all(
+                //         serde_json::to_string_pretty(metadata_to_write.get(lang).unwrap())
+                //             .unwrap()
+                //             .as_bytes(),
+                //     )
+                //     .unwrap();
             }
         });
+
+        // put json array end token
+        for meta_file in metafiles.values_mut() {
+            meta_file.write(b"]")?;
+        }
 
         Ok(())
     }

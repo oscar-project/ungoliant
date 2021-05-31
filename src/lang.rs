@@ -3,7 +3,7 @@
 // // use std::collections::HashSet;
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::ValuesMut, HashMap, HashSet},
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
 };
@@ -244,6 +244,9 @@ impl LangFiles {
         self.handles.get(key)
     }
 
+    pub fn values_mut(&mut self) -> ValuesMut<&'static str, File> {
+        self.handles.values_mut()
+    }
     /// binds to [HashMap::get_mut].
     pub fn get_mut(&mut self, key: &'static str) -> Option<&mut File> {
         self.handles.get_mut(key)
