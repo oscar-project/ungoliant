@@ -230,7 +230,7 @@ impl LangFiles {
             let mut filename = lang.to_string();
             filename.push_str("_meta");
             let mut file_path: PathBuf = [src, &Path::new(&filename)].iter().collect();
-            file_path.set_extension("txt");
+            file_path.set_extension("json");
             debug!("creating/opening {:?}", file_path);
             let fh = options.clone().open(file_path)?;
             handles.insert(*lang, fh);
