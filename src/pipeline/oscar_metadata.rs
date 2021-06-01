@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     io::Write,
     ops::RangeInclusive,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -10,6 +10,7 @@ use crate::lang::LangFiles;
 use crate::lang::LANG;
 use crate::{classify::Classifier, metadata};
 use crate::{error::Error, metadata::Metadata};
+use log::Level::Debug;
 use rayon::prelude::*;
 use ungoliant::shard::wet::Wet;
 use warc::{header::WarcHeader, RawRecord};
@@ -86,6 +87,17 @@ impl OscarMetadata {
         record: RawRecord,
         cls: &Classifier,
     ) -> Option<(Vec<(String, &'static str)>, WarcHeaders)> {
+        if log_enabled!(Debug) {
+            debug!(
+                "processing record {}",
+                String::from_utf8_lossy(
+                    record
+                        .headers
+                        .get(&WarcHeader::RecordID)
+                        .unwrap_or(&Vec::from("no record id".as_bytes()))
+                )
+            );
+        };
         let body = String::from_utf8(record.body).ok();
 
         // process record if body is utf8-valid
@@ -105,6 +117,10 @@ impl OscarMetadata {
 
             Some((results, record.headers))
         } else {
+            error!(
+                "body not UTF-8 valid: {:?}",
+                record.headers.get(&WarcHeader::RecordID)
+            );
             None
         }
     }
@@ -189,6 +205,10 @@ impl OscarMetadata {
         ret
     }
 
+    /// takes a chunk (lang, sentences, header, ranges)
+    /// computes a unique string from sentences and
+    /// creates a [metadata::Metadata] struct with
+    /// shard-local offsets
     pub fn process_chunk(
         lang: &'static str,
         sentences: &[String],
@@ -215,18 +235,22 @@ impl OscarMetadata {
             }
         };
 
+        // concat sentence
         let mut sen = String::new();
         for range in ranges {
             sen += &sentences[range].join("\n");
             sen += "\n";
         }
+
+        //convert u8 into Strings
         let header_str: HashMap<WarcHeader, String> = header
             .iter()
             .map(|(k, v)| (k.clone(), String::from_utf8_lossy(v).to_string()))
             .collect();
+
         let meta = metadata::Metadata {
             headers: header_str,
-            offset: offset,
+            offset,
             nb_sentences,
         };
 
@@ -235,6 +259,8 @@ impl OscarMetadata {
 
     /// Run the whole pipeline
     pub fn run(&self) -> Result<(), Error> {
+        // let errors;
+
         let cls = Classifier::new_lid()?;
 
         // list files in source folder,
@@ -242,10 +268,24 @@ impl OscarMetadata {
         // This means that invalid gz files and invalid
         // wet files are discarded silently
         let results = std::fs::read_dir(&self.src)?
-            //TODO: log errors!
-            //      using ok() silently discards errors
-            .filter_map(|shard| shard.ok())
-            .filter_map(|shard| Wet::from_path_gzip(&shard.path()).ok());
+            .filter_map(|shard| {
+                shard.map_or_else(
+                    |e| {
+                        error!("error reading shard directory: {}", e);
+                        None
+                    },
+                    Some,
+                )
+            })
+            .filter_map(|shard| {
+                Wet::from_path_gzip(&shard.path()).map_or_else(
+                    |e| {
+                        error!("error reading shard file: {}", e);
+                        None
+                    },
+                    Some,
+                )
+            });
 
         // convert to parallel iterator
         // /!\: We use par_bridge, that is suboptimal
@@ -258,18 +298,20 @@ impl OscarMetadata {
         let mut metafiles = LangFiles::new_meta(&self.dst)?;
 
         //corpus-scoped line offsets
-        let mut offsets_global: Arc<Mutex<HashMap<&'static str, usize>>> =
+        let offsets_global: Arc<Mutex<HashMap<&'static str, usize>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
         // put json array starting token
-        for meta_file in metafiles.values_mut() {
-            meta_file.write(b"[")?;
+        for metafile in metafiles.values_mut() {
+            metafile.write_all(b"[")?;
         }
 
         // iterate over shards
         results.for_each(|(idx, shard)| {
             let mut offsets: HashMap<&str, usize> = HashMap::new();
-            let global_offsets = offsets_global.clone();
+
+            // get an atomic reference to global offsets
+            // let offsets_global_arc = offsets_global.clone();
             info!("processing shard {:?}", idx);
 
             // convert into a parallel iterator
@@ -322,13 +364,14 @@ impl OscarMetadata {
                     .collect();
 
             {
-                let mut o = global_offsets.lock().unwrap();
+                let offsets_global_arc = offsets_global.clone();
+                let mut offsets_global_mutex = offsets_global_arc.lock().unwrap();
 
                 // update metadata with global offsets
                 // TODO: flatten shard_results into a vec of records?
                 for record in &mut shard_results {
                     for (_, lang, meta) in record {
-                        if let Some(global_offset) = o.get(lang) {
+                        if let Some(global_offset) = offsets_global_mutex.get(lang) {
                             meta.offset += global_offset;
                         }
                     }
@@ -336,10 +379,10 @@ impl OscarMetadata {
 
                 // update global offsets
                 for (lang, offset) in offsets {
-                    match o.get_mut(lang) {
+                    match offsets_global_mutex.get_mut(lang) {
                         Some(g_offset) => *g_offset += offset,
                         None => {
-                            o.insert(lang, offset);
+                            offsets_global_mutex.insert(lang, offset);
                         }
                     }
                 }
@@ -373,34 +416,75 @@ impl OscarMetadata {
 
             // write into files
             for lang in sentences_to_write.keys() {
-                let mut fd = langfiles.get(lang).unwrap();
-                let mut fd_meta = metafiles.get(lang).unwrap();
+                if let Err(err) = Self::write_sentences(&langfiles, lang, &sentences_to_write) {
+                    error!("could not write sentences. {} (shard {})", lang, idx);
+                    error!("{:?}", err);
+                }
 
-                fd.write_all(sentences_to_write.get(lang).unwrap().as_bytes())
-                    .unwrap();
-
-                let metadata_string = metadata_to_write
-                    .get(lang)
-                    .unwrap()
-                    .iter()
-                    .fold(String::new(), |acc, x| {
-                        acc + &serde_json::to_string_pretty(x).unwrap() + ","
-                    });
-                fd_meta.write_all(metadata_string.as_bytes());
-                // fd_meta
-                //     .write_all(
-                //         serde_json::to_string_pretty(metadata_to_write.get(lang).unwrap())
-                //             .unwrap()
-                //             .as_bytes(),
-                //     )
-                //     .unwrap();
+                if let Err(err) = Self::write_metadata(&metafiles, lang, &metadata_to_write) {
+                    error!("could not write metadata. {} (shard {})", lang, idx);
+                    error!("{:?}", err);
+                }
             }
         });
 
         // put json array end token
         for meta_file in metafiles.values_mut() {
-            meta_file.write(b"]")?;
+            meta_file.write_all(b"]")?;
         }
+
+        Ok(())
+    }
+
+    /// writes sentences into language file
+    fn write_sentences(
+        langfiles: &LangFiles,
+        lang: &'static str,
+        sentences: &HashMap<&'static str, String>,
+    ) -> Result<(), Error> {
+        let mut fd = langfiles
+            .get(lang)
+            .ok_or_else(|| Error::UnknownLang(lang.to_string()))?;
+        let stw = sentences
+            .get(lang)
+            .ok_or_else(|| Error::UnknownLang(lang.to_string()))?
+            .as_bytes();
+
+        fd.write_all(stw)?;
+        Ok(())
+    }
+
+    /// writes metadata into metadata language file
+    fn write_metadata(
+        metafiles: &LangFiles,
+        lang: &'static str,
+        metadata: &HashMap<&'static str, Vec<Metadata>>,
+    ) -> Result<(), Error> {
+        let mut fd_meta = metafiles
+            .get(lang)
+            .ok_or_else(|| Error::UnknownLang(lang.to_string()))?;
+
+        let mtw = metadata
+            .get(lang)
+            .ok_or_else(|| Error::UnknownLang(lang.to_string()))?;
+
+        let mtw = mtw.iter().fold(String::new(), |acc, x| {
+            // attempt to serialize metadata
+            match serde_json::to_string_pretty(x) {
+                Ok(serialized) => acc + &serialized,
+                Err(e) => {
+                    error!(
+                        "could not serialize metadata: {:?}\n{:?}",
+                        x.headers.get(&WarcHeader::RecordID),
+                        e
+                    );
+
+                    acc
+                }
+            }
+        });
+
+        fd_meta.write_all(mtw.as_bytes())?;
 
         Ok(())
     }
