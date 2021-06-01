@@ -201,6 +201,10 @@ lazy_static! {
 /// and is writeable via the handlers.
 ///
 /// When using [LangFiles], be aware that ~160 files will stay open while the structure is not dropped.
+///
+// TODO: replace this with an alias to HashMap?
+// This way we don't need to manually bind HashMap methods
+// TODO: both constructors have the same code, use a "factory"?
 pub struct LangFiles {
     handles: HashMap<&'static str, File>,
 }
@@ -222,6 +226,7 @@ impl LangFiles {
         Ok(LangFiles { handles })
     }
 
+    /// open a file handle for each language metadata array
     pub fn new_meta(src: &Path) -> Result<Self, std::io::Error> {
         let mut options = OpenOptions::new();
         options.read(true).append(true).create(true);
@@ -244,11 +249,8 @@ impl LangFiles {
         self.handles.get(key)
     }
 
+    /// binds to [HashMap::values_mut]
     pub fn values_mut(&mut self) -> ValuesMut<&'static str, File> {
         self.handles.values_mut()
-    }
-    /// binds to [HashMap::get_mut].
-    pub fn get_mut(&mut self, key: &'static str) -> Option<&mut File> {
-        self.handles.get_mut(key)
     }
 }
