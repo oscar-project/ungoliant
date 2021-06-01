@@ -1,7 +1,11 @@
 use download::Downloader;
+use itertools::Itertools;
+use pipeline::pipeline::Pipeline;
+use rayon::prelude::*;
 use std::io::Write;
 use std::{fs::File, path::PathBuf};
 use structopt::StructOpt;
+use warc::{header::WarcHeader, RawRecord};
 
 extern crate fasttext;
 
@@ -11,10 +15,13 @@ extern crate log;
 mod classify;
 mod cli;
 mod download;
-mod warc;
+mod error;
+mod lang;
+mod pipeline;
+mod wet;
 
 #[tokio::main]
-async fn main() -> Result<(), std::io::Error> {
+async fn main() -> Result<(), error::Error> {
     env_logger::init();
 
     let opt = cli::Ungoliant::from_args();
@@ -38,6 +45,11 @@ async fn main() -> Result<(), std::io::Error> {
                     _ => (),
                 };
             }
+        }
+
+        cli::Ungoliant::Pipeline(p) => {
+            let p = pipeline::rayon_all::RayonAll::new(p.src, p.dst);
+            p.run()?;
         }
         _ => {
             unimplemented!();

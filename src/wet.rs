@@ -1,6 +1,9 @@
 use std::{fs::File, io::BufReader, path::Path};
 
+use flate2::read::MultiGzDecoder;
 use libflate::gzip::MultiDecoder;
+use rayon::iter::ParallelIterator;
+use std::convert::TryFrom;
 use std::io::BufRead;
 use warc::WarcReader;
 
@@ -24,14 +27,14 @@ pub struct Wet<T> {
     reader: WarcReader<T>,
 }
 
-impl Wet<BufReader<MultiDecoder<File>>> {
+impl Wet<BufReader<MultiGzDecoder<File>>> {
     pub fn from_path_gzip<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let gzip_file = File::open(path)?;
-        let gzip_stream = MultiDecoder::new(gzip_file)?;
+        let gzip_stream = MultiGzDecoder::new(gzip_file);
 
         // we use a different reader from the default one in the warc crate to
         // manage multipart gzipped content.
-        let bufreader = BufReader::with_capacity(100 * MB, gzip_stream);
+        let bufreader = BufReader::new(gzip_stream);
 
         let reader = WarcReader::new(bufreader);
 
@@ -40,12 +43,16 @@ impl Wet<BufReader<MultiDecoder<File>>> {
 }
 
 // impl<R: BufRead> Iterator for Wet<R> {
-//     type Item = Result<Vec<u8>, warc::Error>;
+//     type Item = Result<String, warc::Error>;
 //     fn next(&mut self) -> Option<Self::Item> {
 //         if let Some(n) = self.reader.next() {
 //             match n {
-//                 // Ok(record) => Some(Ok(String::from_utf8_lossy(&record.body).to_string())),
-//                 Ok(record) => Some(Ok(record.body)),
+//                 Ok(record) => {
+//                     let str = String::from_utf8_lossy(&record.body)
+//                         .escape_default()
+//                         .to_string();
+//                     Some(Ok(str))
+//                 }
 //                 Err(e) => Some(Err(e)),
 //             }
 //         } else {
@@ -55,14 +62,11 @@ impl Wet<BufReader<MultiDecoder<File>>> {
 // }
 
 impl<R: BufRead> Iterator for Wet<R> {
-    type Item = Result<String, warc::Error>;
+    type Item = Result<warc::RawRecord, warc::Error>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(n) = self.reader.next() {
             match n {
-                Ok(record) => {
-                    let str = String::from_utf8_lossy(&record.body).escape_default().to_string();
-                    Some(Ok(str))
-                }
+                Ok(record) => Some(Ok(record)),
                 Err(e) => Some(Err(e)),
             }
         } else {
