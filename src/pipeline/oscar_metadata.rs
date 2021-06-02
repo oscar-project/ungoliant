@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::Write,
+    io::{Read, Seek, SeekFrom, Write},
     ops::RangeInclusive,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -429,8 +429,11 @@ impl OscarMetadata {
         });
 
         // put json array end token
-        for meta_file in metafiles.values_mut() {
-            meta_file.write_all(b"]")?;
+        // fix trailing comma
+        // TODO: Either change the way the comma is added (special case for first iteratoin)
+        //       or derive Serialize and enable use of serialize_seq.
+        for error in Self::end_json(&mut metafiles).iter().filter(|x| x.is_err()) {
+            error!("error while ending/fixing JSON file: {:?}", error);
         }
 
         Ok(())
@@ -471,7 +474,7 @@ impl OscarMetadata {
         let mtw = mtw.iter().fold(String::new(), |acc, x| {
             // attempt to serialize metadata
             match serde_json::to_string_pretty(x) {
-                Ok(serialized) => acc + &serialized,
+                Ok(serialized) => acc + &serialized + ",",
                 Err(e) => {
                     error!(
                         "could not serialize metadata: {:?}\n{:?}",
@@ -487,6 +490,41 @@ impl OscarMetadata {
         fd_meta.write_all(mtw.as_bytes())?;
 
         Ok(())
+    }
+
+    /// Ends json arrays for each metadata files
+    /// and fixes trailing comma to comply
+    /// with JSON standard
+    fn end_json(metafiles: &mut LangFiles) -> Vec<std::io::Result<()>> {
+        let mut results = Vec::new();
+
+        let mut buf = [0];
+        let comma = b",";
+
+        // convinience function that corrects the trailing comma
+        #[inline]
+        fn fix(meta_file: &mut std::fs::File, buf: &mut [u8], comma: &[u8]) -> std::io::Result<()> {
+            meta_file.seek(SeekFrom::Current(-1))?;
+            meta_file.read_exact(buf)?;
+            if buf == comma {
+                //rewind after read
+                meta_file.seek(SeekFrom::Current(-1))?;
+                //write null byte
+                meta_file.write_all(b"")?;
+            }
+            Ok(())
+        }
+
+        for meta_file in metafiles.values_mut() {
+            // get a character before the end
+            // and check if it is the offending comma
+            results.push(fix(meta_file, &mut buf, comma));
+
+            // put json array end token
+            results.push(meta_file.write_all(b"]"));
+        }
+
+        results
     }
 }
 

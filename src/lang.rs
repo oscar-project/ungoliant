@@ -229,7 +229,7 @@ impl LangFiles {
     /// open a file handle for each language metadata array
     pub fn new_meta(src: &Path) -> Result<Self, std::io::Error> {
         let mut options = OpenOptions::new();
-        options.read(true).append(true).create(true);
+        options.read(true).write(true).create(true);
         let mut handles = HashMap::new();
         for lang in LANG.iter() {
             let mut filename = lang.to_string();
