@@ -1,3 +1,30 @@
+//! # Ungoliant
+//!
+//! 🕷️ Ungoliant is the upcoming pipeline to obtain an OSCAR corpus from a Common Crawl dump.
+//! This pipeline replaces the original goclassy pipeline.
+//!
+//! This project can be used both as a tool to download or generate corpora,
+//! or as a lib to integrate downloading and processing into other projects.
+//!
+//! ## Getting started
+//!
+//! ```sh
+//! oscar-tools 0.1.0
+//! A collection of tools for OSCAR corpus
+//!
+//! USAGE:
+//!     ungoliant <SUBCOMMAND>
+//!
+//! FLAGS:
+//!     -h, --help       Prints help information
+//!     -V, --version    Prints version information
+//!
+//! SUBCOMMANDS:
+//!     download    Downloading of CommonCrawl
+//!     help        Prints this message or the help of the given subcommand(s)
+//!     pipeline    Run pipeline
+//! ```
+//!
 use download::Downloader;
 use std::fs::File;
 use std::io::Write;
@@ -11,7 +38,6 @@ mod cli;
 mod download;
 mod error;
 mod lang;
-mod metadata;
 mod pipeline;
 mod shard;
 

@@ -1,8 +1,19 @@
+//! Language classification/identification utilities.
+//!
+//! Enables language identification on sentences, using [fasttext](https://fasttext.cc) for now.
 use fasttext::{FastText, Prediction};
 
+/// Minimum sentence length, used by [valid_len].
 const MIN_SENTENCE_LEN: usize = 100;
 
-/// changes the label field from `__label__xx` into `xx`
+/// Clean the prediction label field from `__label__xx` into `xx`.
+///
+/// Be aware that the function only skips 9 chars without doing any parsing,
+/// so it may silently fail if `prediction.label.chars().count() > 9`
+/// but not of a `__label__xx` form.
+///
+/// # Errors
+/// Returns an error if provided prediction is too short to be cleaned.
 fn clean_prediction(prediction: &Prediction) -> Result<Prediction, String> {
     if prediction.label.chars().count() < 9 {
         return Err(format!(
@@ -19,19 +30,14 @@ fn clean_prediction(prediction: &Prediction) -> Result<Prediction, String> {
 /// ensure that sentences meet valid requirements
 /// to be sent to fasttext:
 /// - valid utf8: currently handled upper in the chain because strings can't be invalid utf8
-/// - > 100 chars (go runes)
-/// However, we're currently using from_utf8_lossy.
-/// We have to use from_utf8 and catch failing strings
-///
-/// We also use chars(), that gives Unicode scalar values, not graphemes.
+/// - > [MIN_SENTENCE_LEN] > [char]
 pub fn valid_len(sentence: &str) -> bool {
-    // no checking in utf8 validity since 8
     sentence.chars().count() > MIN_SENTENCE_LEN
 }
 
-/// A [fasttext::FastText] instance.
-/// Should be replaced for a more generic struct allowing different
-/// predictors.
+/// Holds a [fasttext::FastText] instance and its parameters.
+/// - [Classifier::k], number of predicted languages on a sentence
+/// - [Classifier::threshold], prediction threshold
 pub struct Classifier {
     predictor: FastText,
     pub k: i32,

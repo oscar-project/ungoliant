@@ -1,3 +1,5 @@
+//! Concurrent pipeline using rayon on shard, record and sentence scope.
+//! produces a corpus identical to OSCAR 2018
 use std::{
     borrow::BorrowMut,
     collections::{hash_map::Entry, HashMap, HashSet},

@@ -1,3 +1,9 @@
+//!CommonCrawl asynchronous downloading.
+//!
+//! This module enables streaming (not tested yet) and one-shot downloading
+//! of the CommonCrawl dataset.
+//!
+//! It only requires a `wet.paths` file that is available on CommonCrawl website.
 use bytes::Bytes;
 use futures::{stream, StreamExt};
 use futures_core::stream::Stream;
@@ -11,6 +17,7 @@ use std::{
 };
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
+/// Base url for commoncrawl downloading.
 const BASE_URL: &str = "https://commoncrawl.s3.amazonaws.com/";
 
 #[derive(Debug)]

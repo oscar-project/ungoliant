@@ -1,7 +1,8 @@
-// use crate::error::Error;
-// use std::str::FromStr;
-// // use std::collections::HashSet;
-
+//! Language files management.
+//!
+//! This module contains structs that hold handles to language files
+//! and language metadata.
+//!
 use std::{
     collections::{hash_map::ValuesMut, HashMap, HashSet},
     fs::{File, OpenOptions},
@@ -11,6 +12,9 @@ use std::{
 use structopt::lazy_static::lazy_static;
 
 lazy_static! {
+
+    /// Holds langs that are available through the OSCAR corpus
+    /// Derived from the lang labels from fasttext.
     pub static ref LANG: HashSet<&'static str> = {
         let mut m = HashSet::new();
         m.insert("fr");
