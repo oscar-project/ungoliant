@@ -1,4 +1,8 @@
-pub mod oscar_metadata;
+mod oscar_metadata;
 pub mod pipeline;
-pub mod rayon_all;
-pub mod rayon_shard;
+mod rayon_all;
+mod rayon_shard;
+
+pub use oscar_metadata::OscarMetadata;
+pub use rayon_all::RayonAll;
+pub use rayon_shard::RayonShard;
