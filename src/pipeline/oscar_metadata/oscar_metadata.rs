@@ -333,7 +333,7 @@ impl OscarMetadata {
 
         let mtw = mtw.iter().fold(String::new(), |acc, x| {
             // attempt to serialize metadata
-            match serde_json::to_string_pretty(x) {
+            match serde_json::to_string(x) {
                 Ok(serialized) => acc + &serialized + ",",
                 Err(e) => {
                     error!(
