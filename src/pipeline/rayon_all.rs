@@ -1,4 +1,5 @@
 //! Concurrent pipeline using rayon on shard, record and sentence scope.
+//!
 //! produces a corpus identical to OSCAR 2018
 use std::{
     borrow::BorrowMut,
@@ -20,28 +21,30 @@ use twox_hash::XxHash64;
 use ungoliant::{classify::Classifier, shard::wet::Wet};
 use warc::{header::WarcHeader, RawRecord};
 
+/// pipeline-specific functions and [Pipeline] implementation.
 pub struct RayonAll {
     src: PathBuf,
     dst: PathBuf,
 }
 
+/// convinience type for WARC headers.
 type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
-/// container for (lang, sentences) pairs
+/// container for (lang, sentences) pairs.
 #[derive(Debug)]
 struct ShardContent {
     pub inner: HashMap<&'static str, Vec<String>, BuildHasherDefault<XxHash64>>,
 }
 
 impl ShardContent {
-    /// create a new, empty [ShardContent]. Uses [Default::default] for initialization
+    /// create a new, empty [ShardContent]. Uses [Default::default] for initialization.
     pub fn new() -> Self {
         ShardContent {
             inner: Default::default(),
         }
     }
 
-    /// inserts `sentence` into `lang` vector
+    /// inserts `sentence` into `lang` vector.
     ///
     /// Creates `lang` vector if non existent
     pub fn insert(&mut self, sentence: String, lang: &'static str) -> () {
@@ -58,14 +61,27 @@ impl ShardContent {
 
 /// Processing pipeline.
 ///
-/// May be changed into a Trait to allow for more implementation flexibility
+/// _Shards, records and sentences are processed concurrently._
+///
+/// for each sentence that is >100 chars, we identify language, retaining
+/// identification if top prediction is of a >0.80 confidence.
+///
+/// Then, we group sentences by lang and write them on disk.
+/// Writes are done at the end of processing of each shard.
 impl RayonAll {
+    /// Instantiate a new pipeline.
+    ///
+    /// - [RayonAll::src] must exist and contain `n.txt.gz` files
+    /// - [RayonAll::dst] must exist and will contain language files
+    /// Be aware that no checks are done regarding path validity or existence.
     pub fn new(src: PathBuf, dst: PathBuf) -> Self {
         Self { src, dst }
     }
 
-    /// Process a provided record.
-    /// Process a provided record.
+    /// Process a provided record, by discarding headers
+    /// and sentences that do not meet the criteria
+    ///
+    /// then groups identified sentences by language.
     fn process_record(record: RawRecord, cls: &Classifier) -> Option<Vec<(String, &'static str)>> {
         let body = String::from_utf8(record.body).ok();
 
@@ -113,6 +129,7 @@ impl RayonAll {
 }
 
 impl Pipeline<()> for RayonAll {
+    /// run the [RayonAll] pipeline.
     fn run(&self) -> Result<(), Error> {
         let cls = Classifier::new_lid()?;
 

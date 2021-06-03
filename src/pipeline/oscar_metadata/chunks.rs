@@ -1,3 +1,5 @@
+//! Utilities to transform chunks.
+//!
 use std::{collections::HashMap, ops::RangeInclusive};
 
 use crate::pipeline::oscar_metadata::Metadata;
@@ -86,7 +88,9 @@ pub fn group_by<T: Eq + std::hash::Hash + Copy>(
 /// takes a chunk (lang, sentences, header, ranges)
 /// computes a unique string from sentences and
 /// creates a [metadata::Metadata] struct with
-/// shard-local offsets
+/// shard-local offsets.
+///
+/// Returns the unique string, the language and Metadata.
 pub fn process_chunk(
     lang: &'static str,
     sentences: &[String],

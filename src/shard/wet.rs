@@ -21,11 +21,20 @@ impl From<std::io::Error> for Error {
     }
 }
 
+/// Wet/Shard instance, generic over reader type.
+///
+/// This genericity enables Ungoliant to potentially
+/// manage compressed and decompressed `wet` files.
+///
+/// Be aware that CommonCrawl files are gzipped and need
+/// a multi gz decoder (such as [MultiGzDecoder]).
 pub struct Wet<T> {
     reader: WarcReader<T>,
 }
 
+/// Wet reader using [MultiGzDecoder] over a [File].
 impl Wet<BufReader<MultiGzDecoder<File>>> {
+    /// Create a new reader from a gzipped WET file.
     pub fn from_path_gzip<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let gzip_file = File::open(path)?;
         let gzip_stream = MultiGzDecoder::new(gzip_file);

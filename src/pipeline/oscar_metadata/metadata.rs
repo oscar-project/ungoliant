@@ -1,3 +1,10 @@
+//! Metadata (WARC Record Headers + offset/nb_sentences).
+//!
+//! Holds record headers as [String] rather than as [u8],
+//! and adds offset and nb_sentences to help retrieve sentences
+//! from text file.
+//!
+//! Also implements [serde::Serialize] and [serde::Deserialize] for JSON serialization.
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -7,7 +14,6 @@ use warc::header::WarcHeader;
 /// Holds record headers.
 ///
 /// Each metadata is linked to a specific paragraph/text zone
-/// TODO enhance doc here to explain usage
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct Metadata {
     pub headers: HashMap<WarcHeader, String>,
