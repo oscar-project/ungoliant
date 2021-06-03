@@ -73,6 +73,7 @@ mod tests {
     use super::Wet;
 
     #[test]
+    #[ignore]
     fn test_init() {
         let shard = Wet::from_path_gzip("results/0.txt.gz").unwrap();
     }
