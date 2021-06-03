@@ -1,8 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io::Write,
-    path::PathBuf,
-};
+use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use crate::classify::Classifier;
 use crate::error::Error;
@@ -11,7 +7,7 @@ use crate::lang::LANG;
 use crate::pipeline::pipeline::Pipeline;
 use crate::shard::wet::Wet;
 use itertools::Itertools;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use rayon::prelude::*;
 use std::hash::BuildHasherDefault;
 use twox_hash::XxHash64;
@@ -40,7 +36,7 @@ impl ShardContent {
     /// inserts `sentence` into `lang` vector
     ///
     /// Creates `lang` vector if non existent
-    pub fn insert(&mut self, sentence: String, lang: &'static str) -> () {
+    pub fn insert(&mut self, sentence: String, lang: &'static str) {
         if let Some(sentences) = self.inner.get_mut(&lang) {
             sentences.push(sentence)
         } else {
@@ -60,6 +56,7 @@ impl RayonShard {
     ///
     /// - `nb_shards` limits the number of shards that will be processed
     /// - `nb_records` limites the number of records per shard that will be processed
+    #[allow(dead_code)]
     pub fn new(
         src: PathBuf,
         dst: PathBuf,
@@ -88,6 +85,7 @@ impl RayonShard {
                 // predictions that does not meet threshold
                 .filter_map(|sentence| {
                     let prediction = cls.predict(&sentence).ok();
+                    // let prediction = cls.predict(sentence).ok();
 
                     if let Some(Some(lang)) = prediction {
                         //TODO: rewrite these two lines more elegantly
@@ -125,7 +123,7 @@ impl Pipeline<()> for RayonShard {
         // filter out errors from fs and from gzip/wet.
         // This means that invalid gz files and invalid
         // wet files are discarded silently
-        let mut results = std::fs::read_dir(&self.src)?
+        let results = std::fs::read_dir(&self.src)?
             //TODO: log errors!
             //      using ok() silently discards errors
             //      use inspect to log?
@@ -158,7 +156,7 @@ impl Pipeline<()> for RayonShard {
                     Ok(record) => RayonShard::process_record(record, &cls),
                     Err(e) => {
                         warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
-                        return None;
+                        None
                     }
                 })
                 .collect(); //TODO: test with a for_each and a channel to send?

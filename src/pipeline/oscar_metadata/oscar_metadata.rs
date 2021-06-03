@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     io::{Read, Seek, SeekFrom, Write},
-    ops::RangeInclusive,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -204,7 +203,7 @@ impl OscarMetadata {
                 .into_iter()
                 .map(|(record, header)| {
                     // split between langs and sentences
-                    let langs: Vec<&str> = record.iter().map(|(_, lang)| lang.clone()).collect();
+                    let langs: Vec<&str> = record.iter().map(|(_, lang)| *lang).collect();
                     let sentences: Vec<String> =
                         record.into_iter().map(|(sentences, _)| sentences).collect();
 

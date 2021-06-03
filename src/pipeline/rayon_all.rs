@@ -1,15 +1,7 @@
 //! Concurrent pipeline using rayon on shard, record and sentence scope.
 //!
 //! produces a corpus identical to OSCAR 2018
-use std::{
-    borrow::BorrowMut,
-    collections::{hash_map::Entry, HashMap, HashSet},
-    io::Write,
-    ops::{Range, RangeInclusive},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-    vec::IntoIter,
-};
+use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use crate::lang::LANG;
 use crate::pipeline::pipeline::Pipeline;
@@ -19,16 +11,13 @@ use rayon::prelude::*;
 use std::hash::BuildHasherDefault;
 use twox_hash::XxHash64;
 use ungoliant::{classify::Classifier, shard::wet::Wet};
-use warc::{header::WarcHeader, RawRecord};
+use warc::RawRecord;
 
 /// pipeline-specific functions and [Pipeline] implementation.
 pub struct RayonAll {
     src: PathBuf,
     dst: PathBuf,
 }
-
-/// convinience type for WARC headers.
-type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
 /// container for (lang, sentences) pairs.
 #[derive(Debug)]
@@ -47,7 +36,7 @@ impl ShardContent {
     /// inserts `sentence` into `lang` vector.
     ///
     /// Creates `lang` vector if non existent
-    pub fn insert(&mut self, sentence: String, lang: &'static str) -> () {
+    pub fn insert(&mut self, sentence: String, lang: &'static str) {
         if let Some(sentences) = self.inner.get_mut(&lang) {
             sentences.push(sentence)
         } else {
@@ -74,6 +63,7 @@ impl RayonAll {
     /// - [RayonAll::src] must exist and contain `n.txt.gz` files
     /// - [RayonAll::dst] must exist and will contain language files
     /// Be aware that no checks are done regarding path validity or existence.
+    #[allow(dead_code)]
     pub fn new(src: PathBuf, dst: PathBuf) -> Self {
         Self { src, dst }
     }
@@ -112,7 +102,7 @@ impl RayonAll {
                             Some(lang) => Some((sentence.to_string(), *lang)),
                             None => {
                                 warn!("lang {} does not exist!", lang.label);
-                                return None;
+                                None
                             }
                         }
                     } else {
@@ -165,7 +155,7 @@ impl Pipeline<()> for RayonAll {
                     Ok(record) => RayonAll::process_record(record, &cls),
                     Err(e) => {
                         warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
-                        return None;
+                        None
                     }
                 })
                 .collect(); //TODO: test with a for_each and a channel to send?

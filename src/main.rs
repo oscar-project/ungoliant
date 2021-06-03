@@ -25,6 +25,7 @@
 //!     pipeline    Run pipeline
 //! ```
 //!
+
 use download::Downloader;
 use std::fs::File;
 use std::io::Write;
