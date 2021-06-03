@@ -36,7 +36,7 @@
 //! There is the need to extract each contiguous sequence of sentences that share the same language.
 //! Chunks are these contiguous sequences, and the [chunks] module deals with them.
 mod chunks;
-mod metadata;
+pub mod metadata;
 pub mod oscar_metadata;
 
 use metadata::Metadata;

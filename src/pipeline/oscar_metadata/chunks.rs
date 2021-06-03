@@ -1,5 +1,7 @@
-//! Utilities to transform chunks.
-//!
+/*!
+Utilities to transform chunks.
+
+*/
 use std::{collections::HashMap, ops::RangeInclusive};
 
 use crate::pipeline::oscar_metadata::Metadata;
@@ -8,9 +10,11 @@ use warc::header::WarcHeader;
 /// Transforms a list of `values` into a list
 /// of ranges of contiguous sequences of same values.
 /// # Example
-/// ```
+/// ```ignore
+/// use std::collections::HashMap;
+///
 /// let values = vec![1, 1, 2, 2, 1, 3, 3];
-/// let groups = Pipeline::group_by(values);
+/// let groups = group_by(values);
 /// let mut expected = HashMap::new();
 /// expected.insert(1, vec![0..=1, 4..=4]);
 /// expected.insert(2, vec![2..=3]);

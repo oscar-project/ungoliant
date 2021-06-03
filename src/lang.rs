@@ -9,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use log::debug;
 use structopt::lazy_static::lazy_static;
 
 lazy_static! {

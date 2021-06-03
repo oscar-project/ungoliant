@@ -11,9 +11,10 @@ use crate::lang::LangFiles;
 use crate::lang::LANG;
 use crate::pipeline::oscar_metadata::chunks;
 use crate::pipeline::oscar_metadata::Metadata;
+use crate::shard::wet::Wet;
 use log::Level::Debug;
+use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
-use ungoliant::shard::wet::Wet;
 use warc::{header::WarcHeader, RawRecord};
 
 /// OSCAR v1.5 generation pipeline

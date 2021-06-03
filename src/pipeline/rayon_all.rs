@@ -5,12 +5,13 @@ use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use crate::lang::LANG;
 use crate::pipeline::pipeline::Pipeline;
+use crate::{classify::Classifier, shard::wet::Wet};
 use crate::{error::Error, lang::LangFiles};
 use itertools::Itertools;
+use log::{debug, info, warn};
 use rayon::prelude::*;
 use std::hash::BuildHasherDefault;
 use twox_hash::XxHash64;
-use ungoliant::{classify::Classifier, shard::wet::Wet};
 use warc::RawRecord;
 
 /// pipeline-specific functions and [Pipeline] implementation.
