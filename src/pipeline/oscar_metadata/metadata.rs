@@ -5,9 +5,12 @@
 //! from text file.
 //!
 //! Also implements [serde::Serialize] and [serde::Deserialize] for JSON serialization.
+use itertools::Itertools;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::string::FromUtf8Error;
 
 use warc::header::WarcHeader;
 
@@ -21,6 +24,23 @@ pub struct Metadata {
     pub nb_sentences: usize,
 }
 
+impl TryFrom<HashMap<WarcHeader, Vec<u8>>> for Metadata {
+    type Error = FromUtf8Error;
+    fn try_from(hm: HashMap<WarcHeader, Vec<u8>>) -> Result<Self, Self::Error> {
+        let values: Vec<String> = hm
+            .values()
+            .map(|v| String::from_utf8(v.to_vec()))
+            .collect::<Result<Vec<String>, Self::Error>>()?;
+
+        let keys = hm.keys().map(|k| k.clone());
+        let headers = keys.into_iter().zip(values.into_iter()).collect();
+        Ok(Metadata {
+            headers,
+            offset: 0,
+            nb_sentences: 0,
+        })
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
