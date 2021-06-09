@@ -49,6 +49,14 @@ impl Wet<BufReader<MultiGzDecoder<File>>> {
     }
 }
 
+impl<T: BufRead> Wet<T> {
+    pub fn new(reader: T) -> Self {
+        Self {
+            reader: WarcReader::new(reader),
+        }
+    }
+}
+
 impl<R: BufRead> Iterator for Wet<R> {
     type Item = Result<warc::RawRecord, warc::Error>;
     fn next(&mut self) -> Option<Self::Item> {
