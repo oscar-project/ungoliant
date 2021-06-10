@@ -43,7 +43,9 @@ fn gen_test_shards(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Err
 
         let mut buf = flate2::write::GzEncoder::new(dst, Compression::default());
         let mut writer = warc::WarcWriter::new(buf);
-        for record in records.skip(1).take(10) {
+
+        for (idx, record) in records.skip(0).take(30).enumerate() {
+            println!("writing record {}", idx);
             let record = record.unwrap();
             writer.write_raw(&record)?;
         }
@@ -154,6 +156,7 @@ fn assert_meta_successive_offsets() {
         langfile.read_to_string(&mut sentences).unwrap();
         let nb_sentences_corpus = sentences.lines().count();
 
+        println!("{}: {} sentences", lang, nb_sentences_corpus);
         let metadata: Vec<Metadata> = serde_json::from_reader(metafile).unwrap();
         let nb_sentences_metadata = metadata.iter().fold(0, |acc, x| {
             assert_eq!(acc, x.offset);
@@ -192,7 +195,17 @@ fn assert_meta_validity() {
     let shard = wet::Wet::from_path_gzip(&source).unwrap();
 
     // unwrap and ignore errors
-    let shard_records: Vec<RawRecord> = shard.filter_map(|x| x.ok()).collect();
+    let shard_records: Vec<RawRecord> = shard
+        .filter_map(|x| {
+            if x.is_ok() {
+                x.ok()
+            } else {
+                println!("{:?}", x);
+                None
+            }
+        })
+        .collect();
+
     let shard_metadata: Vec<Metadata> = shard_records
         .iter()
         .map(|record| Metadata::try_from(record.headers.clone()).unwrap())
@@ -274,7 +287,7 @@ fn assert_meta_validity() {
 fn assert_meta_final_offset_multishard() {
     // generate test shards
     // and run pipeline on them
-    let mut src_gen = PathBuf::from("result_2");
+    let mut src_gen = PathBuf::from("result_5");
     let src = PathBuf::from("src_intg_final_offset_multi");
     let dst = PathBuf::from("dst_intg_final_offset_multi");
     std::fs::create_dir(&src).unwrap();
@@ -385,14 +398,14 @@ fn assert_meta_validity_multishard() {
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_5 containing 0.txt.gz as test shard.");
     // let p = OscarMetadata::new(src.clone(), dst.clone());
-    let p = OscarMetadata::new(src_gen.clone(), dst.clone());
+    let p = OscarMetadata::new(src.clone(), dst.clone());
     p.run().unwrap();
 
     let mut record_index = HashMap::new();
     //Read all 5 shards
     for shard_idx in 0..5 {
+        println!("processing shard {}", shard_idx);
         let mut shard_path = src.clone();
-        let mut shard_path = src_gen.clone();
         shard_path.push(format!("{}.txt.gz", shard_idx));
         let shard = wet::Wet::from_path_gzip(&shard_path).unwrap();
 
@@ -413,7 +426,7 @@ fn assert_meta_validity_multishard() {
                 Some((record_id, body))
             }
             Err(e) => {
-                eprintln!("{:?}", e);
+                println!("{:?}", e);
                 return None;
             }
         });
