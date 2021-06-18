@@ -32,7 +32,7 @@ impl TryFrom<HashMap<WarcHeader, Vec<u8>>> for Metadata {
             .map(|v| String::from_utf8(v.to_vec()))
             .collect::<Result<Vec<String>, Self::Error>>()?;
 
-        let keys = hm.keys().map(|k| k.clone());
+        let keys = hm.keys().cloned();
         let headers = keys.into_iter().zip(values.into_iter()).collect();
         Ok(Metadata {
             headers,

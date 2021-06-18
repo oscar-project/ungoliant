@@ -4,9 +4,6 @@ Utilities to transform chunks.
 */
 use std::{collections::HashMap, ops::RangeInclusive};
 
-use crate::pipeline::oscar_metadata::Metadata;
-use warc::header::WarcHeader;
-
 /// Transforms a list of `values` into a list
 /// of ranges of contiguous sequences of same values.
 /// # Example
@@ -89,64 +86,11 @@ pub fn group_by<T: Eq + std::hash::Hash + Copy>(
     ret
 }
 
-/// takes a chunk (lang, sentences, header, ranges)
-/// computes a unique string from sentences and
-/// creates a [metadata::Metadata] struct with
-/// shard-local offsets.
-///
-/// Returns the unique string, the language and Metadata.
-pub fn process_chunk(
-    lang: &'static str,
-    sentences: &[String],
-    header: &HashMap<WarcHeader, Vec<u8>>,
-    ranges: Vec<RangeInclusive<usize>>,
-    offsets: &mut HashMap<&'static str, usize>,
-) -> (String, &'static str, Metadata) {
-    // sums ranges for each identified language
-    // this way we know which offset to provide for next iteration
-    let nb_sentences = ranges
-        .iter()
-        .fold(0, |acc, x| acc + x.end() - x.start() + 1);
-
-    // register/bump offsets
-    // and return starting offset of content
-    let offset: usize = match offsets.get_mut(lang) {
-        Some(off) => {
-            *off += nb_sentences;
-            *off - nb_sentences
-        }
-        None => {
-            offsets.insert(lang, nb_sentences);
-            0
-        }
-    };
-
-    // concat sentence
-    let mut sen = String::new();
-    for range in ranges {
-        sen += &sentences[range].join("\n");
-        sen += "\n";
-    }
-
-    //convert u8 into Strings
-    let header_str: HashMap<WarcHeader, String> = header
-        .iter()
-        .map(|(k, v)| (k.clone(), String::from_utf8_lossy(v).to_string()))
-        .collect();
-
-    let meta = Metadata {
-        headers: header_str,
-        offset,
-        nb_sentences,
-    };
-
-    (sen, lang, meta)
-}
-
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use warc::header::WarcHeader;
 
     #[test]
     fn group_by_simple() {
@@ -261,111 +205,5 @@ mod tests {
         let ranges = vec![0..=sentences.len() - 1];
 
         (sentences, lang, ranges, header)
-    }
-
-    #[test]
-    fn process_chunk_monolingual() {
-        let mut offsets = HashMap::new();
-
-        let (sentences, lang, ranges, header) = gen_fr_chunk();
-        // bump shard offset to 10 in french
-        offsets.insert(lang, 10);
-
-        let string_expected: String = sentences.join("\n") + "\n";
-        let lang_expected = "fr";
-        let metadata_expected = Metadata {
-            headers: vec![(WarcHeader::ContentType, "text/plain".to_string())]
-                .into_iter()
-                .collect(),
-            offset: 10,
-            nb_sentences: 3,
-        };
-
-        let ret = process_chunk(lang, &sentences, &header, ranges, &mut offsets);
-        assert_eq!(ret.0, string_expected);
-        assert_eq!(ret.1, lang_expected);
-        assert_eq!(ret.2, metadata_expected);
-        println!("{:?}", ret);
-    }
-
-    #[test]
-    fn process_chunk_monolingual_multiple() {
-        let mut offsets = HashMap::new();
-
-        let chunks = vec![gen_fr_chunk(); 10];
-
-        // bump shard offset to 10 in french
-        offsets.insert("fr", 10);
-
-        let mut ret = Vec::new();
-        for (sentences, lang, ranges, header) in chunks {
-            ret.push(process_chunk(
-                lang,
-                &sentences,
-                &header,
-                ranges,
-                &mut offsets,
-            ));
-        }
-
-        // check that:
-        // - taking an offset and adding nb_sentences = next offset
-        // - the total of summations equals the global offset.
-        let total = ret.iter().fold(10, |acc, x| {
-            assert_eq!(acc, x.2.offset);
-            acc + x.2.nb_sentences
-        });
-
-        assert_eq!(offsets.get("fr"), Some(&total));
-    }
-
-    #[test]
-    fn process_chunk_multilingual_multiple() {
-        let mut offsets = HashMap::new();
-
-        let mut chunks = vec![gen_fr_chunk(); 5];
-        chunks.append(&mut vec![gen_en_chunk(); 5]);
-
-        // bump shard offset to 10 in french
-        let fake_offset_fr = 10;
-        offsets.insert("fr", fake_offset_fr);
-
-        // bump shard offset to 20 in english
-        let fake_offset_en = 20;
-        offsets.insert("en", fake_offset_en);
-
-        let mut ret = Vec::new();
-        for (sentences, lang, ranges, header) in chunks {
-            ret.push(process_chunk(
-                lang,
-                &sentences,
-                &header,
-                ranges,
-                &mut offsets,
-            ));
-        }
-
-        // check that:
-        // - taking an offset and adding nb_sentences = next offset
-        // - the total of summations equals the global offset.
-        // for each lang
-        let total_fr =
-            ret.iter()
-                .filter(|(_, lang, _)| lang == &"fr")
-                .fold(fake_offset_fr, |acc, x| {
-                    assert_eq!(acc, x.2.offset);
-                    acc + x.2.nb_sentences
-                });
-
-        let total_en =
-            ret.iter()
-                .filter(|(_, lang, _)| lang == &"en")
-                .fold(fake_offset_en, |acc, x| {
-                    assert_eq!(acc, x.2.offset);
-                    acc + x.2.nb_sentences
-                });
-
-        assert_eq!(offsets.get("en"), Some(&total_en));
-        assert_eq!(offsets.get("fr"), Some(&total_fr));
     }
 }

@@ -45,7 +45,7 @@ fn gen_test_shards(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Err
         let mut writer = warc::WarcWriter::new(buf);
 
         for (idx, record) in records.skip(0).take(30).enumerate() {
-            println!("writing record {}", idx);
+            // println!("writing record {}", idx);
             let record = record.unwrap();
             writer.write_raw(&record)?;
         }
@@ -112,8 +112,9 @@ fn assert_meta_final_offset() {
         metadata.sort_by(|a, b| a.offset.cmp(&b.offset));
 
         // get final offset + nb_sentences
+        // add 1 for last space
         let nb_sentences_metadata = match metadata.last() {
-            Some(meta) => meta.offset + meta.nb_sentences,
+            Some(meta) => meta.offset + meta.nb_sentences + 1,
             None => 0,
         };
 
@@ -158,9 +159,9 @@ fn assert_meta_successive_offsets() {
 
         println!("{}: {} sentences", lang, nb_sentences_corpus);
         let metadata: Vec<Metadata> = serde_json::from_reader(metafile).unwrap();
-        let nb_sentences_metadata = metadata.iter().fold(0, |acc, x| {
+        let mut nb_sentences_metadata = metadata.iter().fold(0, |acc, x| {
             assert_eq!(acc, x.offset);
-            acc + x.nb_sentences
+            acc + x.nb_sentences + 1 // account for newline
         });
 
         println!(
@@ -326,7 +327,7 @@ fn assert_meta_final_offset_multishard() {
         }
         // get final offset + nb_sentences
         let nb_sentences_metadata = match metadata.last() {
-            Some(meta) => meta.offset + meta.nb_sentences,
+            Some(meta) => meta.offset + meta.nb_sentences + 1,
             None => 0,
         };
 
@@ -372,7 +373,7 @@ fn assert_meta_successive_offsets_multishard() {
         metadata.sort_by(|a, b| a.offset.cmp(&b.offset));
         let nb_sentences_metadata = metadata.iter().fold(0, |acc, x| {
             assert_eq!(acc, x.offset, "failed at lang {}", lang);
-            acc + x.nb_sentences
+            acc + x.nb_sentences + 1
         });
 
         println!(
