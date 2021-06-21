@@ -6,7 +6,6 @@ use std::{
 };
 
 use crate::lang::LANG;
-use crate::pipeline::oscar_metadata::chunks;
 use crate::pipeline::oscar_metadata::Metadata;
 use crate::shard::wet::Wet;
 use crate::{classify::Classifier, pipeline::oscar_metadata::document::MergedPiece};
@@ -147,15 +146,17 @@ impl OscarMetadata {
                     Some,
                 )
             })
-            .filter_map(|shard| {
-                Wet::from_path_gzip(&shard.path()).map_or_else(
-                    |e| {
-                        error!("error reading shard file: {}", e);
-                        None
-                    },
-                    Some,
-                )
-            });
+            .map(|shard| shard.path());
+
+        // .filter_map(|shard| {
+        //     Wet::from_path_gzip(&shard.path()).map_or_else(
+        //         |e| {
+        //             error!("error reading shard file: {}", e);
+        //             None
+        //         },
+        //         Some,
+        //     )
+        // });
 
         // convert to parallel iterator
         // /!\: We use par_bridge, that is suboptimal
@@ -177,120 +178,131 @@ impl OscarMetadata {
         }
 
         // iterate over shards
-        results.for_each(|(idx, shard)| {
-            // holds merged pieces by lang
-            let mut lang_pieces: HashMap<&'static str, Vec<MergedPiece>> = HashMap::new();
+        let r: Vec<Error> = results
+            .filter_map(|(idx, shard)| {
+                // holds merged pieces by lang
+                let mut lang_pieces: HashMap<&'static str, Vec<MergedPiece>> = HashMap::new();
 
-            // get an atomic reference to global offsets
-            // let offsets_global_arc = offsets_global.clone();
-            info!("processing shard {:?}", idx);
+                // get an atomic reference to global offsets
+                // let offsets_global_arc = offsets_global.clone();
+                info!("processing shard {:?}", &shard);
 
-            // convert into a parallel iterator
-            let wetfile = shard.enumerate().par_bridge();
-
-            let shard_results: Vec<(Vec<(String, &'static str)>, WarcHeaders)> = wetfile
-                .filter_map(|(idx_record, record)| match record {
-                    Ok(record) => OscarMetadata::process_record(record, &cls),
-                    Err(e) => {
-                        warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
-                        None
-                    }
-                })
-                // collect here is blocking
-                // because we can't write concurrently into a HashMap
-                // and using Mutexes might ruin performance.
-                .collect(); //TODO: test with a for_each and a channel to send?
-
-            // Iterate over (record, header) tuples
-            let mut shard_results = shard_results.into_iter().filter_map(|(record, header)| {
-                // split between langs and sentences
-                let langs: Vec<&str> = record.iter().map(|(_, lang)| *lang).collect();
-                let sentences: Vec<String> =
-                    record.into_iter().map(|(sentences, _)| sentences).collect();
-
-                // create new document for current record
-                let doc = Document::new(header, sentences, langs);
-
-                match doc {
-                    Ok(doc) => Some(doc),
-                    Err(e) => {
-                        warn!("{:?}", e);
-                        None
-                    }
+                let shard = Wet::from_path_gzip(&shard);
+                if shard.is_err() {
+                    error!("Could not read/open shard {}", idx);
+                    return shard.err().map(Error::Io);
                 }
-            });
 
-            // merge all documents together
-            // get a vector of merged pieces of difference languages
-            let docs_merged = shard_results
-                .map(|doc| doc.into_merged_pieces_lang())
-                .flatten()
-                .collect::<Vec<MergedPiece>>();
+                let shard = shard.unwrap();
+                // convert into a parallel iterator
+                let wetfile = shard.enumerate().par_bridge();
 
-            // sort merged pieces into different langs
-            // now there's a hashmap that points each lang
-            // to a vector of merged pieces
-            for piece in docs_merged {
-                let e = lang_pieces
-                    .entry(piece.identification())
-                    .or_insert_with(Vec::new);
-                e.push(piece);
-            }
+                let shard_results: Vec<(Vec<(String, &'static str)>, WarcHeaders)> = wetfile
+                    .filter_map(|(idx_record, record)| match record {
+                        Ok(record) => OscarMetadata::process_record(record, &cls),
+                        Err(e) => {
+                            warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
+                            None
+                        }
+                    })
+                    // collect here is blocking
+                    // because we can't write concurrently into a HashMap
+                    // and using Mutexes might ruin performance.
+                    .collect(); //TODO: test with a for_each and a channel to send?
 
-            // create a partchunk for each lang
-            // that means concatenating pieces
-            // creating metadata
-            // bumping offsets
-            //
-            // we get a HashMap that points each language to a partchunk
-            let mut chunk_parts: HashMap<&'static str, PartChunk> = lang_pieces
-                .into_iter()
-                .filter_map(|(lang, pieces)| {
-                    let pc = PartChunk::new(pieces);
-                    match pc {
-                        Ok(pc) => Some((lang, pc)),
+                // Iterate over (record, header) tuples
+                let mut shard_results = shard_results.into_iter().filter_map(|(record, header)| {
+                    // split between langs and sentences
+                    let langs: Vec<&str> = record.iter().map(|(_, lang)| *lang).collect();
+                    let sentences: Vec<String> =
+                        record.into_iter().map(|(sentences, _)| sentences).collect();
+
+                    // create new document for current record
+                    let doc = Document::new(header, sentences, langs);
+
+                    match doc {
+                        Ok(doc) => Some(doc),
                         Err(e) => {
                             warn!("{:?}", e);
                             None
                         }
                     }
-                })
-                .collect();
-            {
-                let offsets_global_arc = offsets_global.clone();
-                let mut offsets_global_mutex = offsets_global_arc.lock().unwrap();
+                });
 
-                // update metadata with global offsets
-                // TODO: flatten shard_results into a vec of records?
-                for (lang, cp) in &mut chunk_parts {
-                    let mut offset = offsets_global_mutex.entry(lang).or_insert(0);
-                    let new_offset = cp.bump_offsets(*offset);
-                    match new_offset {
-                        Some(o) => *offset = o,
-                        None => warn!("problem with chunk part!"),
+                // merge all documents together
+                // get a vector of merged pieces of difference languages
+                let docs_merged = shard_results
+                    .map(|doc| doc.into_merged_pieces_lang())
+                    .flatten()
+                    .collect::<Vec<MergedPiece>>();
+
+                // sort merged pieces into different langs
+                // now there's a hashmap that points each lang
+                // to a vector of merged pieces
+                for piece in docs_merged {
+                    let e = lang_pieces
+                        .entry(piece.identification())
+                        .or_insert_with(Vec::new);
+                    e.push(piece);
+                }
+
+                // create a partchunk for each lang
+                // that means concatenating pieces
+                // creating metadata
+                // bumping offsets
+                //
+                // we get a HashMap that points each language to a partchunk
+                let mut chunk_parts: HashMap<&'static str, PartChunk> = lang_pieces
+                    .into_iter()
+                    .filter_map(|(lang, pieces)| {
+                        let pc = PartChunk::new(pieces);
+                        match pc {
+                            Ok(pc) => Some((lang, pc)),
+                            Err(e) => {
+                                warn!("{:?}", e);
+                                None
+                            }
+                        }
+                    })
+                    .collect();
+                {
+                    let offsets_global_arc = offsets_global.clone();
+                    let mut offsets_global_mutex = offsets_global_arc.lock().unwrap();
+
+                    // update metadata with global offsets
+                    // TODO: flatten shard_results into a vec of records?
+                    for (lang, cp) in &mut chunk_parts {
+                        let mut offset = offsets_global_mutex.entry(lang).or_insert(0);
+                        let new_offset = cp.bump_offsets(*offset);
+                        match new_offset {
+                            Some(o) => *offset = o,
+                            None => warn!("problem with chunk part!"),
+                        }
+                    }
+
+                    debug!(
+                        " offset at end of shard {}: {:?}",
+                        idx,
+                        offsets_global_mutex.get("fr")
+                    );
+                    //mutex drop due to end of scope
+                }
+
+                // flatten to get a vector of 3-uplets (sentences, lang, metadata)
+                // instead of having to iterate through records too.
+                for (l, p) in chunk_parts {
+                    if let Err(e) = Self::write_sentences(&langfiles, l, p.body) {
+                        error!("could not write sentences. {} (shard {}): {:?}", l, idx, e);
+                    }
+
+                    if let Err(e) = Self::write_metadata(&metafiles, l, p.metadata, true) {
+                        error!("could not write metadata. {} (shard {}): {:?}", l, idx, e);
                     }
                 }
 
-                debug!(
-                    " offset at end of shard {}: {:?}",
-                    idx,
-                    offsets_global_mutex.get("fr")
-                );
-                //mutex drop due to end of scope
-            }
-
-            // flatten to get a vector of 3-uplets (sentences, lang, metadata)
-            // instead of having to iterate through records too.
-            for (l, p) in chunk_parts {
-                if let Err(e) = Self::write_sentences(&langfiles, l, p.body) {
-                    error!("could not write sentences. {} (shard {})", l, idx);
-                }
-
-                if let Err(e) = Self::write_metadata(&metafiles, l, p.metadata, true) {
-                    error!("could not write sentences. {} (shard {})", l, idx);
-                }
-            }
-        });
+                None
+            })
+            .collect();
 
         // put json array end token
         // fix trailing comma
@@ -298,6 +310,10 @@ impl OscarMetadata {
         //       or derive Serialize and enable use of serialize_seq.
         for error in Self::end_json(&mut metafiles).iter().filter(|x| x.is_err()) {
             error!("error while ending/fixing JSON file: {:?}", error);
+        }
+
+        for err in r {
+            error!("{:?}", err);
         }
 
         Ok(())
