@@ -265,6 +265,8 @@ impl OscarMetadata {
                         }
                     })
                     .collect();
+
+                // scope to lock mutex
                 {
                     let offsets_global_arc = offsets_global.clone();
                     let mut offsets_global_mutex = offsets_global_arc.lock().unwrap();
@@ -285,22 +287,19 @@ impl OscarMetadata {
                         idx,
                         offsets_global_mutex.get("fr")
                     );
-                    //mutex drop due to end of scope
-                }
 
-                // flatten to get a vector of 3-uplets (sentences, lang, metadata)
-                // instead of having to iterate through records too.
-                for (l, p) in chunk_parts {
-                    if let Err(e) = Self::write_sentences(&langfiles, l, p.body) {
-                        error!("could not write sentences. {} (shard {}): {:?}", l, idx, e);
-                    }
+                    for (l, p) in chunk_parts {
+                        if let Err(e) = Self::write_sentences(&langfiles, l, p.body) {
+                            error!("could not write sentences. {} (shard {}): {:?}", l, idx, e);
+                        }
 
-                    if let Err(e) = Self::write_metadata(&metafiles, l, p.metadata, true) {
-                        error!("could not write metadata. {} (shard {}): {:?}", l, idx, e);
+                        if let Err(e) = Self::write_metadata(&metafiles, l, p.metadata, true) {
+                            error!("could not write metadata. {} (shard {}): {:?}", l, idx, e);
+                        }
                     }
                 }
-
                 None
+                //mutex drop due to end of scope
             })
             .collect();
 
