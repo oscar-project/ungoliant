@@ -330,6 +330,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     pub async fn test_downloader_init() {
         let valid_file_path = "tests/res/test.wet.paths";
         let f = File::open(&valid_file_path).expect("could not open");
