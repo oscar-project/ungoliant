@@ -339,6 +339,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     pub async fn test_downloader_init_invalid_url() {
         use std::io::Seek;
         use std::io::SeekFrom;
