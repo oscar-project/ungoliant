@@ -127,7 +127,7 @@ fn assert_meta_final_offset() {
 
 #[test]
 #[serial]
-// #[ignore]
+#[ignore]
 fn assert_meta_successive_offsets() {
     // generate test shards
     // and run pipeline on them
@@ -284,7 +284,7 @@ fn assert_meta_validity() {
 
 #[test]
 #[serial]
-// #[ignore]
+#[ignore]
 fn assert_meta_final_offset_multishard() {
     // generate test shards
     // and run pipeline on them
