@@ -78,7 +78,7 @@ fn get_lang_data(lang: &'static str, dst: &PathBuf) -> (Vec<String>, Vec<Metadat
 
 #[test]
 #[serial]
-// #[ignore]
+#[ignore]
 fn assert_meta_final_offset() {
     // generate test shards
     // and run pipeline on them
@@ -176,7 +176,7 @@ fn assert_meta_successive_offsets() {
 
 #[test]
 #[serial]
-// #[ignore]
+#[ignore]
 fn assert_meta_validity() {
     // generate test shards
     // and run pipeline on them
@@ -340,6 +340,7 @@ fn assert_meta_final_offset_multishard() {
 
 #[test]
 #[serial]
+#[ignore]
 fn assert_meta_successive_offsets_multishard() {
     // generate test shards
     // and run pipeline on them
@@ -388,7 +389,7 @@ fn assert_meta_successive_offsets_multishard() {
 
 #[test]
 #[serial]
-// #[ignore]
+#[ignore]
 fn assert_meta_validity_multishard() {
     // gen test shards and run pipeline
     let mut src_gen = PathBuf::from("result_5");
