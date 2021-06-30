@@ -185,7 +185,7 @@ impl OscarMetadata {
 
                 // get an atomic reference to global offsets
                 // let offsets_global_arc = offsets_global.clone();
-                info!("processing shard {:?}", &shard);
+                info!("processing shard {}: {:?}", idx, &shard);
 
                 let shard = Wet::from_path_gzip(&shard);
                 if shard.is_err() {
