@@ -60,21 +60,21 @@ async fn main() -> Result<(), error::Error> {
             // write eventual download errors
             for failure in results.iter().filter(|result| result.is_err()) {
                 error!("Error during download:\n {:?}", failure);
-                match failure.as_ref().unwrap_err() {
-                    download::Error::Download(e) => {
-                        write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
-                    }
-                    _ => (),
-                };
+                // match failure.as_ref().unwrap_err() {
+                //     download::Error::Download(e) => {
+                //         write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
+                //     }
+                //     _ => (),
+                // };
+                if let download::Error::Download(e) = failure.as_ref().unwrap_err() {
+                    write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
+                }
             }
         }
 
         cli::Ungoliant::Pipeline(p) => {
             let p = pipeline::OscarMetadata::new(p.src, p.dst);
             p.run()?;
-        }
-        _ => {
-            unimplemented!();
         }
     };
     Ok(())

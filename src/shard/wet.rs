@@ -1,25 +1,9 @@
-use std::{collections::HashMap, fs::File, io::BufReader, path::Path};
+use std::{fs::File, io::BufReader, path::Path};
 
+use crate::error::Error;
 use flate2::read::MultiGzDecoder;
-use libflate::gzip::MultiDecoder;
-use rayon::iter::ParallelIterator;
-use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 use std::io::BufRead;
-use warc::{header::WarcHeader, WarcReader};
-
-#[derive(Debug)]
-pub enum Error {
-    Io(std::io::Error),
-    Warc(warc::Error),
-    Custom(String),
-}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Error {
-        Error::Io(err)
-    }
-}
+use warc::WarcReader;
 
 /// Wet/Shard instance, generic over reader type.
 ///
@@ -35,7 +19,7 @@ pub struct Wet<T> {
 /// Wet reader using [MultiGzDecoder] over a [File].
 impl Wet<BufReader<MultiGzDecoder<File>>> {
     /// Create a new reader from a gzipped WET file.
-    pub fn from_path_gzip<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
+    pub fn from_path_gzip<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let gzip_file = File::open(path)?;
         let gzip_stream = MultiGzDecoder::new(gzip_file);
 
@@ -49,6 +33,7 @@ impl Wet<BufReader<MultiGzDecoder<File>>> {
     }
 }
 
+#[allow(dead_code)]
 impl<T: BufRead> Wet<T> {
     pub fn new(reader: T) -> Self {
         Self {
@@ -58,12 +43,12 @@ impl<T: BufRead> Wet<T> {
 }
 
 impl<R: BufRead> Iterator for Wet<R> {
-    type Item = Result<warc::RawRecord, warc::Error>;
+    type Item = Result<warc::RawRecord, Error>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(n) = self.reader.next() {
             match n {
                 Ok(record) => Some(Ok(record)),
-                Err(e) => Some(Err(e)),
+                Err(e) => Some(Err(Error::Warc(e))),
             }
         } else {
             None

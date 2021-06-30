@@ -148,16 +148,6 @@ impl OscarMetadata {
             })
             .map(|shard| shard.path());
 
-        // .filter_map(|shard| {
-        //     Wet::from_path_gzip(&shard.path()).map_or_else(
-        //         |e| {
-        //             error!("error reading shard file: {}", e);
-        //             None
-        //         },
-        //         Some,
-        //     )
-        // });
-
         // convert to parallel iterator
         // /!\: We use par_bridge, that is suboptimal
         //      compared to implementing IntoParallelIterator
@@ -190,7 +180,7 @@ impl OscarMetadata {
                 let shard = Wet::from_path_gzip(&shard);
                 if shard.is_err() {
                     error!("Could not read/open shard {}", idx);
-                    return shard.err().map(Error::Io);
+                    return shard.err();
                 }
 
                 let shard = shard.unwrap();
@@ -201,7 +191,7 @@ impl OscarMetadata {
                     .filter_map(|(idx_record, record)| match record {
                         Ok(record) => OscarMetadata::process_record(record, &cls),
                         Err(e) => {
-                            warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
+                            warn!("Error on record {} of shard {}: {:?}", idx_record, idx, e);
                             None
                         }
                     })

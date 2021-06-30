@@ -122,14 +122,6 @@ impl PartChunk {
         Ok(Self { metadata, body })
     }
 
-    pub fn metadata(&self) -> &Vec<Metadata> {
-        &self.metadata
-    }
-
-    pub fn body(&self) -> &String {
-        &self.body
-    }
-
     /// updates offsets.
     ///
     /// This offsets the metadata's `offset` fields by the provided `offset` value.
@@ -145,6 +137,7 @@ impl PartChunk {
     }
 }
 
+#[allow(dead_code)]
 impl Document {
     /// create a new document
     ///
@@ -216,23 +209,6 @@ impl Document {
                 identification: lang,
             })
             .collect()
-    }
-}
-
-impl Piece {
-    pub fn headers(&self) -> &HashMap<WarcHeader, Vec<u8>> {
-        &self.headers
-    }
-    pub fn sentences(&self) -> &Vec<String> {
-        &self.sentences
-    }
-    pub fn identification(&self) -> &'static str {
-        &self.identification
-    }
-
-    /// returns sentences size in bytes
-    pub fn sentences_size(&self) -> usize {
-        self.sentences.iter().fold(0, |acc, x| acc + x.len())
     }
 }
 
@@ -418,13 +394,10 @@ mod tests {
 
         for (lang, pieces) in hm {
             let pc = PartChunk::new(pieces).unwrap();
-            println!("{:#?}", pc.metadata());
+            println!("{:#?}", pc.metadata);
             println!(
                 "{:#?}",
-                pc.body()
-                    .lines()
-                    .enumerate()
-                    .collect::<Vec<(usize, &str)>>()
+                pc.body.lines().enumerate().collect::<Vec<(usize, &str)>>()
             );
         }
     }

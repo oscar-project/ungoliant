@@ -155,7 +155,7 @@ impl Pipeline<()> for RayonAll {
                 .filter_map(|(idx_record, record)| match record {
                     Ok(record) => RayonAll::process_record(record, &cls),
                     Err(e) => {
-                        warn!("Error on record {} of shard {}: {}", idx_record, idx, e);
+                        warn!("Error on record {} of shard {}: {:?}", idx_record, idx, e);
                         None
                     }
                 })

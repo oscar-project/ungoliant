@@ -3,9 +3,6 @@
 //! Enables language identification on sentences, using [fasttext](https://fasttext.cc) for now.
 use fasttext::{FastText, Prediction};
 
-/// Minimum sentence length, used by [valid_len].
-const MIN_SENTENCE_LEN: usize = 100;
-
 /// Clean the prediction label field from `__label__xx` into `xx`.
 ///
 /// Be aware that the function only skips 9 chars without doing any parsing,
@@ -25,14 +22,6 @@ fn clean_prediction(prediction: &Prediction) -> Result<Prediction, String> {
         prob: prediction.prob,
         label: prediction.label.chars().skip(9).collect(),
     })
-}
-
-/// ensure that sentences meet valid requirements
-/// to be sent to fasttext:
-/// - valid utf8: currently handled upper in the chain because strings can't be invalid utf8
-/// - > [MIN_SENTENCE_LEN] > [char]
-pub fn valid_len(sentence: &str) -> bool {
-    sentence.chars().count() > MIN_SENTENCE_LEN
 }
 
 /// Holds a [fasttext::FastText] instance and its parameters.

@@ -10,9 +10,9 @@ use futures_core::stream::Stream;
 use futures_util::TryStreamExt;
 use log::Level;
 use reqwest::{Client, Url};
-use std::{fs::File, iter::Enumerate, path::PathBuf};
+use std::path::PathBuf;
 use std::{
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader},
     path::Path,
 };
 use tokio_util::compat::FuturesAsyncReadCompatExt;
@@ -104,14 +104,6 @@ pub struct Downloader {
     n_tasks: usize,
 }
 
-// note: does it makes sense?
-// conversion is not cheap and contains business logic
-impl From<crate::cli::Download> for Downloader {
-    fn from(d: crate::cli::Download) -> Self {
-        unimplemented!();
-    }
-}
-
 impl Downloader {
     /// Construct a vector of urls to download from
     /// from a wet.paths file
@@ -200,12 +192,12 @@ impl Downloader {
         let client = Client::new();
 
         let paths = urls
-            .map(|(url, idx, path)| {
+            .map(|(url, id, path)| {
                 // clone client to use client pool
                 // See https://github.com/seanmonstar/reqwest/issues/600
                 // url to comply with 'static lifetime required by tokio
                 // note: we could also use Arc?
-                println!("Crawling {} to file {}.txt.gz", url, idx);
+                println!("Crawling {} to file {}.txt.gz", url, id);
 
                 let client = client.clone();
                 let url = url.clone();
@@ -220,11 +212,7 @@ impl Downloader {
                     // wrap eventual Reqwest errors into DownloadErrors
                     // to add context
                     dl.save_to(&path).await.map_err(|e| match e {
-                        Error::Reqwest(e) => Error::Download(DownloadError {
-                            err: e,
-                            path: path,
-                            id: idx,
-                        }),
+                        Error::Reqwest(err) => Error::Download(DownloadError { err, path, id }),
                         _ => e,
                     })
                 })
@@ -232,7 +220,7 @@ impl Downloader {
             .buffer_unordered(self.n_tasks);
 
         // flatten nested errors
-        paths.map(|result| flatten_error(result)).collect().await
+        paths.map(flatten_error).collect().await
     }
 }
 
@@ -250,6 +238,8 @@ mod tests {
 
     use super::*;
     use sha1::Digest;
+    use std::fs::File;
+    use std::io::Read;
     #[tokio::test]
     #[ignore]
     pub async fn test_download_async() {
