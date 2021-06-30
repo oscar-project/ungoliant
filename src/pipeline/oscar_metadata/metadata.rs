@@ -5,7 +5,6 @@
 //! from text file.
 //!
 //! Also implements [serde::Serialize] and [serde::Deserialize] for JSON serialization.
-use itertools::Itertools;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;

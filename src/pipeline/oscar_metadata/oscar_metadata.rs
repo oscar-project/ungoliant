@@ -211,7 +211,7 @@ impl OscarMetadata {
                     .collect(); //TODO: test with a for_each and a channel to send?
 
                 // Iterate over (record, header) tuples
-                let mut shard_results = shard_results.into_iter().filter_map(|(record, header)| {
+                let shard_results = shard_results.into_iter().filter_map(|(record, header)| {
                     // split between langs and sentences
                     let langs: Vec<&str> = record.iter().map(|(_, lang)| *lang).collect();
                     let sentences: Vec<String> =
@@ -274,7 +274,7 @@ impl OscarMetadata {
                     // update metadata with global offsets
                     // TODO: flatten shard_results into a vec of records?
                     for (lang, cp) in &mut chunk_parts {
-                        let mut offset = offsets_global_mutex.entry(lang).or_insert(0);
+                        let offset = offsets_global_mutex.entry(lang).or_insert(0);
                         let new_offset = cp.bump_offsets(*offset);
                         match new_offset {
                             Some(o) => *offset = o,
