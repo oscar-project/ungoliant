@@ -1,13 +1,35 @@
-use download::Downloader;
-use itertools::Itertools;
-use pipeline::pipeline::Pipeline;
-use rayon::prelude::*;
-use std::io::Write;
-use std::{fs::File, path::PathBuf};
-use structopt::StructOpt;
-use warc::{header::WarcHeader, RawRecord};
+//! # Ungoliant
+//!
+//! 🕷️ Ungoliant is the upcoming pipeline to obtain an OSCAR corpus from a Common Crawl dump.
+//! This pipeline replaces the original goclassy pipeline.
+//!
+//! This project can be used both as a tool to download or generate corpora,
+//! or as a lib to integrate downloading and processing into other projects.
+//!
+//! ## Getting started
+//!
+//! ```sh
+//! oscar-tools 0.1.0
+//! A collection of tools for OSCAR corpus
+//!
+//! USAGE:
+//!     ungoliant <SUBCOMMAND>
+//!
+//! FLAGS:
+//!     -h, --help       Prints help information
+//!     -V, --version    Prints version information
+//!
+//! SUBCOMMANDS:
+//!     download    Downloading of CommonCrawl
+//!     help        Prints this message or the help of the given subcommand(s)
+//!     pipeline    Run pipeline
+//! ```
+//!
 
-extern crate fasttext;
+use download::Downloader;
+use std::fs::File;
+use std::io::Write;
+use structopt::StructOpt;
 
 #[macro_use]
 extern crate log;
@@ -18,7 +40,7 @@ mod download;
 mod error;
 mod lang;
 mod pipeline;
-mod wet;
+mod shard;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
@@ -48,45 +70,12 @@ async fn main() -> Result<(), error::Error> {
         }
 
         cli::Ungoliant::Pipeline(p) => {
-            let p = pipeline::rayon_all::RayonAll::new(p.src, p.dst);
+            let p = pipeline::OscarMetadata::new(p.src, p.dst);
             p.run()?;
         }
         _ => {
             unimplemented!();
         }
     };
-    // let mut err_file = File::create("errors.txt").expect("failed to create error file");
-    // let mut log_file = File::create("log.txt").expect("failed to create log file");
-
-    // let warc_record = warc::Wet::from_path_gzip(opt.file)?;
-    // let mut classifier = classify::Classifier::new_lid().expect("oops");
-
-    // // FIX for robots: line
-    // let mut warc_record = warc_record.into_iter().skip(1);
-    // println!("{:?}", warc_record.next());
-
-    // for record in warc_record {
-    //     let record = record.expect("could not fetch record");
-    //     let predictions: Vec<_> = record
-    //         .lines()
-    //         .filter(|line| classify::valid_len(line))
-    //         .map(|line| (classifier.predict(line).unwrap_or(None), line))
-    //         .filter(|pair| pair.0.is_some())
-    //         .map(|pair| (pair.0.unwrap(), pair.1))
-    //         .collect();
-
-    //     for p in predictions {
-    //         println!("{:?}", p);
-    //     }
-    // }
-    // let d = Downloader::from_paths_file(&File::open(opt.file)?)?;
-
-    // let results = d.download_all_blocking();
-
-    // // print eventual errors
-    // for error in results.iter().filter(|x| Result::is_err(x)) {
-    //     eprintln!("{:?}", error);
-    // }
-
     Ok(())
 }

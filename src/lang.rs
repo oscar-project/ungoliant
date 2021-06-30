@@ -1,16 +1,21 @@
-// use crate::error::Error;
-// use std::str::FromStr;
-// // use std::collections::HashSet;
-
+//! Language files management.
+//!
+//! This module contains structs that hold handles to language files
+//! and language metadata.
+//!
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::ValuesMut, HashMap, HashSet},
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
 };
 
+use log::debug;
 use structopt::lazy_static::lazy_static;
 
 lazy_static! {
+
+    /// Holds langs that are available through the OSCAR corpus
+    /// Derived from the lang labels from fasttext.
     pub static ref LANG: HashSet<&'static str> = {
         let mut m = HashSet::new();
         m.insert("fr");
@@ -201,6 +206,10 @@ lazy_static! {
 /// and is writeable via the handlers.
 ///
 /// When using [LangFiles], be aware that ~160 files will stay open while the structure is not dropped.
+///
+// TODO: replace this with an alias to HashMap?
+// This way we don't need to manually bind HashMap methods
+// TODO: both constructors have the same code, use a "factory"?
 pub struct LangFiles {
     handles: HashMap<&'static str, File>,
 }
@@ -222,13 +231,31 @@ impl LangFiles {
         Ok(LangFiles { handles })
     }
 
+    /// open a file handle for each language metadata array
+    pub fn new_meta(src: &Path) -> Result<Self, std::io::Error> {
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).create(true);
+        let mut handles = HashMap::new();
+        for lang in LANG.iter() {
+            let mut filename = lang.to_string();
+            filename.push_str("_meta");
+            let mut file_path: PathBuf = [src, &Path::new(&filename)].iter().collect();
+            file_path.set_extension("json");
+            debug!("creating/opening {:?}", file_path);
+            let fh = options.clone().open(file_path)?;
+            handles.insert(*lang, fh);
+        }
+
+        Ok(LangFiles { handles })
+    }
+
     /// binds to [HashMap::get].
     pub fn get(&self, key: &'static str) -> Option<&File> {
         self.handles.get(key)
     }
 
-    /// binds to [HashMap::get_mut].
-    pub fn get_mut(&mut self, key: &'static str) -> Option<&mut File> {
-        self.handles.get_mut(key)
+    /// binds to [HashMap::values_mut]
+    pub fn values_mut(&mut self) -> ValuesMut<&'static str, File> {
+        self.handles.values_mut()
     }
 }

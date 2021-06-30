@@ -10,8 +10,8 @@ license = "Apache-2.0"
 
 [dependencies]
 num_cpus = "1.13"
-reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
-flate2 = { version = "1.0.20", features= ["miniz-sys"]}
+reqwest = { version = "0.11", default-features=false, features = ["rustls-tls", "blocking", "stream"] }
+flate2 = { version = "1.0.20"}
 futures-core = "0.3"
 futures-util = "0.3"
 futures = "0.3"
@@ -22,16 +22,20 @@ itertools = "0.10.0"
 tokio = { version = "1", features = ["full"] }
 tokio-util = {version="0.6.6", features=["compat"]}
 libflate = "1"
-warc = {git = "https://github.com/jedireza/warc"}
+warc = {git = "https://github.com/uinelj/warc", features = ["with_serde"]}
 fasttext = {git = "https://github.com/Uinelj/fasttext-rs"}
 bytes = "1"
 rayon = "1"
 twox-hash = "1.6"
 crossbeam = "0.8.0"
 
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
 [dev-dependencies]
 sha-1 = "0.9"
 criterion = "0.3"
+serial_test = "0.5.1"
 
 [[bench]]
 name = "fasttext_bench"

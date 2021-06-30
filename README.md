@@ -13,6 +13,10 @@ export OPENSSL_INCLUDE_DIR=/path/to/anaconda/include
 export OPENSSL_STATIC=1
 ```
 
+## Documentation
+
+Ungoliant is not yet on docs.rs: use `cargo doc --bins --open` to open the documentation.
+
 ## Benchmarking
 
 Use `cargo bench` to run benchmarking.
