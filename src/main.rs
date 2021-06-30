@@ -73,7 +73,7 @@ async fn main() -> Result<(), error::Error> {
         }
 
         cli::Ungoliant::Pipeline(p) => {
-            let p = pipeline::OscarMetadata::new(p.src, p.dst);
+            let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
             p.run()?;
         }
     };

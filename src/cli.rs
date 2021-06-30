@@ -69,6 +69,10 @@ pub struct Pipeline {
     pub src: PathBuf,
     #[structopt(parse(from_os_str), help = "pipeline result destination")]
     pub dst: PathBuf,
-    #[structopt(short = "m", long = "with_metadata", help = "extract metadata")]
-    pub with_metadata: bool,
+    #[structopt(
+        parse(from_os_str),
+        help = "Path to 176.lid.bin",
+        default_value = "lid.176.bin"
+    )]
+    pub lid_path: PathBuf,
 }

@@ -59,6 +59,7 @@ This particular record begins at offset `34124+1` and ends at `34124+3`.
 mod chunks;
 mod document;
 pub mod metadata;
+#[allow(clippy::module_inception)]
 pub mod oscar_metadata;
 
 use metadata::Metadata;

@@ -38,14 +38,15 @@ use warc::{header::WarcHeader, RawRecord};
 pub struct OscarMetadata {
     src: PathBuf,
     dst: PathBuf,
+    lid_path: PathBuf,
 }
 
 /// convinience type alias for [warc::Record] headers.
 type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
 impl OscarMetadata {
-    pub fn new(src: PathBuf, dst: PathBuf) -> Self {
-        Self { src, dst }
+    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf) -> Self {
+        Self { src, dst, lid_path }
     }
 
     /// attempt to predict language on provided sentence.
@@ -130,7 +131,7 @@ impl OscarMetadata {
     pub fn run(&self) -> Result<(), Error> {
         // let errors;
 
-        let cls = Classifier::new_lid()?;
+        let cls = Classifier::new(&self.lid_path, 1, 0.8)?;
 
         // list files in source folder,
         // filter out errors from fs and from gzip/wet.

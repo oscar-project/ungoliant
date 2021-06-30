@@ -1,6 +1,9 @@
 //! Language classification/identification utilities.
 //!
 //! Enables language identification on sentences, using [fasttext](https://fasttext.cc) for now.
+use std::path::Path;
+
+use crate::error::Error;
 use fasttext::{FastText, Prediction};
 
 /// Clean the prediction label field from `__label__xx` into `xx`.
@@ -44,8 +47,8 @@ impl Classifier {
     ///
     /// # Errors
     /// Propagates [fasttext::FastText] errors.
-    pub fn new_lid() -> Result<Self, String> {
-        Self::new("lid.176.bin", 1, 0.8)
+    pub fn new_lid() -> Result<Self, Error> {
+        Self::new(&Path::new("lid.176.bin"), 1, 0.8)
     }
 
     /// Create a new fasttext classifier.
@@ -53,14 +56,23 @@ impl Classifier {
     /// filename has to be a path to a `bin` file.
     ///
     /// See [fasttext::FastText::predict] for other parameters explanation
-    pub fn new(filename: &str, k: i32, threshold: f32) -> Result<Self, String> {
+    pub fn new(filename: &Path, k: i32, threshold: f32) -> Result<Self, Error> {
         let mut predictor = FastText::new();
-        predictor.load_model(filename)?;
-        Ok(Classifier {
-            predictor,
-            k,
-            threshold,
-        })
+        let filename_str = filename.to_str();
+        match filename_str {
+            None => Err(Error::Custom(format!(
+                "invalid filepath for lid: {:?}",
+                filename
+            ))),
+            Some(filename) => {
+                predictor.load_model(filename)?;
+                Ok(Classifier {
+                    predictor,
+                    k,
+                    threshold,
+                })
+            }
+        }
     }
 
     /// predict for supplied sentence.
