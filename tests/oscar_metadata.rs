@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use flate2::Compression;
 use itertools::Itertools;
 use serial_test::serial;
+use ungoliant::error;
 use ungoliant::error::Error;
 use ungoliant::lang::LANG;
 use ungoliant::pipeline::Metadata;
@@ -24,12 +25,13 @@ use warc::RawRecord;
 fn pipeline_no_folders() {
     let src = PathBuf::from("svdkjljlkmjlmdsfljkf");
     let dst = PathBuf::from("fzjoijzoecijzoiej");
+    let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src, dst);
+    let p = OscarMetadata::new(src, dst, lid_path);
     assert!(p.run().is_err());
 }
 
-fn gen_test_shards(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_test_shards(src: &Path, dst: &Path) -> Result<(), error::Error> {
     for shard in std::fs::read_dir(src)? {
         let shard = shard?;
         let records = shard::wet::Wet::from_path_gzip(shard.path())?;
@@ -89,7 +91,9 @@ fn assert_meta_final_offset() {
     std::fs::create_dir(&dst).unwrap();
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
-    let p = OscarMetadata::new(src.clone(), dst.clone());
+    let lid_path = PathBuf::from("lid.176.bin");
+
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -138,7 +142,9 @@ fn assert_meta_successive_offsets() {
     std::fs::create_dir(&dst).unwrap();
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
-    let p = OscarMetadata::new(src.clone(), dst.clone());
+    let lid_path = PathBuf::from("lid.176.bin");
+
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -187,7 +193,9 @@ fn assert_meta_validity() {
     std::fs::create_dir(&dst).unwrap();
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
-    let p = OscarMetadata::new(src.clone(), dst.clone());
+    let lid_path = PathBuf::from("lid.176.bin");
+
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
     p.run().unwrap();
 
     // get data and metadata from shard
@@ -295,7 +303,8 @@ fn assert_meta_final_offset_multishard() {
     std::fs::create_dir(&dst).unwrap();
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
-    let p = OscarMetadata::new(src.clone(), dst.clone());
+    let lid_path = PathBuf::from("lid.176.bin");
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -351,7 +360,8 @@ fn assert_meta_successive_offsets_multishard() {
     std::fs::create_dir(&dst).unwrap();
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
-    let p = OscarMetadata::new(src.clone(), dst.clone());
+    let lid_path = PathBuf::from("lid.176.bin");
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -399,8 +409,8 @@ fn assert_meta_validity_multishard() {
     std::fs::create_dir(&dst);
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_5 containing 0.txt.gz as test shard.");
-    // let p = OscarMetadata::new(src.clone(), dst.clone());
-    let p = OscarMetadata::new(src.clone(), dst.clone());
+    let lid_path = PathBuf::from("lid.176.bin");
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
     p.run().unwrap();
 
     let mut record_index = HashMap::new();
@@ -464,7 +474,8 @@ fn pipeline_single_shard() {
     let src = PathBuf::from("debug_1/");
     let dst = PathBuf::from("temp_1/");
 
-    let p = OscarMetadata::new(src.clone(), dst.clone());
+    let lid_path = PathBuf::from("lid.176.bin");
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
     let res = p.run();
     assert!(res.is_ok());
 
