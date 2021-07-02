@@ -17,6 +17,7 @@ pub struct TextWriter {
     size: u64,
     size_limit: u64,
     nb_files: u64,
+    pub first_write_on_document: bool,
 }
 
 impl TextWriter {
@@ -31,13 +32,14 @@ impl TextWriter {
             size: 0,
             size_limit,
             nb_files: 0,
+            first_write_on_document: false,
         }
     }
 
     /// Rotate file.
     ///
     /// The first file is named `lang.txt`, and is renamed `lang_part_1.txt` if there's > 1 number of files.
-    fn create_next_file(&mut self) -> std::io::Result<()> {
+    pub fn create_next_file(&mut self) -> std::io::Result<()> {
         let filename = if self.nb_files == 0 {
             format!("{}.txt", self.lang)
         } else {
@@ -52,13 +54,14 @@ impl TextWriter {
 
         let text = options.open(path)?;
 
-        //if nb_files == 1, rename lang.txt into lang_part_1.txt
+        // if nb_files == 1, rename lang.txt into lang_part_1.txt
         if self.nb_files == 1 {
             let mut from = self.dst.clone();
             from.push(format!("{}.txt", self.lang));
             let mut to = self.dst.clone();
             to.push(format!("{}_part_1.txt", self.lang));
 
+            debug!("renaming {:?} to {:?}", from, to);
             std::fs::rename(from, to)?;
         }
 
@@ -66,7 +69,16 @@ impl TextWriter {
 
         self.size = 0;
         self.nb_files += 1;
+        self.first_write_on_document = true;
         Ok(())
+    }
+
+    /// gets first_write_on_document and resets it to false.
+    /// useful to check variable value, and to reset it to its default one
+    pub fn get_reset_first_write(&mut self) -> bool {
+        let ret = self.first_write_on_document;
+        self.first_write_on_document = false;
+        ret
     }
 }
 
@@ -78,7 +90,8 @@ impl Write for TextWriter {
         }
 
         // if there's no space left on the current file, create another one
-        if self.size + buf.len() as u64 > self.size_limit {
+        // ignore if the file is already empty (if we're already on a new file)
+        if (self.size + buf.len() as u64 > self.size_limit) && self.size > 0 {
             self.create_next_file()?;
         }
 
@@ -170,33 +183,68 @@ mod tests {
         let file_size = 10;
         let mut tw = TextWriter::new(&PathBuf::from("tmp_multiple_sizes/"), "en", file_size);
         let mut texts = vec![
-            "helloworld\n",                 // fits in file 1
-            "tiny\n",                       // fits in file 2
-            "tiny\n",                       // fits in file 2
-            "short\n",                      // fits in file 3
-            "medium\n",                     // fits in file 4
-            "laaaaaaaaaaaaaaaaaaaaaarge\n", // fits in file 5 even if it is too large
+            "hello\nworld\n", // fits in file 1 (12bytes, overflow but unique document)
+            "tiny\ntiny\n",   // fits in file 2 (10bytes, unique (maxed) document)
+            "aa\nbb\ncc\n",   // fits in file 3 (9bytes, unique document with 1 byte of free space)
+            "short\nshort\n", // fits in file 4 (12bytes, should be in a unique document and not fill up the previous one)
+            "medium\n",       // fits in file 5 (7bytes, new document aswell)
+            "doc\n",          // fits in file 6 (4bytes, overflowing file 5, 6 bytes of free space)
+            "6\n",            // fits in file 6 (2bytes, 4bytes of free space)
+            "document7\n",    // fits in file 7 (10bytes, new document, full)
+            "0\n",            // fits in file 8 (2bytes, 8bytes of free space)
+            "1\n",            // same
+            "2\n",            // same
+            "3\n",            // same
+            "4\n",            // fits in file 8 (2bytes, full)
         ]
         .into_iter()
         .map(String::from);
 
-        for _ in 0..5 {
-            tw.write_all(&texts.next().unwrap().as_bytes()).unwrap();
+        // expected data from each part
+        let expected_text = vec![
+            "hello\nworld\n",
+            "tiny\ntiny\n",
+            "aa\nbb\ncc\n",
+            "short\nshort\n",
+            "medium\n",
+            "doc\n6\n",
+            "document7\n",
+            "0\n1\n2\n3\n4\n",
+        ];
+
+        // metadata resets should be at these text indices
+        // metadata resets = iterations where we open a new fresh file.
+        let mut metadata_resets = vec![0, 1, 2, 3, 4, 5, 7, 8];
+        for (idx, text) in texts.enumerate() {
+            tw.write_all(&text.as_bytes()).unwrap();
+
+            // if the first write flag is up
+            if tw.get_reset_first_write() {
+                // remove idx from metadata resets
+                let reset_position = metadata_resets
+                    .iter()
+                    .position(|x| x == &idx)
+                    .expect("unexpected metadata reset");
+                metadata_resets.remove(reset_position);
+                tw.first_write_on_document = false;
+            }
         }
 
+        // if code is valid, all metadata resets should have been found.
+        assert!(metadata_resets.is_empty());
+
         let mut b = String::new();
-        for i in 1..=4 {
+        for i in 1..=8 {
             b.clear();
             let filename = format!("tmp_multiple_sizes/en_part_{}.txt", i);
-            dbg!(&filename);
             let mut f = std::fs::File::open(&filename).unwrap();
             f.read_to_string(&mut b).unwrap();
             let f_size = f.metadata().unwrap().len() as u64;
-            //TODO: find a way to validate.
-            // f < filesize
-            // but if origin text is > than filesize then it's ok if f > filesize.
+            assert_eq!(expected_text[i - 1], b);
+            assert_eq!(f_size, b.len() as u64);
+
             std::fs::remove_file(filename).unwrap();
         }
-        std::fs::remove_dir_all("tmp_multiple_sizes/");
+        std::fs::remove_dir_all("tmp_multiple_sizes/").unwrap();
     }
 }
