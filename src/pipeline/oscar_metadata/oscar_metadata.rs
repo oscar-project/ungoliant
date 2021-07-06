@@ -389,8 +389,8 @@ impl OscarMetadata {
             // get a character before the end
             // and check if it is the offending comma
             results.push(fix(meta_file, &mut buf, comma));
-
             // put json array end token
+
             results.push(meta_file.write_all(b"]"));
         }
 

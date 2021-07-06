@@ -46,10 +46,10 @@ struct Piece {
 /// Holds a merged-down version of Piece, where sentences are merged into a single String
 #[derive(Debug)]
 pub struct MergedPiece {
-    headers: HashMap<WarcHeader, Vec<u8>>,
-    sentences: String,
-    nb_sentences: usize,
-    identification: &'static str,
+    pub headers: HashMap<WarcHeader, Vec<u8>>,
+    pub sentences: String,
+    pub nb_sentences: usize,
+    pub identification: &'static str,
 }
 
 impl MergedPiece {

@@ -16,7 +16,7 @@ pub struct TextWriter {
     text: Option<File>,
     size: u64,
     size_limit: u64,
-    nb_files: u64,
+    pub nb_files: u64,
     pub first_write_on_document: bool,
 }
 
@@ -97,6 +97,7 @@ impl Write for TextWriter {
 
         if let Some(text) = &mut self.text {
             let bytes_written = text.write(buf)?;
+            text.write_all(b"\n\n")?;
             self.size += match u64::try_from(bytes_written) {
                 Ok(b) => b,
                 Err(e) => {
@@ -148,8 +149,13 @@ mod tests {
 
         file.read_to_string(&mut result).unwrap();
 
+        let mut text = text;
+
+        // to account for newlines
+        text.push_str("\n\n");
         assert_eq!(text, result);
-        assert_eq!(file_size, file.metadata().unwrap().len());
+        // +2 to account for newlines
+        assert_eq!(file_size + 2, file.metadata().unwrap().len());
 
         std::fs::remove_dir_all("tmp_one_file/").unwrap();
     }
@@ -165,6 +171,8 @@ mod tests {
             tw.write_all(&text.as_bytes()).unwrap();
         }
 
+        let mut text = text;
+        text.push_str("\n\n");
         let mut b = String::new();
         for i in 1..=10 {
             b.clear();
@@ -172,7 +180,7 @@ mod tests {
             let mut file = std::fs::File::open(&filename).unwrap();
             file.read_to_string(&mut b).unwrap();
             assert_eq!(b, text);
-            assert_eq!(file_size, file.metadata().unwrap().len());
+            assert_eq!(file_size + 2, file.metadata().unwrap().len());
         }
         std::fs::remove_dir_all("tmp_multiple/").unwrap();
     }
@@ -240,7 +248,7 @@ mod tests {
             let mut f = std::fs::File::open(&filename).unwrap();
             f.read_to_string(&mut b).unwrap();
             let f_size = f.metadata().unwrap().len() as u64;
-            assert_eq!(expected_text[i - 1], b);
+            assert_eq!(expected_text[i - 1].to_string() + "\n\n", b);
             assert_eq!(f_size, b.len() as u64);
 
             std::fs::remove_file(filename).unwrap();
