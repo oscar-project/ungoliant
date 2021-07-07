@@ -150,7 +150,7 @@ Ecoutez ça va plutôt bien."
         let mut wr = Writer::new(dst, "fr", 10_000).unwrap();
 
         let mut merged_pieces = Vec::new();
-        for i in 1..100 {
+        for i in 1..10 {
             let headers: WarcHeaders = vec![(
                 WarcHeader::Filename,
                 Vec::from(format!("filenametest{}", i).as_bytes()),
@@ -175,12 +175,15 @@ Ecoutez ça va plutôt bien."
 
         // check if content is the same
         let mut sentences = String::new();
-        let mut f = File::open("dst_test_write/fr.txt").unwrap();
+        let mut f = File::open("dst_test_write_multiple/fr.txt").unwrap();
         f.read_to_string(&mut sentences).unwrap();
-        assert_eq!(sentences, merged_pieces[0].sentences);
+        let sentences: Vec<&str> = sentences.split("\n\n").collect();
+        for i in 0..merged_pieces.len() {
+            assert_eq!(sentences[i], merged_pieces[i].sentences);
+        }
 
         // succintly check if metadata are the same
-        let mut f = File::open("dst_test_write/fr_meta.json").unwrap();
+        let mut f = File::open("dst_test_write_multiple/fr_meta.json").unwrap();
         let metadata: Vec<Metadata> = serde_json::from_reader(f).unwrap();
         assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
     }

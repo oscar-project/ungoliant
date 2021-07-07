@@ -210,14 +210,14 @@ mod tests {
 
         // expected data from each part
         let expected_text = vec![
-            "hello\nworld\n",
-            "tiny\ntiny\n",
-            "aa\nbb\ncc\n",
-            "short\nshort\n",
-            "medium\n",
-            "doc\n6\n",
-            "document7\n",
-            "0\n1\n2\n3\n4\n",
+            "hello\nworld\n\n\n",
+            "tiny\ntiny\n\n\n",
+            "aa\nbb\ncc\n\n\n",
+            "short\nshort\n\n\n",
+            "medium\n\n\n",
+            "doc\n\n\n6\n\n\n",
+            "document7\n\n\n",
+            "0\n\n\n1\n\n\n2\n\n\n3\n\n\n4\n\n\n",
         ];
 
         // metadata resets should be at these text indices
@@ -248,7 +248,7 @@ mod tests {
             let mut f = std::fs::File::open(&filename).unwrap();
             f.read_to_string(&mut b).unwrap();
             let f_size = f.metadata().unwrap().len() as u64;
-            assert_eq!(expected_text[i - 1].to_string() + "\n\n", b);
+            assert_eq!(expected_text[i - 1], b);
             assert_eq!(f_size, b.len() as u64);
 
             std::fs::remove_file(filename).unwrap();
