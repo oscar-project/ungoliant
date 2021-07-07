@@ -1,9 +1,15 @@
+/*! Text&Metadata writer for a given language.
+
+Holds writing and rotating on both text and metadata files for a given language.
+Supports writing of numerous [MergedPiece], given that their identification are the same.
+Identification is checked too, preventing the writing of differently identified [MergedPiece] into a given language writer.
+!*/
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Write;
 use std::path::Path;
 
-use ungoliant::pipeline::Metadata;
+use crate::pipeline::Metadata;
 use warc::header::WarcHeader;
 
 use crate::pipeline::oscar_metadata::document::MergedPiece;
@@ -13,6 +19,7 @@ use crate::{
 };
 
 type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
+
 pub struct Writer {
     handle_text: TextWriter,
     handle_meta: MetaWriter,
@@ -21,6 +28,10 @@ pub struct Writer {
 }
 
 impl Writer {
+    /// Create a new Writer for provided language.
+    /// Files will be written at the root of the `dst` file, and shouldn't exceed `size_limit`.
+    ///
+    /// _See [TextWriter] to have an explanation about the *shouldn't*._
     pub fn new(dst: &Path, lang: &'static str, size_limit: u64) -> Result<Self, error::Error> {
         Ok(Self {
             handle_text: TextWriter::new(dst, lang, size_limit),
@@ -30,7 +41,7 @@ impl Writer {
         })
     }
 
-    // writes
+    /// writes the provided [MergedPiece], checking language identification.
     pub fn write(&mut self, pieces: &[MergedPiece]) -> Result<(), error::Error> {
         for piece in pieces {
             //ensure that the piece has the correct language identification
@@ -71,6 +82,8 @@ impl Writer {
         Ok(())
     }
 
+    /// Binds to [MetaWriter::close_file].
+    /// Closes current metadata file.
     pub fn close_meta(&mut self) -> Result<(), error::Error> {
         self.handle_meta.close_file()
     }
@@ -100,6 +113,7 @@ mod tests {
         let dst = Path::new("dst_test_init_writer");
         std::fs::create_dir(dst).unwrap();
         let wr = Writer::new(dst, "en", 1_000_000);
+        std::fs::remove_dir_all(dst).unwrap();
     }
 
     #[test]
@@ -141,6 +155,7 @@ Ecoutez ça va plutôt bien."
         let mut f = File::open("dst_test_write/fr_meta.json").unwrap();
         let metadata: Vec<Metadata> = serde_json::from_reader(f).unwrap();
         assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
+        std::fs::remove_dir_all(dst).unwrap();
     }
 
     #[test]
@@ -186,5 +201,6 @@ Ecoutez ça va plutôt bien."
         let mut f = File::open("dst_test_write_multiple/fr_meta.json").unwrap();
         let metadata: Vec<Metadata> = serde_json::from_reader(f).unwrap();
         assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
+        std::fs::remove_dir_all(dst).unwrap();
     }
 }

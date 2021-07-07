@@ -1,3 +1,4 @@
+//! Thread-safe language-separated text/metadata writer.
 use std::{
     collections::HashMap,
     path::Path,
@@ -6,11 +7,20 @@ use std::{
 
 use crate::lang::LANG;
 use crate::{error, writing::writer::Writer};
-struct LangFiles {
+/// Holds references to [Writer].
+pub struct LangFiles {
     writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
 }
 
 impl LangFiles {
+    /// Create a new LangFiles. `part_size_bytes` sets an indication of the maximum size
+    /// by part.
+    /// Note that if it is set too low and a unique record can't be stored in an unique part
+    /// then a part will still be created, being larger than the `part_size_bytes`. This is expected behaviour.
+    ///
+    /// Also keep in mind that [Self::close_meta] has to be called once every write is done.
+    ///
+    // [Self::close_meta] could be integrated in an `impl Drop`
     pub fn new(dst: &Path, part_size_bytes: u64) -> Result<Self, error::Error> {
         let mut writers = HashMap::with_capacity(LANG.len());
         let mut w;
@@ -22,8 +32,18 @@ impl LangFiles {
         Ok(Self { writers })
     }
 
+    /// Get a non-mutable reference to the writers.
     pub fn writers(&self) -> &HashMap<&'static str, Arc<Mutex<Writer>>> {
         &self.writers
+    }
+
+    /// Fix open metadata files by removing trailing comma and closing the array.
+    pub fn close_meta(&self) -> Result<(), error::Error> {
+        for writer in self.writers.values() {
+            let mut writer_lock = writer.lock().unwrap();
+            writer_lock.close_meta()?;
+        }
+        Ok(())
     }
 }
 

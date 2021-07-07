@@ -1,9 +1,9 @@
 //! Rotating file writers for text and metadata.
+use log::{debug, error};
 use std::convert::TryFrom;
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::{fs::File, io::Write, path::PathBuf};
-
 /// Rotating file writers.
 ///
 /// Implement [std::io::Write] and holds a size (bytes) limit.

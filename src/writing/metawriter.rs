@@ -1,18 +1,17 @@
-//! Rotating file writers for text and metadata.
+//! Rotating file writer for metadata.
+use crate::error;
 use log::debug;
+use log::warn;
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::{fs::File, io::Write, path::PathBuf};
 
-use crate::error;
-
-/// Rotating file writers.
+/// Rotating file writer.
 ///
-/// Implement [std::io::Write] and holds a size (bytes) limit.
+/// Implements [std::io::Write]
 ///
-/// Note: if a slice to write is larger than the whole limit, then it is an expected behaviour that
-/// the size limit is ignored and a file is created.
+/// *Note:* Contrary to TextWriter, [MetaWriter] has no limit and new file creation has to be triggered manually by invoking [MetaWriter::create_next_file].
 pub struct MetaWriter {
     lang: &'static str,
     dst: PathBuf,
@@ -33,6 +32,7 @@ impl MetaWriter {
         }
     }
 
+    /// attempt to close current file while ending json.
     pub fn close_file(&mut self) -> Result<(), error::Error> {
         if let Some(file) = &mut self.file {
             Self::end_metadata_file(file)?;
@@ -56,9 +56,10 @@ impl MetaWriter {
         file.write_all(b"]")?;
         Ok(())
     }
+
     /// Rotate file.
     ///
-    /// The first file is named `lang.txt`, and is renamed `lang_part_1.txt` if there's > 1 number of files.
+    /// The first file is named `lang_meta.json`, and is renamed `lang_meta_part_1.json` if there's > 1 number of files.
     pub fn create_next_file(&mut self) -> std::io::Result<()> {
         if let Some(file) = &mut self.file {
             Self::end_metadata_file(file)?;
@@ -80,7 +81,7 @@ impl MetaWriter {
         // JSON Array start token
         file.write_all("[".as_bytes())?;
 
-        // if nb_files == 1, rename lang.txt into lang_part_1.txt
+        // if nb_files == 1
         if self.nb_files == 1 {
             let mut from = self.dst.clone();
             from.push(format!("{}_meta.json", self.lang));
