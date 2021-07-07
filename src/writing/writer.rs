@@ -4,21 +4,17 @@ Holds writing and rotating on both text and metadata files for a given language.
 Supports writing of numerous [MergedPiece], given that their identification are the same.
 Identification is checked too, preventing the writing of differently identified [MergedPiece] into a given language writer.
 !*/
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Write;
 use std::path::Path;
 
 use crate::pipeline::Metadata;
-use warc::header::WarcHeader;
 
 use crate::pipeline::oscar_metadata::document::MergedPiece;
 use crate::{
     error,
     writing::{MetaWriter, TextWriter},
 };
-
-type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
 pub struct Writer {
     handle_text: TextWriter,
@@ -91,28 +87,19 @@ impl Writer {
 #[cfg(test)]
 mod tests {
 
-    use std::{fs::File, io::Read};
+    use std::{collections::HashMap, fs::File, io::Read};
+
+    use warc::header::WarcHeader;
 
     use super::*;
 
-    fn create_merged_piece(
-        sentences: String,
-        identification: &'static str,
-        headers: WarcHeaders,
-    ) -> MergedPiece {
-        let nb_sentences = sentences.split("\n").count();
-        MergedPiece {
-            sentences,
-            identification,
-            headers,
-            nb_sentences,
-        }
-    }
+    type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
+
     #[test]
     fn test_init() {
         let dst = Path::new("dst_test_init_writer");
         std::fs::create_dir(dst).unwrap();
-        let wr = Writer::new(dst, "en", 1_000_000);
+        let _ = Writer::new(dst, "en", 1_000_000);
         std::fs::remove_dir_all(dst).unwrap();
     }
 
@@ -152,7 +139,7 @@ Ecoutez ça va plutôt bien."
         assert_eq!(sentences, from_merged_pieces);
 
         // succintly check if metadata are the same
-        let mut f = File::open("dst_test_write/fr_meta.json").unwrap();
+        let f = File::open("dst_test_write/fr_meta.json").unwrap();
         let metadata: Vec<Metadata> = serde_json::from_reader(f).unwrap();
         assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
         std::fs::remove_dir_all(dst).unwrap();
@@ -198,7 +185,7 @@ Ecoutez ça va plutôt bien."
         }
 
         // succintly check if metadata are the same
-        let mut f = File::open("dst_test_write_multiple/fr_meta.json").unwrap();
+        let f = File::open("dst_test_write_multiple/fr_meta.json").unwrap();
         let metadata: Vec<Metadata> = serde_json::from_reader(f).unwrap();
         assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
         std::fs::remove_dir_all(dst).unwrap();

@@ -49,7 +49,6 @@ impl LangFiles {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::create_dir;
 
     use crate::pipeline::oscar_metadata::document::MergedPiece;
     use warc::header::WarcHeader;
@@ -75,7 +74,7 @@ mod tests {
     fn init() {
         let dst = Path::new("dst_langfiles_init");
         std::fs::create_dir(dst).unwrap();
-        let langfiles = LangFiles::new(dst, 10);
+        let _ = LangFiles::new(dst, 10);
         std::fs::remove_dir_all(dst).unwrap();
     }
 

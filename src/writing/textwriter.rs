@@ -75,6 +75,8 @@ impl TextWriter {
 
     /// gets first_write_on_document and resets it to false.
     /// useful to check variable value, and to reset it to its default one
+    // allow dead code if we decide to switch on it
+    #[allow(dead_code)]
     pub fn get_reset_first_write(&mut self) -> bool {
         let ret = self.first_write_on_document;
         self.first_write_on_document = false;
@@ -167,7 +169,7 @@ mod tests {
         let mut tw = TextWriter::new(&PathBuf::from("tmp_multiple/"), "en", file_size);
         let text = String::from("helloworld");
 
-        for i in 0..10 {
+        for _ in 0..10 {
             tw.write_all(&text.as_bytes()).unwrap();
         }
 
@@ -190,7 +192,7 @@ mod tests {
         std::fs::create_dir("tmp_multiple_sizes/").unwrap();
         let file_size = 10;
         let mut tw = TextWriter::new(&PathBuf::from("tmp_multiple_sizes/"), "en", file_size);
-        let mut texts = vec![
+        let texts = vec![
             "hello\nworld\n", // fits in file 1 (12bytes, overflow but unique document)
             "tiny\ntiny\n",   // fits in file 2 (10bytes, unique (maxed) document)
             "aa\nbb\ncc\n",   // fits in file 3 (9bytes, unique document with 1 byte of free space)

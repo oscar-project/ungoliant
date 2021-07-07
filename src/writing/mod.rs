@@ -17,4 +17,3 @@ mod writer;
 pub use langfiles::LangFiles;
 use metawriter::MetaWriter;
 use textwriter::TextWriter;
-use writer::Writer;

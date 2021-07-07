@@ -1,7 +1,6 @@
 //! Rotating file writer for metadata.
 use crate::error;
-use log::debug;
-use log::warn;
+use log::{debug, warn};
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
@@ -38,7 +37,7 @@ impl MetaWriter {
             Self::end_metadata_file(file)?;
             self.file = None;
         } else {
-            warn!("trying to close an unopened MetaWriter.");
+            warn!("{}: trying to close an unopened MetaWriter.", self.lang);
         };
         Ok(())
     }

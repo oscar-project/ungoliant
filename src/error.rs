@@ -1,6 +1,7 @@
 use std::string::FromUtf8Error;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum Error {
     Io(std::io::Error),
     Warc(warc::Error),

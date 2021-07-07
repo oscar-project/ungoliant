@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use structopt::lazy_static::lazy_static;
 use ungoliant::pipeline::oscar_metadata::document::MergedPiece;
 use ungoliant::writing::LangFiles;
 use warc::header::WarcHeader;
@@ -24,7 +23,7 @@ fn english_mergedparts(nb: i32) -> Vec<MergedPiece> {
     (0..nb)
         .into_iter()
         .map(|x| {
-            let mut sentences = english_sentences(x + 1);
+            let sentences = english_sentences(x + 1);
             let headers = vec![(
                 WarcHeader::ContentType,
                 Vec::from(format!("blogpost{}", x + 1).as_bytes()),
@@ -41,7 +40,7 @@ fn french_mergedparts(nb: i32) -> Vec<MergedPiece> {
     (0..nb)
         .into_iter()
         .map(|x| {
-            let mut sentences = french_sentences(x + 1);
+            let sentences = french_sentences(x + 1);
             let headers = vec![(
                 WarcHeader::ContentType,
                 Vec::from(format!("article francais {}", x + 1).as_bytes()),

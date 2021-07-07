@@ -61,5 +61,3 @@ pub mod document;
 pub mod metadata;
 #[allow(clippy::module_inception)]
 pub mod oscar_metadata;
-
-use metadata::Metadata;
