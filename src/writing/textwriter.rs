@@ -1,5 +1,5 @@
 //! Rotating file writers for text and metadata.
-use log::{debug, error};
+use log::{debug, error, info};
 use std::convert::TryFrom;
 use std::fs::OpenOptions;
 use std::path::Path;
@@ -52,6 +52,7 @@ impl TextWriter {
         let mut options = OpenOptions::new();
         options.read(true).append(true).create(true);
 
+        info!("creating {:?}", path);
         let text = options.open(path)?;
 
         // if nb_files == 1, rename lang.txt into lang_part_1.txt
@@ -81,6 +82,11 @@ impl TextWriter {
         let ret = self.first_write_on_document;
         self.first_write_on_document = false;
         ret
+    }
+
+    /// returns remaining size in file
+    pub fn get_free_space(&self) -> u64 {
+        self.size_limit - self.size
     }
 }
 

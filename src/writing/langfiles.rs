@@ -96,7 +96,7 @@ hehe :)"
         let fr_writer = langfiles.writers().get("fr").unwrap().clone();
         let mut fr_writer_locked = fr_writer.lock().unwrap();
 
-        fr_writer_locked.write(&mp).unwrap();
+        fr_writer_locked.write(mp).unwrap();
         std::fs::remove_dir_all(dst).unwrap();
     }
 }

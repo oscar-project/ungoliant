@@ -231,7 +231,7 @@ impl OscarMetadata {
                 lang_pieces.into_par_iter().for_each(|(lang, pieces)| {
                     let writer = langfiles.writers().get(lang).unwrap();
                     let mut writer_lock = writer.lock().unwrap();
-                    writer_lock.write(&pieces).unwrap();
+                    writer_lock.write(pieces).unwrap();
                 });
 
                 None

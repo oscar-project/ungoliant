@@ -63,7 +63,7 @@ fn single_lang() {
     parts.for_each(|part| {
         let part_lang = part.identification;
         let mut langfile = langfiles.writers().get(part_lang).unwrap().lock().unwrap();
-        langfile.write(&[part]).unwrap();
+        langfile.write(vec![part]).unwrap();
     });
     std::fs::remove_dir_all(dst).unwrap();
 }
@@ -91,7 +91,7 @@ fn multiple_langs() {
     let parts_by_lang = parts_by_lang.into_par_iter();
     parts_by_lang.for_each(|(lang, lparts)| {
         let mut langfile = langfiles.writers().get(lang).unwrap().lock().unwrap();
-        langfile.write(&lparts).unwrap();
+        langfile.write(lparts).unwrap();
     });
 
     langfiles.close_meta().unwrap();

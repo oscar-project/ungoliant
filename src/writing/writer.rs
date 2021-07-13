@@ -9,8 +9,9 @@ use std::io::Write;
 use std::path::Path;
 
 use crate::pipeline::Metadata;
+use log::{debug, error};
 
-use crate::pipeline::oscar_metadata::document::MergedPiece;
+use crate::pipeline::oscar_metadata::document::{MergedPiece, PartChunk};
 use crate::{
     error,
     writing::{MetaWriter, TextWriter},
@@ -38,46 +39,90 @@ impl Writer {
     }
 
     /// writes the provided [MergedPiece], checking language identification.
-    pub fn write(&mut self, pieces: &[MergedPiece]) -> Result<(), error::Error> {
-        for piece in pieces {
-            //ensure that the piece has the correct language identification
-            if piece.identification() != self.lang {
-                return Err(error::Error::Custom(format!(
-                    "Wrong language. Tried to add a {} piece into a {} file.",
-                    piece.identification(),
-                    self.lang
-                )));
+    pub fn write(&mut self, pieces: Vec<MergedPiece>) -> Result<(), error::Error> {
+        // get size of whole pieces.
+        // If all the pieces fit, we bulk insert.
+        let whole_size =
+            u64::try_from(pieces.iter().fold(0, |acc, x| acc + x.sentences.len())).unwrap();
+
+        if whole_size < self.handle_text.get_free_space() {
+            debug!("writing whole chunk.");
+            debug!("current offset is {}", self.offset);
+            let mut pc = PartChunk::new(pieces)?;
+            debug!(
+                "partchunk last offset is {} ({} with nb_sentences)",
+                pc.metadata.last().unwrap().offset,
+                pc.metadata.last().unwrap().offset + pc.metadata.last().unwrap().nb_sentences
+            );
+            if let Some(new_offset) = pc.bump_offsets(self.offset) {
+                debug!(
+                    "partchunk bumped last offset is {} ({} with nb_sentences)",
+                    pc.metadata.last().unwrap().offset,
+                    pc.metadata.last().unwrap().offset + pc.metadata.last().unwrap().nb_sentences
+                );
+                self.offset = new_offset;
+                debug!("next lines will have base offset at {}", self.offset);
+            } else {
+                error!("no new offset?");
             }
 
-            self.handle_text.write_all(piece.sentences.as_bytes())?;
-            // trigger new file creation for metadata if applicable
-            // reset offest
-            if self.handle_text.first_write_on_document {
-                // ignore if <= 1 since it's the first file
-                if self.handle_text.nb_files > 1 {
-                    self.handle_meta.create_next_file()?;
-                    self.offset = 0;
-                }
-                self.handle_text.first_write_on_document = false;
+            self.handle_text.write_all(&pc.body.as_bytes())?;
+            // println!(
+            //     "{}: offset of the last metadata: {:#?}",
+            //     self.lang,
+            //     pc.metadata.last().unwrap().offset
+            // );
+            let mut metadata = serde_json::to_string_pretty(&pc.metadata).unwrap(); //todo add from error
+            metadata.pop();
+            metadata.push(',');
+            let metadata: &str = &metadata[1..metadata.len()];
+            self.handle_meta.write_all(&metadata.as_bytes())?;
+        } else {
+            for piece in pieces {
+                //ensure that the piece has the correct language identification
+                self.write_single(&piece)?;
             }
-
-            let mut metadata = Metadata::try_from(piece.headers.clone())?;
-
-            // update defaulted values in metadata
-            metadata.nb_sentences = piece.nb_sentences;
-            metadata.offset = self.offset;
-
-            // update lang offset
-            self.offset += metadata.nb_sentences + 1;
-
-            let mut metadata_str = serde_json::to_string_pretty(&metadata).unwrap(); //todo add from for error
-            metadata_str.push(',');
-
-            self.handle_meta.write_all(metadata_str.as_bytes())?;
         }
+
         Ok(())
     }
 
+    fn write_single(&mut self, piece: &MergedPiece) -> Result<(), error::Error> {
+        if piece.identification() != self.lang {
+            return Err(error::Error::Custom(format!(
+                "Wrong language. Tried to add a {} piece into a {} file.",
+                piece.identification(),
+                self.lang
+            )));
+        }
+
+        self.handle_text.write_all(piece.sentences.as_bytes())?;
+        // trigger new file creation for metadata if applicable
+        // reset offest
+        if self.handle_text.first_write_on_document {
+            // ignore if <= 1 since it's the first file
+            if self.handle_text.nb_files > 1 {
+                self.handle_meta.create_next_file()?;
+                self.offset = 0;
+            }
+            self.handle_text.first_write_on_document = false;
+        }
+
+        let mut metadata = Metadata::try_from(piece.headers.clone())?;
+
+        // update defaulted values in metadata
+        metadata.nb_sentences = piece.nb_sentences;
+        metadata.offset = self.offset;
+
+        // update lang offset
+        self.offset += metadata.nb_sentences + 1;
+
+        let mut metadata_str = serde_json::to_string_pretty(&metadata).unwrap(); //todo add from for error
+        metadata_str.push(',');
+
+        self.handle_meta.write_all(metadata_str.as_bytes())?;
+        Ok(())
+    }
     /// Binds to [MetaWriter::close_file].
     /// Closes current metadata file.
     pub fn close_meta(&mut self) -> Result<(), error::Error> {
@@ -124,7 +169,7 @@ Ecoutez ça va plutôt bien."
             headers,
         }];
 
-        wr.write(&merged_pieces).unwrap();
+        wr.write(merged_pieces.to_vec()).unwrap();
         wr.close_meta().unwrap();
 
         // check if content is the same
@@ -172,7 +217,7 @@ Ecoutez ça va plutôt bien."
             });
         }
 
-        wr.write(&merged_pieces).unwrap();
+        wr.write(merged_pieces.to_vec()).unwrap();
         wr.close_meta().unwrap();
 
         // check if content is the same

@@ -14,9 +14,12 @@
 //!  
 use crate::error::Error;
 use crate::pipeline::oscar_metadata::chunks;
+use crate::pipeline::Metadata;
 // use crate::pipeline::oscar_metadata::metadata::Metadata;
 // use log::warn;
+use log::warn;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 // use std::convert::TryFrom;
 // use std::string::FromUtf8Error;
 use warc::header::WarcHeader;
@@ -44,7 +47,7 @@ struct Piece {
 }
 
 /// Holds a merged-down version of Piece, where sentences are merged into a single String
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MergedPiece {
     pub headers: HashMap<WarcHeader, Vec<u8>>,
     pub sentences: String,
@@ -84,58 +87,68 @@ impl From<Piece> for MergedPiece {
     }
 }
 
-// /// Fraction of a larger OSCAR Part
-// ///
-// /// contains the concatenation of MergedPieces of a same language
-// /// properly offseted and space separated:
-// /// - first offset at 0
-// /// - first item is of nb_0 length
-// /// - one newline
-// /// - next offset at nb_0+1
-// #[derive(Debug)]
-// pub struct PartChunk {
-//     pub metadata: Vec<Metadata>,
-//     pub body: String,
-// }
+/// Fraction of a larger OSCAR Part
+///
+/// contains the concatenation of MergedPieces of a same language
+/// properly offseted and space separated:
+/// - first offset at 0
+/// - first item is of nb_0 length
+/// - one newline
+/// - next offset at nb_0+1
+#[derive(Debug)]
+pub struct PartChunk {
+    pub metadata: Vec<Metadata>,
+    pub body: String,
+}
 
-// impl PartChunk {
-//     pub fn new(merged_pieces: Vec<MergedPiece>) -> Result<Self, FromUtf8Error> {
-//         let mut metadata = Vec::new();
-//         let mut body = String::new();
+impl PartChunk {
+    /// Create a new PartChunk.
+    /// Note that the same language constraint is not checked.
+    /// It must be done before creating a PartChunk.
+    pub fn new(merged_pieces: Vec<MergedPiece>) -> Result<Self, Error> {
+        let mut metadata = Vec::new();
+        let mut body = String::new();
 
-//         let mut cur_offset = 0;
-//         for piece in merged_pieces {
-//             //build metadata
-//             let mut m = Metadata::try_from(piece.headers)?;
-//             m.offset = cur_offset;
-//             m.nb_sentences = piece.nb_sentences;
+        let mut cur_offset = 0;
+        let merged_pieces_len = merged_pieces.len();
+        for (idx, piece) in merged_pieces.into_iter().enumerate() {
+            //build metadata
+            let mut m = Metadata::try_from(piece.headers)?;
+            m.offset = cur_offset;
+            m.nb_sentences = piece.nb_sentences;
 
-//             body += &piece.sentences;
-//             body += "\n\n";
+            body += &piece.sentences;
 
-//             // bump 1 to account for newline
-//             cur_offset += m.nb_sentences + 1;
+            // only add newline between paragraphs,
+            // don't add one at the end of the partchunk.
+            if idx < merged_pieces_len - 1 {
+                body += "\n\n";
 
-//             metadata.push(m);
-//         }
+                // bump 1 to account for newline
+                cur_offset += m.nb_sentences + 1;
+            }
 
-//         Ok(Self { metadata, body })
-//     }
+            metadata.push(m);
+        }
 
-//     /// updates offsets.
-//     ///
-//     /// This offsets the metadata's `offset` fields by the provided `offset` value.
-//     pub fn bump_offsets(&mut self, offset: usize) -> Option<usize> {
-//         self.metadata.iter_mut().for_each(|m| m.offset += offset);
-//         match self.metadata.last() {
-//             Some(m) => Some(m.offset + m.nb_sentences + 1),
-//             None => {
-//                 warn!("no metadata!");
-//                 None
-//             }
-//         }
-//     }
-// }
+        Ok(Self { metadata, body })
+    }
+
+    /// updates offsets.
+    ///
+    /// This offsets the metadata's `offset` fields by the provided `offset` value.
+    /// Returns the offset to use for future writes
+    pub fn bump_offsets(&mut self, offset: usize) -> Option<usize> {
+        self.metadata.iter_mut().for_each(|m| m.offset += offset);
+        match self.metadata.last() {
+            Some(m) => Some(m.offset + m.nb_sentences + 1),
+            None => {
+                warn!("no metadata!");
+                None
+            }
+        }
+    }
+}
 
 #[allow(dead_code)]
 impl Document {
