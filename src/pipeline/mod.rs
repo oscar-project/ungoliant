@@ -7,6 +7,5 @@ pub mod oscar_metadata;
 pub mod pipeline;
 mod rayon_all;
 
-pub use oscar_metadata::metadata::Metadata;
-pub use oscar_metadata::oscar_metadata::OscarMetadata;
+pub use oscar_metadata::OscarMetadata;
 pub use rayon_all::RayonAll;

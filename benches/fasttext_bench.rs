@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ungoliant::classify::Classifier;
+use ungoliant::identifiers::FastText;
 pub fn fasttext_benchmark(c: &mut Criterion) {
-    let cls = Classifier::new_lid().unwrap();
+    let cls = FastText::new_lid().unwrap();
     let dummy = "This is a completely innocent phrase 
     This is a completely innocent phrase 
     This is a completely innocent phrase 

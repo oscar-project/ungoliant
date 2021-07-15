@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use itertools::Itertools;
 use rayon::prelude::*;
-use ungoliant::classify::Classifier;
-use ungoliant::wet::Wet;
+use ungoliant::identifiers::FastText;
+use ungoliant::sources::commoncrawl::Wet;
 use warc::{header::WarcHeader, RawRecord};
 
 // bench protocol:
@@ -14,21 +14,21 @@ use warc::{header::WarcHeader, RawRecord};
 // - Full sequential
 // - Sequential on wet files, concurrent/parallel on lines:
 //    - par_iter() on lines, without chunking
-//    - with chunking 
+//    - with chunking
 // - Parallel on wet files, sequential on lines
 // - Parallel on both:
 //    - par_iter() on lines, without chunking
-//    - with chunking 
+//    - with chunking
 
 // Full sequential
 pub fn pipeline_full_sequential_benchmark(c: &mut Criterion) {
     fn parse_headers() {
         let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
-        let cls = Classifier::new_lid().unwrap();
+        let cls = FastText::new_lid().unwrap();
         let results = std::fs::read_dir("results/")
             .unwrap()
             .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
-        
+
         for wetfile in results {
             for record in wetfile.take(1000) {
                 let record = record.unwrap();

@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use itertools::Itertools;
 use rayon::prelude::*;
-use ungoliant::classify::Classifier;
-use ungoliant::shard::wet::Wet;
+use ungoliant::identifiers::FastText;
+use ungoliant::sources::commoncrawl::Wet;
 use warc::{header::WarcHeader, RawRecord};
 
 const NB_RECORDS: usize = 250;
@@ -18,7 +18,7 @@ const NB_RECORDS: usize = 250;
 
 // Full sequential
 fn sequential(nb_shards: usize) {
-    let cls = Classifier::new_lid().unwrap();
+    let cls = FastText::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
         .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
@@ -40,7 +40,7 @@ fn sequential(nb_shards: usize) {
 
 // Sequential on WET files and records, concurrent on lines.
 fn parallel_on_sentences(nb_shards: usize) {
-    let cls = Classifier::new_lid().unwrap();
+    let cls = FastText::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
         .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
@@ -65,7 +65,7 @@ fn parallel_on_sentences(nb_shards: usize) {
 
 // parallel on records
 fn parallel_on_records(nb_shards: usize) {
-    let cls = Classifier::new_lid().unwrap();
+    let cls = FastText::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
         .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
@@ -90,7 +90,7 @@ fn parallel_on_records(nb_shards: usize) {
 
 // parallel on WET
 fn parallel_on_shards(nb_shards: usize) {
-    let cls = Classifier::new_lid().unwrap();
+    let cls = FastText::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
         .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
@@ -112,7 +112,7 @@ fn parallel_on_shards(nb_shards: usize) {
 
 // parallel on WET and sentences
 fn parallel_on_shards_and_sentences(nb_shards: usize) {
-    let cls = Classifier::new_lid().unwrap();
+    let cls = FastText::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
         .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
@@ -138,7 +138,7 @@ fn parallel_on_shards_and_sentences(nb_shards: usize) {
 }
 
 fn parallel_all(nb_shards: usize) {
-    let cls = Classifier::new_lid().unwrap();
+    let cls = FastText::new_lid().unwrap();
     let results = std::fs::read_dir("results/")
         .unwrap()
         .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())

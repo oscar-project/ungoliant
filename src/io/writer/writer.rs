@@ -8,13 +8,13 @@ use std::convert::TryFrom;
 use std::io::Write;
 use std::path::Path;
 
-use crate::pipeline::Metadata;
+use crate::processing::Metadata;
 use log::{debug, error};
 
-use crate::pipeline::oscar_metadata::document::{MergedPiece, PartChunk};
+use crate::processing::{MergedPiece, PartChunk};
 use crate::{
     error,
-    writing::{MetaWriter, TextWriter},
+    io::writer::{MetaWriter, TextWriter},
 };
 
 pub struct Writer {

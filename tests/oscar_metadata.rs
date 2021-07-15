@@ -10,10 +10,9 @@ use flate2::Compression;
 use serial_test::serial;
 use ungoliant::error;
 use ungoliant::lang::LANG;
-use ungoliant::pipeline::Metadata;
 use ungoliant::pipeline::OscarMetadata;
-use ungoliant::shard;
-use ungoliant::shard::wet;
+use ungoliant::processing::Metadata;
+use ungoliant::sources::commoncrawl::Wet;
 use warc::header::WarcHeader;
 use warc::RawRecord;
 
@@ -31,7 +30,7 @@ fn pipeline_no_folders() {
 fn gen_test_shards(src: &Path, dst: &Path) -> Result<(), error::Error> {
     for shard in std::fs::read_dir(src)? {
         let shard = shard?;
-        let records = shard::wet::Wet::from_path_gzip(shard.path())?;
+        let records = Wet::from_path_gzip(shard.path())?;
         let dst_path: PathBuf = [
             dst.to_str().unwrap(),
             &shard.file_name().into_string().unwrap(),
@@ -198,7 +197,7 @@ fn assert_meta_validity() {
     // get data and metadata from shard
     let mut source = src.clone();
     source.push("0.txt.gz");
-    let shard = wet::Wet::from_path_gzip(&source).unwrap();
+    let shard = Wet::from_path_gzip(&source).unwrap();
 
     // unwrap and ignore errors
     let shard_records: Vec<RawRecord> = shard
@@ -416,7 +415,7 @@ fn assert_meta_validity_multishard() {
         println!("processing shard {}", shard_idx);
         let mut shard_path = src.clone();
         shard_path.push(format!("{}.txt.gz", shard_idx));
-        let shard = wet::Wet::from_path_gzip(&shard_path).unwrap();
+        let shard = Wet::from_path_gzip(&shard_path).unwrap();
 
         let records = shard.filter_map(|record| match record {
             Ok(record) => {

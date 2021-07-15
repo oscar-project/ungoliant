@@ -34,14 +34,15 @@ use structopt::StructOpt;
 #[macro_use]
 extern crate log;
 
-mod classify;
 mod cli;
 mod download;
 mod error;
+mod identifiers;
+mod io;
 mod lang;
 mod pipeline;
-mod shard;
-mod writing;
+mod processing;
+mod sources;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {

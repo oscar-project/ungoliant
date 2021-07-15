@@ -1,12 +1,19 @@
-//! Thread-safe language-separated text/metadata writer.
+/*! Thread-safe language-separated text/metadata writer.
+
+Each language (provided by [crate::lang::LANG]) is given a [self::Writer] wrapped into an [Arc<Mutex<Writer>>].
+
+## Warning
+
+!*/
 use std::{
     collections::HashMap,
     path::Path,
     sync::{Arc, Mutex},
 };
 
+use crate::error;
+use crate::io::writer::Writer;
 use crate::lang::LANG;
-use crate::{error, writing::writer::Writer};
 /// Holds references to [Writer].
 pub struct LangFiles {
     writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
@@ -50,7 +57,7 @@ impl LangFiles {
 #[cfg(test)]
 mod tests {
 
-    use crate::pipeline::oscar_metadata::document::MergedPiece;
+    use crate::processing::MergedPiece;
     use warc::header::WarcHeader;
 
     use super::*;

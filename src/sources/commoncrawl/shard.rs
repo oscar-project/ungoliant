@@ -1,3 +1,8 @@
+//! Shard/WET utils.
+//!
+//! Mainly exists to wrap warc's library [warc::WarcReader] and an efficient gzip library.
+//!
+//! [wet::Wet] implements [Iterator] over contained [warc::RawRecord].
 use std::{fs::File, io::BufReader, path::Path};
 
 use crate::error::Error;

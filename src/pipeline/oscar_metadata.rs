@@ -1,15 +1,15 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::lang::LANG;
-use crate::shard::wet::Wet;
-use crate::{classify::Classifier, pipeline::oscar_metadata::document::MergedPiece};
-use crate::{error::Error, pipeline::oscar_metadata::document::Document};
+use crate::sources::commoncrawl::Wet;
+use crate::{error::Error, processing::document::Document};
+use crate::{identifiers::FastText, processing::document::MergedPiece};
 use log::Level::Debug;
 use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
 use warc::{header::WarcHeader, RawRecord};
 
-use crate::writing::LangFiles;
+use crate::io::LangFiles;
 /// OSCAR v1.5 generation pipeline
 ///
 /// OSCAR v1.5 is a retrocompatible corpus
@@ -53,7 +53,8 @@ impl OscarMetadata {
     ///
     /// Returns [None] if no language is detected.
     // why return the sentence itself?
-    fn identify_sentence(sentence: &str, cls: &Classifier) -> Option<(String, &'static str)> {
+    // TODO: change return type to Option<&'static str>.
+    fn identify_sentence(sentence: &str, cls: &FastText) -> Option<(String, &'static str)> {
         let prediction = cls.predict(&sentence).ok();
 
         if let Some(Some(lang)) = prediction {
@@ -87,7 +88,7 @@ impl OscarMetadata {
     /// extracted from the WARC.
     fn process_record(
         record: RawRecord,
-        cls: &Classifier,
+        cls: &FastText,
     ) -> Option<(Vec<(String, &'static str)>, WarcHeaders)> {
         if log_enabled!(Debug) {
             debug!(
@@ -131,7 +132,7 @@ impl OscarMetadata {
     pub fn run(&self) -> Result<(), Error> {
         // let errors;
 
-        let cls = Classifier::new(&self.lid_path, 1, 0.8)?;
+        let cls = FastText::new(&self.lid_path, 1, 0.8)?;
 
         // list files in source folder,
         // filter out errors from fs and from gzip/wet.

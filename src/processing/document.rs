@@ -12,11 +12,9 @@
 //!
 //! into_pieces can be useful if order of paragraphs is important and you wish to reconstruct documents, but will yield datasets that are not compatible with OSCAR2018.
 //!  
+use super::chunks;
+use super::Metadata;
 use crate::error::Error;
-use crate::pipeline::oscar_metadata::chunks;
-use crate::pipeline::Metadata;
-// use crate::pipeline::oscar_metadata::metadata::Metadata;
-// use log::warn;
 use log::warn;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -150,7 +148,7 @@ impl PartChunk {
     }
 }
 
-#[allow(dead_code)]
+// #[allow(dead_code)]
 impl Document {
     /// create a new document
     ///
