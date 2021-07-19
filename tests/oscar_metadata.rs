@@ -23,7 +23,7 @@ fn pipeline_no_folders() {
     let dst = PathBuf::from("fzjoijzoecijzoiej");
     let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src, dst, lid_path, 500_000_000);
+    let p = OscarMetadata::new(src, dst, lid_path, Some(500_000_000));
     assert!(p.run().is_err());
 }
 
@@ -89,7 +89,7 @@ fn assert_meta_final_offset() {
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, 500_000_000);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -140,7 +140,7 @@ fn assert_meta_successive_offsets() {
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, 500_000_000);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -191,7 +191,7 @@ fn assert_meta_validity() {
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, 500_000_000);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     // get data and metadata from shard
@@ -300,7 +300,7 @@ fn assert_meta_final_offset_multishard() {
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, 500_000_000);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -357,7 +357,7 @@ fn assert_meta_successive_offsets_multishard() {
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, 500_000_000);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -406,7 +406,7 @@ fn assert_meta_validity_multishard() {
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_5 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, 500_000_000);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     let mut record_index = HashMap::new();
@@ -471,7 +471,7 @@ fn pipeline_single_shard() {
     let dst = PathBuf::from("temp_1/");
 
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, 500_000_000);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     let res = p.run();
     assert!(res.is_ok());
 

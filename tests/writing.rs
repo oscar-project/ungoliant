@@ -56,7 +56,7 @@ fn french_mergedparts(nb: i32) -> Vec<MergedPiece> {
 fn single_lang() {
     let dst = Path::new("intg_single_lang_monothread");
     std::fs::create_dir(dst).unwrap();
-    let langfiles = LangFiles::new(dst, 1000).unwrap();
+    let langfiles = LangFiles::new(dst, Some(1000)).unwrap();
 
     let parts = english_mergedparts(10).into_par_iter();
     println!("{:#?}", parts);
@@ -72,7 +72,7 @@ fn single_lang() {
 fn multiple_langs() {
     let dst = Path::new("intg_multiple_langs");
     std::fs::create_dir(dst).unwrap();
-    let langfiles = LangFiles::new(dst, 1000).unwrap();
+    let langfiles = LangFiles::new(dst, Some(1000)).unwrap();
 
     // assume they are shuffled
     let mut parts = english_mergedparts(10);

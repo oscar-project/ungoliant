@@ -29,7 +29,11 @@ impl Writer {
     /// Files will be written at the root of the `dst` file, and shouldn't exceed `size_limit`.
     ///
     /// _See [TextWriter] to have an explanation about the *shouldn't*._
-    pub fn new(dst: &Path, lang: &'static str, size_limit: u64) -> Result<Self, error::Error> {
+    pub fn new(
+        dst: &Path,
+        lang: &'static str,
+        size_limit: Option<u64>,
+    ) -> Result<Self, error::Error> {
         Ok(Self {
             handle_text: TextWriter::new(dst, lang, size_limit),
             handle_meta: MetaWriter::new(dst, lang),
@@ -45,7 +49,9 @@ impl Writer {
         let whole_size =
             u64::try_from(pieces.iter().fold(0, |acc, x| acc + x.sentences.len())).unwrap();
 
-        if whole_size < self.handle_text.get_free_space() {
+        // whole_size +1 is always > to whole_size, so the condition is always true
+        // and we always use bulk writing which saves performance.
+        if whole_size < self.handle_text.get_free_space().unwrap_or(whole_size + 1) {
             debug!("writing whole chunk.");
             debug!("current offset is {}", self.offset);
             let mut pc = PartChunk::new(pieces)?;
@@ -144,7 +150,7 @@ mod tests {
     fn test_init() {
         let dst = Path::new("dst_test_init_writer");
         std::fs::create_dir(dst).unwrap();
-        let _ = Writer::new(dst, "en", 1_000_000);
+        let _ = Writer::new(dst, "en", Some(1_000_000));
         std::fs::remove_dir_all(dst).unwrap();
     }
 
@@ -152,7 +158,7 @@ mod tests {
     fn write() {
         let dst = Path::new("dst_test_write");
         std::fs::create_dir(dst).unwrap();
-        let mut wr = Writer::new(dst, "fr", 10).unwrap();
+        let mut wr = Writer::new(dst, "fr", Some(10)).unwrap();
 
         let headers: WarcHeaders =
             vec![(WarcHeader::Filename, Vec::from("filenametest".as_bytes()))]
@@ -194,7 +200,7 @@ Ecoutez ça va plutôt bien."
     fn write_multiple() {
         let dst = Path::new("dst_test_write_multiple");
         std::fs::create_dir(dst).unwrap();
-        let mut wr = Writer::new(dst, "fr", 10_000).unwrap();
+        let mut wr = Writer::new(dst, "fr", Some(10_000)).unwrap();
 
         let mut merged_pieces = Vec::new();
         for i in 1..10 {

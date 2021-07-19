@@ -78,6 +78,10 @@ async fn main() -> Result<(), error::Error> {
             let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path, p.part_size);
             p.run()?;
         }
+        cli::Ungoliant::Dedup(d) => {
+            debug!("{:?}", d);
+            todo!();
+        }
     };
     Ok(())
 }

@@ -15,7 +15,7 @@ pub struct TextWriter {
     dst: PathBuf,
     text: Option<File>,
     size: u64,
-    size_limit: u64,
+    size_limit: Option<u64>,
     pub nb_files: u64,
     pub first_write_on_document: bool,
 }
@@ -24,7 +24,7 @@ impl TextWriter {
     /// Create a new [TextWriter].
     /// Note that nothing is created/written unless a write is performed.
     /// size_limit is in bytes.
-    pub fn new(dst: &Path, lang: &'static str, size_limit: u64) -> Self {
+    pub fn new(dst: &Path, lang: &'static str, size_limit: Option<u64>) -> Self {
         Self {
             lang,
             dst: dst.to_path_buf(),
@@ -85,8 +85,8 @@ impl TextWriter {
     }
 
     /// returns remaining size in file
-    pub fn get_free_space(&self) -> u64 {
-        self.size_limit - self.size
+    pub fn get_free_space(&self) -> Option<u64> {
+        self.size_limit.map(|sl| sl - self.size)
     }
 }
 
@@ -99,8 +99,10 @@ impl Write for TextWriter {
 
         // if there's no space left on the current file, create another one
         // ignore if the file is already empty (if we're already on a new file)
-        if (self.size + buf.len() as u64 > self.size_limit) && self.size > 0 {
-            self.create_next_file()?;
+        if let Some(sl) = self.size_limit {
+            if (self.size + buf.len() as u64 > sl) && self.size > 0 {
+                self.create_next_file()?;
+            }
         }
 
         if let Some(text) = &mut self.text {
@@ -109,11 +111,15 @@ impl Write for TextWriter {
             self.size += match u64::try_from(bytes_written) {
                 Ok(b) => b,
                 Err(e) => {
-                    error!(
-                        "potential size overflow on lang {} file {} ({:?}): size set to {}",
-                        self.lang, self.nb_files, e, self.size_limit
-                    );
-                    self.size_limit
+                    if let Some(sl) = self.size_limit {
+                        error!(
+                            "potential size overflow on lang {} file {} ({:?}): size set to {:?}",
+                            self.lang, self.nb_files, e, self.size_limit
+                        );
+                        sl
+                    } else {
+                        0
+                    }
                 }
             };
 
@@ -146,7 +152,7 @@ mod tests {
     fn one_file() {
         std::fs::create_dir("tmp_one_file/").unwrap();
         let file_size = 10;
-        let mut tw = TextWriter::new(&PathBuf::from("tmp_one_file/"), "en", file_size);
+        let mut tw = TextWriter::new(&PathBuf::from("tmp_one_file/"), "en", Some(file_size));
         let text = String::from("helloworld");
 
         assert_eq!(text.len() as u64, file_size);
@@ -172,7 +178,7 @@ mod tests {
     fn multiple_files() {
         std::fs::create_dir("tmp_multiple/").unwrap();
         let file_size = 10;
-        let mut tw = TextWriter::new(&PathBuf::from("tmp_multiple/"), "en", file_size);
+        let mut tw = TextWriter::new(&PathBuf::from("tmp_multiple/"), "en", Some(file_size));
         let text = String::from("helloworld");
 
         for _ in 0..10 {
@@ -197,7 +203,7 @@ mod tests {
     fn multiple_files_different_sizes() {
         std::fs::create_dir("tmp_multiple_sizes/").unwrap();
         let file_size = 10;
-        let mut tw = TextWriter::new(&PathBuf::from("tmp_multiple_sizes/"), "en", file_size);
+        let mut tw = TextWriter::new(&PathBuf::from("tmp_multiple_sizes/"), "en", Some(file_size));
         let texts = vec![
             "hello\nworld\n", // fits in file 1 (12bytes, overflow but unique document)
             "tiny\ntiny\n",   // fits in file 2 (10bytes, unique (maxed) document)

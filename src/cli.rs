@@ -11,6 +11,16 @@ pub enum Ungoliant {
     Download(Download),
     #[structopt(about = "Run pipeline")]
     Pipeline(Pipeline),
+    #[structopt(about = "Deduplicate a generated, not split corpus.")]
+    Dedup(Dedup),
+}
+
+#[derive(Debug, StructOpt)]
+pub struct Dedup {
+    #[structopt(parse(from_os_str), help = "source corpus location")]
+    pub src: PathBuf,
+    #[structopt(parse(from_os_str), help = "destination corpus location")]
+    pub dst: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
@@ -76,11 +86,6 @@ pub struct Pipeline {
         default_value = "lid.176.bin"
     )]
     pub lid_path: PathBuf,
-    #[structopt(
-        short = "s",
-        long = "part_size",
-        help = "maximum part size in MBytes",
-        default_value = "500"
-    )]
-    pub part_size: u64,
+    #[structopt(short = "s", long = "part_size", help = "maximum part size in MBytes")]
+    pub part_size: Option<u64>,
 }

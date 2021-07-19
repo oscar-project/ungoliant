@@ -28,7 +28,7 @@ impl LangFiles {
     /// Also keep in mind that [Self::close_meta] has to be called once every write is done.
     ///
     // [Self::close_meta] could be integrated in an `impl Drop`
-    pub fn new(dst: &Path, part_size_bytes: u64) -> Result<Self, error::Error> {
+    pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Result<Self, error::Error> {
         let mut writers = HashMap::with_capacity(LANG.len());
         let mut w;
         for lang in LANG.iter() {
@@ -81,7 +81,7 @@ mod tests {
     fn init() {
         let dst = Path::new("dst_langfiles_init");
         std::fs::create_dir(dst).unwrap();
-        let _ = LangFiles::new(dst, 10);
+        let _ = LangFiles::new(dst, Some(10));
         std::fs::remove_dir_all(dst).unwrap();
     }
 
@@ -89,7 +89,7 @@ mod tests {
     fn write_one() {
         let dst = Path::new("dst_langfiles_write_one");
         std::fs::create_dir(dst).unwrap();
-        let langfiles = LangFiles::new(dst, 10).unwrap();
+        let langfiles = LangFiles::new(dst, Some(10)).unwrap();
 
         let sentences = "essai d'écriture
 de trois lignes
