@@ -43,12 +43,13 @@ impl MetaWriter {
     }
 
     fn end_metadata_file(file: &mut File) -> std::io::Result<()> {
+        // todo: actually check for (in)correct ending before fixing it.
         let mut buf = [0];
         let comma = ",".as_bytes();
-        file.seek(SeekFrom::Current(-1))?;
+        file.seek(SeekFrom::Current(-2))?;
         file.read_exact(&mut buf)?;
         if buf == comma {
-            //rewind after read
+            // rewind after read
             file.seek(SeekFrom::Current(-1))?;
         }
 

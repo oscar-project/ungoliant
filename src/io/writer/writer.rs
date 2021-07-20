@@ -75,12 +75,13 @@ impl Writer {
 
             self.handle_text.write_all(&pc.body.as_bytes())?;
 
-            let metadata: String = pc
+            let mut metadata: String = pc
                 .metadata
                 .iter()
                 .map(|x| serde_json::to_string(x).unwrap())
                 .join(",\n");
 
+            metadata.push_str(",\n");
             self.handle_meta.write_all(&metadata.as_bytes())?;
         } else {
             for piece in pieces {
