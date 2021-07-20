@@ -52,7 +52,7 @@ impl MetaWriter {
             file.seek(SeekFrom::Current(-1))?;
         }
 
-        file.write_all(b"]")?;
+        file.write_all(b"\n]")?;
         Ok(())
     }
 
@@ -78,7 +78,7 @@ impl MetaWriter {
         let mut file = options.open(path)?;
 
         // JSON Array start token
-        file.write_all("[".as_bytes())?;
+        file.write_all("[\n".as_bytes())?;
 
         // if nb_files == 1
         if self.nb_files == 1 {

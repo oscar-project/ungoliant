@@ -9,6 +9,7 @@ use std::io::Write;
 use std::path::Path;
 
 use crate::processing::Metadata;
+use itertools::Itertools;
 use log::{debug, error};
 
 use crate::processing::{MergedPiece, PartChunk};
@@ -73,15 +74,13 @@ impl Writer {
             }
 
             self.handle_text.write_all(&pc.body.as_bytes())?;
-            // println!(
-            //     "{}: offset of the last metadata: {:#?}",
-            //     self.lang,
-            //     pc.metadata.last().unwrap().offset
-            // );
-            let mut metadata = serde_json::to_string_pretty(&pc.metadata).unwrap(); //todo add from error
-            metadata.pop();
-            metadata.push(',');
-            let metadata: &str = &metadata[1..metadata.len()];
+
+            let metadata: String = pc
+                .metadata
+                .iter()
+                .map(|x| serde_json::to_string(x).unwrap())
+                .join(",\n");
+
             self.handle_meta.write_all(&metadata.as_bytes())?;
         } else {
             for piece in pieces {
@@ -123,8 +122,8 @@ impl Writer {
         // update lang offset
         self.offset += metadata.nb_sentences + 1;
 
-        let mut metadata_str = serde_json::to_string_pretty(&metadata).unwrap(); //todo add from for error
-        metadata_str.push(',');
+        let mut metadata_str = serde_json::to_string(&metadata).unwrap(); //todo add from for error
+        metadata_str.push_str(",\n");
 
         self.handle_meta.write_all(metadata_str.as_bytes())?;
         Ok(())
