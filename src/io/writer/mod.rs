@@ -11,7 +11,7 @@ This leads the [TextWriter]/[MetaWriter] couple to be cumbersome to use outside 
 !*/
 mod metawriter;
 mod textwriter;
-mod writer;
+pub mod writer;
 use metawriter::MetaWriter;
 use textwriter::TextWriter;
-pub(super) use writer::Writer;
+pub use writer::Writer;

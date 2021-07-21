@@ -93,7 +93,7 @@ impl Writer {
         Ok(())
     }
 
-    fn write_single(&mut self, piece: &MergedPiece) -> Result<(), error::Error> {
+    pub fn write_single(&mut self, piece: &MergedPiece) -> Result<(), error::Error> {
         if piece.identification() != self.lang {
             return Err(error::Error::Custom(format!(
                 "Wrong language. Tried to add a {} piece into a {} file.",

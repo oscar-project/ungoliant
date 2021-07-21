@@ -8,6 +8,7 @@ pub enum Error {
     UnknownLang(String),
     MetadataConversion(FromUtf8Error),
     Custom(String),
+    Serde(serde_json::Error),
 }
 
 impl From<std::io::Error> for Error {
@@ -30,5 +31,11 @@ impl From<String> for Error {
 impl From<FromUtf8Error> for Error {
     fn from(e: FromUtf8Error) -> Error {
         Error::MetadataConversion(e)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Error {
+        Error::Serde(e)
     }
 }
