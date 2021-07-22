@@ -1,3 +1,4 @@
+//! Error enum
 use std::string::FromUtf8Error;
 
 #[derive(Debug)]

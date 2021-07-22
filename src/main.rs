@@ -79,7 +79,7 @@ async fn main() -> Result<(), error::Error> {
             p.run()?;
         }
         cli::Ungoliant::Dedup(d) => {
-            processing::dedup::dedup(&d.src, &d.dst)?;
+            processing::dedup::dedup(&d.src, &d.dst, d.bufsize)?;
         }
     };
     Ok(())

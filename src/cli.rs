@@ -16,11 +16,18 @@ pub enum Ungoliant {
 }
 
 #[derive(Debug, StructOpt)]
+/// Dedup command and parameters.
 pub struct Dedup {
     #[structopt(parse(from_os_str), help = "source corpus location")]
     pub src: PathBuf,
     #[structopt(parse(from_os_str), help = "destination corpus location")]
     pub dst: PathBuf,
+    #[structopt(
+        help = "number of records in a bulk write. Default: 1 (writes at each record deduplication)",
+        long = "chunk_size",
+        short = "s"
+    )]
+    pub bufsize: Option<usize>,
 }
 
 #[derive(Debug, StructOpt)]

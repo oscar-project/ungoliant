@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::io::reader::reader::PieceMeta;
+use crate::io::reader::reader::{PieceMeta, Reader};
 use crate::io::reader::Corpus;
 use crate::io::Writer;
 use crate::processing::MergedPiece;
@@ -12,10 +12,6 @@ use std::path::Path;
 pub trait Dedup {
     fn dedup(&mut self) -> Self;
 }
-
-// impl Dedup for crate::io::reader::reader::PieceMeta {
-// 	fn dedup()
-// }
 
 /// deduplicates a piece.
 ///
@@ -44,35 +40,60 @@ pub fn dedup_piece(
     Some(new_offset + nb_sentences + 1)
 }
 
-pub fn dedup(src: &Path, dst: &Path) -> Result<(), Error> {
+/// deduplicates a whole language.
+fn dedup_lang(dst: &Path, lang: &'static str, reader: Reader, bufsize: Option<usize>) {
+    info!("[{}] beginning deduplication", lang);
+    let mut writer = Writer::new(dst, lang, None).unwrap();
+    let mut filter = runiq::filters::DigestFilter::default();
+
+    // if a buffer size is specified, create the linked buffer.
+    let mut buf = bufsize.map(Vec::with_capacity);
+
+    let mut offset = 0;
+
+    for piece in reader {
+        // todo remove unwrap here
+        let mut piece = piece.unwrap();
+        if let Some(new_offset) = dedup_piece(&mut piece, offset, &mut filter) {
+            // add to buffer if there's one
+            // or write directly
+            match &mut buf {
+                Some(b) => {
+                    b.push(MergedPiece::from(piece.clone()));
+                    if b.len() == bufsize.unwrap() {
+                        writer.write(b.clone()).unwrap();
+                        b.clear();
+                    }
+                }
+                None => {
+                    writer
+                        .write_single(&MergedPiece::from(piece.clone()))
+                        .unwrap();
+                }
+            }
+            offset = new_offset;
+        }
+    }
+
+    // write last buffer
+    if let Some(b) = buf {
+        if !b.is_empty() {
+            writer.write(b).unwrap();
+        }
+    }
+
+    // close metadata file
+    writer.close_meta().unwrap();
+    info!("[{}] deduplication done", lang);
+}
+
+// TODO: remove clones
+/// run deduplication on whole files concurrently.
+pub fn dedup(src: &Path, dst: &Path, bufsize: Option<usize>) -> Result<(), Error> {
     let corpus = Corpus::new(src);
     let readers_iter = corpus.readers.into_par_iter();
     readers_iter.for_each(|(lang, reader)| {
-        info!("[{}] beginning deduplication", lang);
-        let mut writer = Writer::new(dst, lang, None).unwrap();
-        let mut filter = runiq::filters::DigestFilter::default();
-        let mut offset = 0;
-        for piece in reader {
-            let mut piece = piece.unwrap();
-            if let Some(new_offset) = dedup_piece(&mut piece, offset, &mut filter) {
-                writer
-                    .write_single(&MergedPiece::from(piece.clone()))
-                    .unwrap();
-                offset = new_offset;
-            }
-            // match dedup_piece(&mut piece, offset, &mut filter) {
-            //     Some(new_offset) => {
-            //         writer
-            //             .write_single(&MergedPiece::from(piece.clone()))
-            //             .unwrap();
-            //         offset = new_offset;
-            //     }
-            //     None => (),
-            // }
-        }
-
-        writer.close_meta().unwrap();
-        info!("[{}] deduplication done", lang);
+        dedup_lang(dst, lang, reader, bufsize);
     });
     Ok(())
 }

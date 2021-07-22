@@ -1,3 +1,5 @@
+/*! Reader for a specific language.
+!*/
 use std::path::Path;
 
 use crate::{
@@ -7,6 +9,9 @@ use crate::{
 
 use super::{metareader::MetaReader, textreader::TextReader};
 
+/// Analoguous to [MergedPiece] but containing [Metadata].
+///
+/// Is convertible to [MergedPiece].  
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PieceMeta {
     pub sentences: Vec<String>,
@@ -37,6 +42,9 @@ pub struct Reader {
 }
 
 impl Reader {
+    /// Create a new reader.
+    ///
+    /// Propagates errors from inner [TextReader] and [MetaReader].
     pub fn new(dst: &Path, lang: &'static str) -> Result<Self, Error> {
         let textreader = TextReader::new(dst, lang)?;
         let metareader = MetaReader::new(dst, lang)?;

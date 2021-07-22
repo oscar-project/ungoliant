@@ -53,20 +53,8 @@ impl Writer {
         // whole_size +1 is always > to whole_size, so the condition is always true
         // and we always use bulk writing which saves performance.
         if whole_size < self.handle_text.get_free_space().unwrap_or(whole_size + 1) {
-            debug!("writing whole chunk.");
-            debug!("current offset is {}", self.offset);
             let mut pc = PartChunk::new(pieces)?;
-            debug!(
-                "partchunk last offset is {} ({} with nb_sentences)",
-                pc.metadata.last().unwrap().offset,
-                pc.metadata.last().unwrap().offset + pc.metadata.last().unwrap().nb_sentences
-            );
             if let Some(new_offset) = pc.bump_offsets(self.offset) {
-                debug!(
-                    "partchunk bumped last offset is {} ({} with nb_sentences)",
-                    pc.metadata.last().unwrap().offset,
-                    pc.metadata.last().unwrap().offset + pc.metadata.last().unwrap().nb_sentences
-                );
                 self.offset = new_offset;
                 debug!("next lines will have base offset at {}", self.offset);
             } else {

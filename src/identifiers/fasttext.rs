@@ -1,6 +1,4 @@
-//! Language classification/identification utilities.
-//!
-//! Enables language identification on sentences, using [fasttext](https://fasttext.cc) for now.
+//! Fasttext identifier
 use std::path::Path;
 
 use crate::error::Error;
@@ -30,8 +28,8 @@ fn clean_prediction(prediction: &Prediction) -> Result<Prediction, String> {
 }
 
 /// Holds a [fasttext::FastText] instance and its parameters.
-/// - [Classifier::k], number of predicted languages on a sentence
-/// - [Classifier::threshold], prediction threshold
+/// - [fasttext::FastText::k], number of predicted languages on a sentence
+/// - [FastText::threshold], prediction threshold
 pub struct FastText {
     predictor: FastTextLib,
     pub k: i32,
