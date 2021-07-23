@@ -13,6 +13,8 @@ pub enum Ungoliant {
     Pipeline(Pipeline),
     #[structopt(about = "Deduplicate a generated, not split corpus.")]
     Dedup(Dedup),
+    #[structopt(about = "Split a not split corpus")]
+    Split(Split),
 }
 
 #[derive(Debug, StructOpt)]
@@ -22,6 +24,23 @@ pub struct Dedup {
     pub src: PathBuf,
     #[structopt(parse(from_os_str), help = "destination corpus location")]
     pub dst: PathBuf,
+    #[structopt(
+        help = "number of records in a bulk write. Default: 1 (writes at each record deduplication)",
+        long = "chunk_size",
+        short = "s"
+    )]
+    pub bufsize: Option<usize>,
+}
+
+#[derive(Debug, StructOpt)]
+/// Dedup command and parameters.
+pub struct Split {
+    #[structopt(parse(from_os_str), help = "source corpus location")]
+    pub src: PathBuf,
+    #[structopt(parse(from_os_str), help = "destination corpus location")]
+    pub dst: PathBuf,
+    #[structopt(help = "size of each part (in MBytes)", default_value = "500")]
+    pub part_size: u64,
     #[structopt(
         help = "number of records in a bulk write. Default: 1 (writes at each record deduplication)",
         long = "chunk_size",

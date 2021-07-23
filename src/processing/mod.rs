@@ -8,6 +8,7 @@ mod chunks;
 pub mod dedup;
 pub mod document;
 pub mod metadata;
+pub mod split;
 
 pub use document::{Document, MergedPiece, PartChunk};
 pub use metadata::Metadata;

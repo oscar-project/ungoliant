@@ -81,6 +81,9 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::Dedup(d) => {
             processing::dedup::dedup(&d.src, &d.dst, d.bufsize)?;
         }
+        cli::Ungoliant::Split(s) => {
+            processing::split::split(&s.src, &s.dst, s.part_size, s.bufsize);
+        }
     };
     Ok(())
 }
