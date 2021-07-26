@@ -67,9 +67,9 @@ impl Writer {
                 .metadata
                 .iter()
                 .map(|x| serde_json::to_string(x).unwrap())
-                .join(",\n");
+                .join("\n");
 
-            metadata.push_str(",\n");
+            metadata.push('\n');
             self.handle_meta.write_all(&metadata.as_bytes())?;
         } else {
             for piece in pieces {
@@ -112,7 +112,7 @@ impl Writer {
         self.offset += metadata.nb_sentences + 1;
 
         let mut metadata_str = serde_json::to_string(&metadata).unwrap(); //todo add from for error
-        metadata_str.push_str(",\n");
+        metadata_str.push('\n');
 
         self.handle_meta.write_all(metadata_str.as_bytes())?;
         Ok(())
@@ -126,7 +126,11 @@ impl Writer {
 #[cfg(test)]
 mod tests {
 
-    use std::{collections::HashMap, fs::File, io::Read};
+    use std::{
+        collections::HashMap,
+        fs::File,
+        io::{BufRead, Read},
+    };
 
     use warc::header::WarcHeader;
 
@@ -164,7 +168,7 @@ Ecoutez ça va plutôt bien."
         }];
 
         wr.write(merged_pieces.to_vec()).unwrap();
-        wr.close_meta().unwrap();
+        // wr.close_meta().unwrap();
 
         // check if content is the same
         let mut sentences = String::new();
@@ -178,8 +182,12 @@ Ecoutez ça va plutôt bien."
         assert_eq!(sentences, from_merged_pieces);
 
         // succintly check if metadata are the same
-        let f = File::open("dst_test_write/fr_meta.json").unwrap();
-        let metadata: Vec<Metadata> = serde_json::from_reader(f).unwrap();
+        let f = File::open("dst_test_write/fr_meta.jsonl").unwrap();
+        let b = std::io::BufReader::new(f).lines();
+        let metadata: Vec<Metadata> = b
+            .inspect(|x| println!("{:?}", x))
+            .map(|m| serde_json::from_str(&m.unwrap()).unwrap())
+            .collect();
         assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
         std::fs::remove_dir_all(dst).unwrap();
     }
@@ -212,7 +220,7 @@ Ecoutez ça va plutôt bien."
         }
 
         wr.write(merged_pieces.to_vec()).unwrap();
-        wr.close_meta().unwrap();
+        // wr.close_meta().unwrap();
 
         // check if content is the same
         let mut sentences = String::new();
@@ -224,8 +232,11 @@ Ecoutez ça va plutôt bien."
         }
 
         // succintly check if metadata are the same
-        let f = File::open("dst_test_write_multiple/fr_meta.json").unwrap();
-        let metadata: Vec<Metadata> = serde_json::from_reader(f).unwrap();
+        let f = File::open("dst_test_write_multiple/fr_meta.jsonl").unwrap();
+        let b = std::io::BufReader::new(f).lines();
+        let metadata: Vec<Metadata> = b
+            .map(|m| serde_json::from_str(&m.unwrap()).unwrap())
+            .collect();
         assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
         std::fs::remove_dir_all(dst).unwrap();
     }

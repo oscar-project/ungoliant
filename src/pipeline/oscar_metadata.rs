@@ -243,7 +243,7 @@ impl OscarMetadata {
             .collect();
 
         // fix trailing comma
-        langfiles.close_meta()?;
+        // langfiles.close_meta()?;
 
         for err in r {
             error!("{:?}", err);

@@ -87,7 +87,7 @@ fn dedup_lang(dst: &Path, lang: &'static str, reader: Reader, bufsize: Option<us
     }
 
     // close metadata file
-    writer.close_meta().unwrap();
+    // writer.close_meta().unwrap();
     info!("[{}] deduplication done", lang);
 }
 

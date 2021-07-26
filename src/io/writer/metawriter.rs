@@ -34,7 +34,6 @@ impl MetaWriter {
     /// attempt to close current file while ending json.
     pub fn close_file(&mut self) -> Result<(), error::Error> {
         if let Some(file) = &mut self.file {
-            Self::end_metadata_file(file)?;
             self.file = None;
         } else {
             warn!("{}: trying to close an unopened MetaWriter.", self.lang);
@@ -42,32 +41,14 @@ impl MetaWriter {
         Ok(())
     }
 
-    fn end_metadata_file(file: &mut File) -> std::io::Result<()> {
-        // todo: actually check for (in)correct ending before fixing it.
-        let mut buf = [0];
-        let comma = ",".as_bytes();
-        file.seek(SeekFrom::Current(-2))?;
-        file.read_exact(&mut buf)?;
-        if buf == comma {
-            // rewind after read
-            file.seek(SeekFrom::Current(-1))?;
-        }
-
-        file.write_all(b"\n]")?;
-        Ok(())
-    }
-
     /// Rotate file.
     ///
     /// The first file is named `lang_meta.json`, and is renamed `lang_meta_part_1.json` if there's > 1 number of files.
     pub fn create_next_file(&mut self) -> std::io::Result<()> {
-        if let Some(file) = &mut self.file {
-            Self::end_metadata_file(file)?;
-        };
         let filename = if self.nb_files == 0 {
-            format!("{}_meta.json", self.lang)
+            format!("{}_meta.jsonl", self.lang)
         } else {
-            format!("{}_meta_part_{}.json", self.lang, self.nb_files + 1)
+            format!("{}_meta_part_{}.jsonl", self.lang, self.nb_files + 1)
         };
 
         let mut path = self.dst.clone();
@@ -76,17 +57,14 @@ impl MetaWriter {
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true);
 
-        let mut file = options.open(path)?;
-
-        // JSON Array start token
-        file.write_all("[\n".as_bytes())?;
+        let file = options.open(path)?;
 
         // if nb_files == 1
         if self.nb_files == 1 {
             let mut from = self.dst.clone();
-            from.push(format!("{}_meta.json", self.lang));
+            from.push(format!("{}_meta.jsonl", self.lang));
             let mut to = self.dst.clone();
-            to.push(format!("{}_meta_part_1.json", self.lang));
+            to.push(format!("{}_meta_part_1.jsonl", self.lang));
 
             debug!("renaming {:?} to {:?}", from, to);
             std::fs::rename(from, to)?;
