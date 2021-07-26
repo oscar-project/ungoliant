@@ -1,3 +1,7 @@
+/*! Deduplication
+
+This currently only uses [runiq](https://github.com/whitfin/runiq) to check for identical sentences.
+!*/
 use crate::error::Error;
 use crate::io::reader::reader::{PieceMeta, Reader};
 use crate::io::reader::Corpus;
@@ -42,7 +46,7 @@ pub fn dedup_piece(
 
 /// deduplicates a whole language.
 fn dedup_lang(dst: &Path, lang: &'static str, reader: Reader, bufsize: Option<usize>) {
-    info!("[{}] beginning deduplication", lang);
+    info!("[{}] starting deduplication", lang);
     let mut writer = Writer::new(dst, lang, None).unwrap();
     let mut filter = runiq::filters::DigestFilter::default();
 
@@ -103,11 +107,9 @@ mod tests {
 
     use runiq::filters::Filter;
 
-    use crate::{
-        io::reader::reader::PieceMeta,
-        processing::{dedup::dedup::dedup_piece, Metadata},
-    };
+    use crate::{io::reader::reader::PieceMeta, processing::Metadata};
 
+    use super::*;
     #[test]
     fn test_dedup_piece_single() {
         let mut filter = runiq::filters::DigestFilter::new();
