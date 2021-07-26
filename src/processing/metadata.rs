@@ -16,7 +16,7 @@ use warc::header::WarcHeader;
 /// Holds record headers.
 ///
 /// Each metadata is linked to a specific paragraph/text zone
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug, Default)]
 pub struct Metadata {
     pub headers: HashMap<WarcHeader, String>,
     pub offset: usize,

@@ -11,6 +11,23 @@ pub enum Ungoliant {
     Download(Download),
     #[structopt(about = "Run pipeline")]
     Pipeline(Pipeline),
+    #[structopt(about = "Deduplicate a generated, not split corpus.")]
+    Dedup(Dedup),
+}
+
+#[derive(Debug, StructOpt)]
+/// Dedup command and parameters.
+pub struct Dedup {
+    #[structopt(parse(from_os_str), help = "source corpus location")]
+    pub src: PathBuf,
+    #[structopt(parse(from_os_str), help = "destination corpus location")]
+    pub dst: PathBuf,
+    #[structopt(
+        help = "number of records in a bulk write. Default: 1 (writes at each record deduplication)",
+        long = "chunk_size",
+        short = "s"
+    )]
+    pub bufsize: Option<usize>,
 }
 
 #[derive(Debug, StructOpt)]
@@ -71,8 +88,11 @@ pub struct Pipeline {
     pub dst: PathBuf,
     #[structopt(
         parse(from_os_str),
+        long = "lid-path",
         help = "Path to 176.lid.bin",
         default_value = "lid.176.bin"
     )]
     pub lid_path: PathBuf,
+    #[structopt(short = "s", long = "part_size", help = "maximum part size in MBytes")]
+    pub part_size: Option<u64>,
 }

@@ -5,8 +5,8 @@ use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use crate::lang::LANG;
 use crate::pipeline::pipeline::Pipeline;
-use crate::{classify::Classifier, shard::wet::Wet};
 use crate::{error::Error, lang::LangFiles};
+use crate::{identifiers::FastText, sources::commoncrawl::Wet};
 use itertools::Itertools;
 use log::{debug, info, warn};
 use rayon::prelude::*;
@@ -73,7 +73,7 @@ impl RayonAll {
     /// and sentences that do not meet the criteria
     ///
     /// then groups identified sentences by language.
-    fn process_record(record: RawRecord, cls: &Classifier) -> Option<Vec<(String, &'static str)>> {
+    fn process_record(record: RawRecord, cls: &FastText) -> Option<Vec<(String, &'static str)>> {
         let body = String::from_utf8(record.body).ok();
 
         // process record if body is utf8-valid
@@ -122,7 +122,7 @@ impl RayonAll {
 impl Pipeline<()> for RayonAll {
     /// run the [RayonAll] pipeline.
     fn run(&self) -> Result<(), Error> {
-        let cls = Classifier::new_lid()?;
+        let cls = FastText::new_lid()?;
 
         // list files in source folder,
         // filter out errors from fs and from gzip/wet.

@@ -2,21 +2,17 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::fs::File;
-use std::io::BufReader;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 
 use flate2::Compression;
-use itertools::Itertools;
 use serial_test::serial;
 use ungoliant::error;
-use ungoliant::error::Error;
 use ungoliant::lang::LANG;
-use ungoliant::pipeline::Metadata;
 use ungoliant::pipeline::OscarMetadata;
-use ungoliant::shard;
-use ungoliant::shard::wet;
+use ungoliant::processing::Metadata;
+use ungoliant::sources::commoncrawl::Wet;
 use warc::header::WarcHeader;
 use warc::RawRecord;
 
@@ -27,14 +23,14 @@ fn pipeline_no_folders() {
     let dst = PathBuf::from("fzjoijzoecijzoiej");
     let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src, dst, lid_path);
+    let p = OscarMetadata::new(src, dst, lid_path, Some(500_000_000));
     assert!(p.run().is_err());
 }
 
 fn gen_test_shards(src: &Path, dst: &Path) -> Result<(), error::Error> {
     for shard in std::fs::read_dir(src)? {
         let shard = shard?;
-        let records = shard::wet::Wet::from_path_gzip(shard.path())?;
+        let records = Wet::from_path_gzip(shard.path())?;
         let dst_path: PathBuf = [
             dst.to_str().unwrap(),
             &shard.file_name().into_string().unwrap(),
@@ -43,10 +39,10 @@ fn gen_test_shards(src: &Path, dst: &Path) -> Result<(), error::Error> {
         .collect();
         let dst = File::create(dst_path)?;
 
-        let mut buf = flate2::write::GzEncoder::new(dst, Compression::default());
+        let buf = flate2::write::GzEncoder::new(dst, Compression::default());
         let mut writer = warc::WarcWriter::new(buf);
 
-        for (idx, record) in records.skip(0).take(30).enumerate() {
+        for (_, record) in records.skip(0).take(30).enumerate() {
             // println!("writing record {}", idx);
             let record = record.unwrap();
             writer.write_raw(&record)?;
@@ -93,7 +89,7 @@ fn assert_meta_final_offset() {
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -144,7 +140,7 @@ fn assert_meta_successive_offsets() {
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -195,13 +191,13 @@ fn assert_meta_validity() {
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
 
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     // get data and metadata from shard
     let mut source = src.clone();
     source.push("0.txt.gz");
-    let shard = wet::Wet::from_path_gzip(&source).unwrap();
+    let shard = Wet::from_path_gzip(&source).unwrap();
 
     // unwrap and ignore errors
     let shard_records: Vec<RawRecord> = shard
@@ -304,7 +300,7 @@ fn assert_meta_final_offset_multishard() {
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -361,7 +357,7 @@ fn assert_meta_successive_offsets_multishard() {
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_1 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     for lang in LANG.iter() {
@@ -410,7 +406,7 @@ fn assert_meta_validity_multishard() {
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_5 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     p.run().unwrap();
 
     let mut record_index = HashMap::new();
@@ -419,7 +415,7 @@ fn assert_meta_validity_multishard() {
         println!("processing shard {}", shard_idx);
         let mut shard_path = src.clone();
         shard_path.push(format!("{}.txt.gz", shard_idx));
-        let shard = wet::Wet::from_path_gzip(&shard_path).unwrap();
+        let shard = Wet::from_path_gzip(&shard_path).unwrap();
 
         let records = shard.filter_map(|record| match record {
             Ok(record) => {
@@ -475,7 +471,7 @@ fn pipeline_single_shard() {
     let dst = PathBuf::from("temp_1/");
 
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
+    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path, Some(500_000_000));
     let res = p.run();
     assert!(res.is_ok());
 

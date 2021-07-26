@@ -1,10 +1,10 @@
-//! Language classification/identification utilities.
-//!
-//! Enables language identification on sentences, using [fasttext](https://fasttext.cc) for now.
+//! Fasttext identifier
 use std::path::Path;
 
 use crate::error::Error;
-use fasttext::{FastText, Prediction};
+use fasttext::{FastText as FastTextLib, Prediction};
+
+use super::identifier;
 
 /// Clean the prediction label field from `__label__xx` into `xx`.
 ///
@@ -28,15 +28,15 @@ fn clean_prediction(prediction: &Prediction) -> Result<Prediction, String> {
 }
 
 /// Holds a [fasttext::FastText] instance and its parameters.
-/// - [Classifier::k], number of predicted languages on a sentence
-/// - [Classifier::threshold], prediction threshold
-pub struct Classifier {
-    predictor: FastText,
+/// - [fasttext::FastText::k], number of predicted languages on a sentence
+/// - [FastText::threshold], prediction threshold
+pub struct FastText {
+    predictor: FastTextLib,
     pub k: i32,
     pub threshold: f32,
 }
 
-impl Classifier {
+impl FastText {
     /// Create a new fasttext classifier allowing to identify
     /// language of strings.
     ///
@@ -57,7 +57,7 @@ impl Classifier {
     ///
     /// See [fasttext::FastText::predict] for other parameters explanation
     pub fn new(filename: &Path, k: i32, threshold: f32) -> Result<Self, Error> {
-        let mut predictor = FastText::new();
+        let mut predictor = FastTextLib::new();
         let filename_str = filename.to_str();
         match filename_str {
             None => Err(Error::Custom(format!(
@@ -66,7 +66,7 @@ impl Classifier {
             ))),
             Some(filename) => {
                 predictor.load_model(filename)?;
-                Ok(Classifier {
+                Ok(Self {
                     predictor,
                     k,
                     threshold,
@@ -94,6 +94,11 @@ impl Classifier {
     }
 }
 
+impl identifier::Identifier for FastText {
+    fn identify(&self, _sentence: &str) -> Result<Option<&'static str>, Error> {
+        todo!();
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,7 +106,7 @@ mod tests {
     // ambiguous/multilingual sentence that shouldn't yield a single lang with a high confidence
     #[test]
     fn test_no_id() {
-        let classifier = Classifier::new_lid().expect("could not instantiate a classifier");
+        let classifier = FastText::new_lid().expect("could not instantiate a classifier");
         let short_sentence = "Bonjour Hello";
         let id = classifier
             .predict(short_sentence)
@@ -113,7 +118,7 @@ mod tests {
     // unilingual longish sentence that should yield a single lang with a high confidence
     #[test]
     fn test_id_en() {
-        let classifier = Classifier::new_lid().expect("could not instantiate a classifier");
+        let classifier = FastText::new_lid().expect("could not instantiate a classifier");
         let sentence = "a perfectly, innocent, quite lengthy sentence. How lengthy and normal this sentence is, oh my! Lengthy lengthy.".escape_default().to_string();
         let pred = classifier
             .predict(&sentence)
@@ -132,7 +137,7 @@ mod tests {
             .expect("could not find test file")
             .escape_default()
             .to_string();
-        let classifier = Classifier::new_lid().expect("could not instantiate a classifier");
+        let classifier = FastText::new_lid().expect("could not instantiate a classifier");
         classifier
             .predict(&garbage_default)
             .expect("could not predict sentence");
@@ -142,7 +147,7 @@ mod tests {
     // does not crash classifier.
     #[test]
     fn test_null_terminated() {
-        let classifier = Classifier::new_lid().expect("could not instantiate a classifier");
+        let classifier = FastText::new_lid().expect("could not instantiate a classifier");
         let nullstring = String::from(char::from(0));
         let mut nullstring2 = String::from("hello");
         nullstring2.push(char::from(0));

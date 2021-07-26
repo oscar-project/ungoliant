@@ -34,13 +34,15 @@ use structopt::StructOpt;
 #[macro_use]
 extern crate log;
 
-mod classify;
 mod cli;
 mod download;
 mod error;
+mod identifiers;
+mod io;
 mod lang;
 mod pipeline;
-mod shard;
+mod processing;
+mod sources;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
@@ -73,8 +75,11 @@ async fn main() -> Result<(), error::Error> {
         }
 
         cli::Ungoliant::Pipeline(p) => {
-            let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
+            let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path, p.part_size);
             p.run()?;
+        }
+        cli::Ungoliant::Dedup(d) => {
+            processing::dedup::dedup(&d.src, &d.dst, d.bufsize)?;
         }
     };
     Ok(())
