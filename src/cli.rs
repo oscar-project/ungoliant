@@ -15,6 +15,8 @@ pub enum Ungoliant {
     Dedup(Dedup),
     #[structopt(about = "Split a not split corpus")]
     Split(Split),
+    #[structopt(about = "Compress")]
+    Compress(Compress),
 }
 
 #[derive(Debug, StructOpt)]
@@ -30,6 +32,14 @@ pub struct Dedup {
         short = "s"
     )]
     pub bufsize: Option<usize>,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct Compress {
+    #[structopt(parse(from_os_str), help = "source corpus location")]
+    pub src: PathBuf,
+    #[structopt(parse(from_os_str), help = "destination corpus location")]
+    pub dst: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]

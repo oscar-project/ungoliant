@@ -84,6 +84,9 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::Split(s) => {
             processing::split::split(&s.src, &s.dst, s.part_size, s.bufsize);
         }
+        cli::Ungoliant::Compress(c) => {
+            processing::compress::compress_corpus(&c.src, &c.dst)?;
+        }
     };
     Ok(())
 }
