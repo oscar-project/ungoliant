@@ -62,7 +62,7 @@ fn split_lang(
     }
 
     // close metadata file
-    writer.close_meta().unwrap();
+    // writer.close_meta().unwrap();
     info!("[{}] splitting done", lang);
 }
 
