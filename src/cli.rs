@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "oscar-tools", about = "A collection of tools for OSCAR corpus")]
+#[structopt(name = "ungoliant", about = "corpus generation tool.")]
 /// Holds every command that is callable by the `oscar-tools` command.
 pub enum Ungoliant {
     #[structopt(about = "Downloading of CommonCrawl")]
