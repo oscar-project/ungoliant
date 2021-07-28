@@ -40,7 +40,7 @@ pub fn compress_corpus(src: &Path, dst: &Path) -> Result<Vec<Error>, Error> {
 /// compress a single file
 fn compress_file(path: &Path, dst: &Path) -> Result<(), Error> {
     let src = File::open(path)?;
-    let b = BufReader::new(src);
+    let mut b = BufReader::new(src);
 
     // gen filename
     let filename = path.file_name().unwrap();
@@ -52,10 +52,16 @@ fn compress_file(path: &Path, dst: &Path) -> Result<(), Error> {
 
     let dest_file = File::create(dst)?;
     let mut enc = GzEncoder::new(dest_file, Compression::default());
-    for line in b.lines() {
-        let line = line?;
-        enc.write_all(&line.as_bytes())?;
+
+    let mut length = 1;
+    while length > 0 {
+        let buffer = b.fill_buf()?;
+        enc.write_all(buffer)?;
+        length = buffer.len();
+        b.consume(length);
     }
+
+    enc.try_finish()?;
 
     Ok(())
 }
