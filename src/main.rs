@@ -27,6 +27,8 @@
 //!
 
 use download::Downloader;
+use log::LevelFilter;
+use std::env;
 use std::fs::File;
 use std::io::Write;
 use structopt::StructOpt;
@@ -46,7 +48,11 @@ mod sources;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
-    env_logger::init();
+    // set devault log level to info
+    let mut builder = env_logger::Builder::new();
+    builder.filter_level(LevelFilter::Info);
+    builder.parse_env("RUST_LOG");
+    builder.init();
 
     let opt = cli::Ungoliant::from_args();
     debug!("cli args\n{:#?}", opt);
@@ -83,6 +89,9 @@ async fn main() -> Result<(), error::Error> {
         }
         cli::Ungoliant::Split(s) => {
             processing::split::split(&s.src, &s.dst, s.part_size, s.bufsize);
+        }
+        cli::Ungoliant::Compress(c) => {
+            processing::compress::compress_corpus(&c.src, &c.dst)?;
         }
     };
     Ok(())
