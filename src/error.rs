@@ -10,6 +10,8 @@ pub enum Error {
     MetadataConversion(FromUtf8Error),
     Custom(String),
     Serde(serde_json::Error),
+    Glob(glob::GlobError),
+    GlobPattern(glob::PatternError),
 }
 
 impl From<std::io::Error> for Error {
@@ -18,6 +20,17 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<glob::GlobError> for Error {
+    fn from(e: glob::GlobError) -> Error {
+        Error::Glob(e)
+    }
+}
+
+impl From<glob::PatternError> for Error {
+    fn from(e: glob::PatternError) -> Error {
+        Error::GlobPattern(e)
+    }
+}
 impl From<warc::Error> for Error {
     fn from(e: warc::Error) -> Error {
         Error::Warc(e)
