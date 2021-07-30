@@ -27,7 +27,7 @@ fn clean_prediction(prediction: &Prediction) -> Result<Prediction, String> {
     })
 }
 
-/// Holds a [fasttext::FastText] instance and its parameters.
+/// Holds a [fasttext::FastText] instance and its parameters:
 /// - [fasttext::FastText::k], number of predicted languages on a sentence
 /// - [FastText::threshold], prediction threshold
 pub struct FastText {

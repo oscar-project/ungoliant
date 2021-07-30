@@ -2,7 +2,6 @@
 use crate::error;
 use log::{debug, warn};
 use std::fs::OpenOptions;
-use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::{fs::File, io::Write, path::PathBuf};
 
@@ -33,7 +32,7 @@ impl MetaWriter {
 
     /// attempt to close current file while ending json.
     pub fn close_file(&mut self) -> Result<(), error::Error> {
-        if let Some(file) = &mut self.file {
+        if let Some(_) = &mut self.file {
             self.file = None;
         } else {
             warn!("{}: trying to close an unopened MetaWriter.", self.lang);
