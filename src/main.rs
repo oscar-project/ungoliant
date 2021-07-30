@@ -93,6 +93,9 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::Compress(c) => {
             processing::compress::compress_corpus(&c.src, &c.dst)?;
         }
+        cli::Ungoliant::Package(p) => {
+            processing::package::package(&p.src, &p.dst)?;
+        }
     };
     Ok(())
 }

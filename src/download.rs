@@ -160,7 +160,6 @@ impl Downloader {
     }
 
     /// launch downloading of urls
-    /// on [Self::n_parallel] tasks.
     ///
     /// See this [SO post](https://stackoverflow.com/questions/51044467/how-can-i-perform-parallel-asynchronous-http-get-requests-with-reqwest)
     /// for more info.
