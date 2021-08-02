@@ -2,7 +2,7 @@
 
 :spider: Ungoliant is the upcoming pipeline to obtain an [OSCAR corpus](https://oscar-corpus.com) from a [Common Crawl](https://commoncrawl.org) dump. This pipeline replaces the original [goclassy](https://github.com/oscar-corpus/goclassy) pipeline.
 
-🕷️** Ungoliant is a high-performance pipeline that provides tools to build corpus generation pipelines from CommonCrawl. **🕷️
+🕷️ **Ungoliant is a high-performance pipeline that provides tools to build corpus generation pipelines from CommonCrawl.** 🕷️
 
 It currently is the generation pipeline for [OSCAR corpus](https://oscar-corpus.com), from [CommonCrawl](https://commoncrawl.org).
 Ungoliant is a replacement of [goclassy](https://github.com/oscar-corpus/goclassy).
