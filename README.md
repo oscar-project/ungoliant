@@ -13,7 +13,7 @@ Ungoliant is a replacement of [goclassy](https://github.com/oscar-corpus/goclass
 * Via `cargo`: `cargo install ungoliant`
 * Via `git`: `cargo install --git https://github.com/oscar-corpus/ungoliant`
 
-Ungoliant needs numerous dependencies that should be compiled when installing. However `cmake / gcc` can be needed as the project uses [fasttext-rs](https://github.com/messence/fasttext-rs).
+Ungoliant needs numerous dependencies that should be compiled when installing. However `cmake / gcc` can be needed as the project uses [fasttext-rs](https://github.com/messense/fasttext-rs).
 
 ### Getting the language identification file (for fastText):
 
