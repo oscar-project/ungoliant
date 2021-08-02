@@ -29,11 +29,12 @@ pub struct Dedup {
     #[structopt(parse(from_os_str), help = "destination corpus location")]
     pub dst: PathBuf,
     #[structopt(
-        help = "number of records in a bulk write. Default: 1 (writes at each record deduplication)",
+        help = "number of records in a bulk write.",
         long = "chunk_size",
+        default_value = "500",
         short = "s"
     )]
-    pub bufsize: Option<usize>,
+    pub bufsize: usize,
 }
 
 #[derive(Debug, StructOpt)]
@@ -61,11 +62,12 @@ pub struct Split {
     #[structopt(help = "size of each part (in MBytes)", default_value = "500")]
     pub part_size: u64,
     #[structopt(
-        help = "number of records in a bulk write. Default: 1 (writes at each record deduplication)",
+        help = "number of records in a bulk write.",
         long = "chunk_size",
+        default_value = "500",
         short = "s"
     )]
-    pub bufsize: Option<usize>,
+    pub bufsize: usize,
 }
 
 #[derive(Debug, StructOpt)]
@@ -131,6 +133,4 @@ pub struct Pipeline {
         default_value = "lid.176.bin"
     )]
     pub lid_path: PathBuf,
-    #[structopt(short = "s", long = "part_size", help = "maximum part size in MBytes")]
-    pub part_size: Option<u64>,
 }

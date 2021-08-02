@@ -81,14 +81,14 @@ async fn main() -> Result<(), error::Error> {
         }
 
         cli::Ungoliant::Pipeline(p) => {
-            let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path, p.part_size);
+            let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
             p.run()?;
         }
         cli::Ungoliant::Dedup(d) => {
-            processing::dedup::dedup(&d.src, &d.dst, d.bufsize)?;
+            processing::dedup::dedup(&d.src, &d.dst, Some(d.bufsize))?;
         }
         cli::Ungoliant::Split(s) => {
-            processing::split::split(&s.src, &s.dst, s.part_size, s.bufsize);
+            processing::split::split(&s.src, &s.dst, s.part_size, Some(s.bufsize));
         }
         cli::Ungoliant::Compress(c) => {
             processing::compress::compress_corpus(&c.src, &c.dst)?;

@@ -33,20 +33,14 @@ pub struct OscarMetadata {
     src: PathBuf,
     dst: PathBuf,
     lid_path: PathBuf,
-    part_size: Option<u64>,
 }
 
 /// convinience type alias for [warc::Record] headers.
 type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
 impl OscarMetadata {
-    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf, part_size: Option<u64>) -> Self {
-        Self {
-            src,
-            dst,
-            lid_path,
-            part_size,
-        }
+    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf) -> Self {
+        Self { src, dst, lid_path }
     }
 
     /// attempt to predict language on provided sentence.
@@ -157,10 +151,12 @@ impl OscarMetadata {
         let results = results.enumerate().par_bridge();
 
         // holds file handles
-        let langfiles = match self.part_size {
-            Some(ps) => LangFiles::new(&self.dst, Some(ps * 1_000_000))?,
-            None => LangFiles::new(&self.dst, None)?,
-        };
+        // let langfiles = match self.part_size {
+        //     Some(ps) => LangFiles::new(&self.dst, Some(ps * 1_000_000))?,
+        //     None => LangFiles::new(&self.dst, None)?,
+        // };
+
+        let langfiles = LangFiles::new(&self.dst, None)?;
 
         // iterate over shards
         let r: Vec<Error> = results
