@@ -49,7 +49,7 @@ impl OscarMetadata {
     // why return the sentence itself?
     // TODO: change return type to Option<&'static str>.
     fn identify_sentence(sentence: &str, cls: &FastText) -> Option<(String, &'static str)> {
-        let prediction = cls.predict(&sentence).ok();
+        let prediction = cls.predict(sentence).ok();
 
         if let Some(Some(lang)) = prediction {
             //TODO: rewrite these two lines more elegantly

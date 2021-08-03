@@ -89,7 +89,7 @@ impl RayonAll {
                 // predict for each sentence, discarding
                 // predictions that does not meet threshold
                 .filter_map(|sentence| {
-                    let prediction = cls.predict(&sentence).ok();
+                    let prediction = cls.predict(sentence).ok();
 
                     if let Some(Some(lang)) = prediction {
                         //TODO: rewrite these two lines more elegantly
@@ -171,9 +171,9 @@ impl Pipeline<()> for RayonAll {
             // write to disk
             debug!("writing shard {:?} into lang files", idx);
             for (lang, sentences) in sorted_sentences.inner {
-                let mut fd = langfiles.get(&lang).unwrap();
+                let mut fd = langfiles.get(lang).unwrap();
                 let content = sentences.into_iter().join("\n");
-                fd.write_all(&content.as_bytes()).unwrap();
+                fd.write_all(content.as_bytes()).unwrap();
             }
         });
 

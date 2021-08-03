@@ -48,7 +48,7 @@ impl FastText {
     /// # Errors
     /// Propagates [fasttext::FastText] errors.
     pub fn new_lid() -> Result<Self, Error> {
-        Self::new(&Path::new("lid.176.bin"), 1, 0.8)
+        Self::new(Path::new("lid.176.bin"), 1, 0.8)
     }
 
     /// Create a new fasttext classifier.
@@ -78,7 +78,7 @@ impl FastText {
     /// predict for supplied sentence.
     /// returns Ok(None) if no reliable identification has been done.
     pub fn predict(&self, sentence: &str) -> Result<Option<Vec<Prediction>>, String> {
-        let predictions = self.predictor.predict(&sentence, self.k, self.threshold)?;
+        let predictions = self.predictor.predict(sentence, self.k, self.threshold)?;
 
         if predictions.is_empty() {
             Ok(None)

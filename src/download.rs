@@ -170,7 +170,7 @@ impl Downloader {
     ) -> Vec<Result<PathBuf, Error>> {
         // creates a new pathbuf that concats dst and i.gz
         let to_pathbuf = |i| {
-            [dst, &Path::new(&format!("{}.txt.gz", i))]
+            [dst, Path::new(&format!("{}.txt.gz", i))]
                 .iter()
                 .collect::<PathBuf>()
         };

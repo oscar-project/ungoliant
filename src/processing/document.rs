@@ -72,7 +72,7 @@ impl MergedPiece {
     }
 
     pub fn identification(&self) -> &'static str {
-        &self.identification
+        self.identification
     }
 }
 

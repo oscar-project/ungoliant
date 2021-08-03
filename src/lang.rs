@@ -226,7 +226,7 @@ impl LangFiles {
         options.read(true).append(true).create(true);
         let mut handles = HashMap::new();
         for lang in LANG.iter() {
-            let mut file_path: PathBuf = [src, &Path::new(*lang)].iter().collect();
+            let mut file_path: PathBuf = [src, Path::new(*lang)].iter().collect();
             file_path.set_extension("txt");
             debug!("creating/opening {:?}", file_path);
             let fh = options.clone().open(file_path)?;

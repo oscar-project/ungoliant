@@ -61,7 +61,7 @@ impl Writer {
                 error!("no new offset?");
             }
 
-            self.handle_text.write_all(&pc.body.as_bytes())?;
+            self.handle_text.write_all(pc.body.as_bytes())?;
 
             let mut metadata: String = pc
                 .metadata
@@ -70,7 +70,7 @@ impl Writer {
                 .join("\n");
 
             metadata.push('\n');
-            self.handle_meta.write_all(&metadata.as_bytes())?;
+            self.handle_meta.write_all(metadata.as_bytes())?;
         } else {
             for piece in pieces {
                 //ensure that the piece has the correct language identification

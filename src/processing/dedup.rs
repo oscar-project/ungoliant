@@ -28,7 +28,7 @@ pub fn dedup_piece(
     let filtered: Vec<String> = piece
         .sentences
         .iter()
-        .filter(|sentence| filter.detect(&sentence.as_bytes()))
+        .filter(|sentence| filter.detect(sentence.as_bytes()))
         .map(String::from)
         .collect();
     let nb_sentences = filtered.len();

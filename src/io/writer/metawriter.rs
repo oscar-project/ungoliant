@@ -32,11 +32,11 @@ impl MetaWriter {
 
     /// attempt to close current file while ending json.
     pub fn close_file(&mut self) -> Result<(), error::Error> {
-        if let Some(_) = &mut self.file {
+        if self.file.is_some() {
             self.file = None;
         } else {
             warn!("{}: trying to close an unopened MetaWriter.", self.lang);
-        };
+        }
         Ok(())
     }
 
