@@ -1,6 +1,6 @@
 # Ungoliant
 
-:spider: Ungoliant is the upcoming pipeline to obtain an [OSCAR corpus](https://oscar-corpus.com) from a [Common Crawl](https://commoncrawl.org) dump. This pipeline replaces the original [goclassy](https://github.com/oscar-corpus/goclassy) pipeline.
+![](https://img.shields.io/crates/d/ungoliant?style=flat-square) ![](https://img.shields.io/crates/l/ungoliant?style=flat-square) ![](https://img.shields.io/github/workflow/status/oscar-corpus/ungoliant/Rust/master?label=build%20main&style=flat-square) ![](https://img.shields.io/github/workflow/status/oscar-corpus/ungoliant/Rust/dev?label=build%20dev&style=flat-square)
 
 🕷️ **Ungoliant is a high-performance pipeline that provides tools to build corpus generation pipelines from CommonCrawl.** 🕷️
 
