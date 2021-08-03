@@ -5,6 +5,7 @@
 //! from text file.
 //!
 //! Also implements [serde::Serialize] and [serde::Deserialize] for JSON serialization.
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -13,14 +14,22 @@ use std::string::FromUtf8Error;
 
 use warc::header::WarcHeader;
 
+use crate::error::Error;
+
 /// Holds record headers.
 ///
 /// Each metadata is linked to a specific paragraph/text zone
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug, Default, JsonSchema)]
 pub struct Metadata {
     pub headers: HashMap<WarcHeader, String>,
     pub offset: usize,
     pub nb_sentences: usize,
+}
+
+impl Metadata {
+    pub fn get_schema() -> Result<String, Error> {
+        serde_json::to_string_pretty(&schemars::schema_for!(Self)).map_err(Error::Serde)
+    }
 }
 
 impl TryFrom<HashMap<WarcHeader, Vec<u8>>> for Metadata {
