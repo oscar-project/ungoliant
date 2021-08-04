@@ -3,7 +3,10 @@ use download::Downloader;
 use log::LevelFilter;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use structopt::StructOpt;
+
+use crate::processing::Metadata;
 
 #[macro_use]
 extern crate log;
@@ -53,8 +56,14 @@ async fn main() -> Result<(), error::Error> {
         }
 
         cli::Ungoliant::Pipeline(p) => {
+            let mut schema_filepath = p.dst.clone();
             let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
             p.run()?;
+
+            schema_filepath.push("metadata_schema.json");
+            info!("creating json schema file {:?}", schema_filepath);
+            let mut f = File::create(schema_filepath)?;
+            f.write_all(Metadata::get_schema()?.as_bytes())?;
         }
         cli::Ungoliant::Dedup(d) => {
             processing::dedup::dedup(&d.src, &d.dst, Some(d.bufsize))?;
