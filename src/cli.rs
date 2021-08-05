@@ -46,11 +46,20 @@ pub struct Compress {
 }
 
 #[derive(Debug, StructOpt)]
+#[structopt(
+    about = "Move files in language specific folders and compute checksums.
+Using -m will move instead of copying. Not specifying a dst file will move in place."
+)]
 pub struct Package {
     #[structopt(parse(from_os_str), help = "source corpus location")]
     pub src: PathBuf,
-    #[structopt(parse(from_os_str), help = "destination corpus location")]
-    pub dst: PathBuf,
+    #[structopt(
+        parse(from_os_str),
+        help = "destination corpus location. Leave blank for in-place move."
+    )]
+    pub dst: Option<PathBuf>,
+    #[structopt(short = "m", long = "move-files", help = "move files (no copy)")]
+    pub move_files: bool,
 }
 #[derive(Debug, StructOpt)]
 /// Dedup command and parameters.

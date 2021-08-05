@@ -75,7 +75,12 @@ fn get_hash(filepath: &Path, hasher: &mut Sha256) -> Result<String, Error> {
 }
 
 /// moves `<lang>*.{txt, jsonl}.gz` to `dst/<lang>/<lang>*.{txt, jsonl}.gz`, creating the folder if it did not exist.
-fn put_in_lang_folder(filename: &Path, dst: &Path, lang: &'static str) -> Result<(), Error> {
+fn put_in_lang_folder(
+    filename: &Path,
+    dst: &Path,
+    lang: &'static str,
+    move_files: bool,
+) -> Result<(), Error> {
     let mut dst = PathBuf::from(dst);
     dst.push(lang);
     let mut dst_txt = dst.clone();
@@ -87,7 +92,13 @@ fn put_in_lang_folder(filename: &Path, dst: &Path, lang: &'static str) -> Result
             return Err(Error::Io(e));
         }
     }
-    std::fs::copy(filename, dst_txt)?;
+
+    // move or copy depending on flag
+    if move_files {
+        std::fs::rename(filename, dst_txt)?;
+    } else {
+        std::fs::copy(filename, dst_txt)?;
+    }
 
     Ok(())
 }
@@ -99,7 +110,22 @@ fn put_in_lang_folder(filename: &Path, dst: &Path, lang: &'static str) -> Result
 /// - `dst` is the packaged corpus location.
 ///
 /// Packaging does not (yet) provide in-place operation.
-fn package_lang(src: &Path, dst: &Path, lang: &'static str) -> Result<(), Error> {
+fn package_lang(
+    src: &Path,
+    dst: Option<&Path>,
+    lang: &'static str,
+    move_files: bool,
+) -> Result<(), Error> {
+    if !move_files && dst.is_none() {
+        return Err(Error::Custom("No destination path specified!".to_string()));
+    }
+
+    // set destination same as source if move flag
+    let dst = match dst {
+        Some(d) => d,
+        None => src,
+    };
+
     info!("[{}] begin packaging", lang);
     // forge filenames for single-part
     let mut filename_txt = PathBuf::from(src);
@@ -115,8 +141,8 @@ fn package_lang(src: &Path, dst: &Path, lang: &'static str) -> Result<(), Error>
     // if it exists, we operate on meta also (if only one of both exists, it's an error)
     if filename_txt.exists() {
         debug!("[{}] lang has a single txt/json file", lang);
-        put_in_lang_folder(&filename_txt, dst, lang)?;
-        put_in_lang_folder(&filename_meta, dst, lang)?;
+        put_in_lang_folder(&filename_txt, dst, lang, move_files)?;
+        put_in_lang_folder(&filename_meta, dst, lang, move_files)?;
         gen_checksum_file(dst, lang)?;
         info!("[{}] done packaging", lang);
         Ok(())
@@ -140,7 +166,7 @@ fn package_lang(src: &Path, dst: &Path, lang: &'static str) -> Result<(), Error>
 
         //chain both text and meta files and move them all
         for f in text_paths.chain(meta_paths) {
-            put_in_lang_folder(&f?, dst, lang)?;
+            put_in_lang_folder(&f?, dst, lang, move_files)?;
         }
 
         // generating checksum file
@@ -159,10 +185,10 @@ fn package_lang(src: &Path, dst: &Path, lang: &'static str) -> Result<(), Error>
 
 /// concurrently package all the languages present in `src` (split and compressed) to `dst`
 /// in separate language folders along with a `sha256sum -c`-able file.
-pub fn package(src: &Path, dst: &Path) -> Result<(), Error> {
+pub fn package(src: &Path, dst: Option<&Path>, move_files: bool) -> Result<(), Error> {
     let langs = LANG.clone().into_par_iter();
     let results: Vec<Error> = langs
-        .filter_map(|lang| package_lang(src, dst, lang).err())
+        .filter_map(|lang| package_lang(src, dst, lang, move_files).err())
         .collect();
 
     if !results.is_empty() {

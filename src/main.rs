@@ -75,7 +75,7 @@ async fn main() -> Result<(), error::Error> {
             processing::compress::compress_corpus(&c.src, &c.dst)?;
         }
         cli::Ungoliant::Package(p) => {
-            processing::package::package(&p.src, &p.dst)?;
+            processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
         }
     };
     Ok(())
