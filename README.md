@@ -1,11 +1,15 @@
 # Ungoliant
 
-![](https://img.shields.io/crates/d/ungoliant?style=flat-square) ![](https://img.shields.io/crates/l/ungoliant?style=flat-square) ![](https://img.shields.io/github/workflow/status/oscar-corpus/ungoliant/Rust/master?label=build%20main&style=flat-square) ![](https://img.shields.io/github/workflow/status/oscar-corpus/ungoliant/Rust/dev?label=build%20dev&style=flat-square)
+![](https://img.shields.io/crates/d/ungoliant?style=flat-square) ![](https://img.shields.io/crates/l/ungoliant?style=flat-square) 
+[![codecov](https://codecov.io/gh/oscar-corpus/ungoliant/branch/master/graph/badge.svg?token=Q3M8F86E2G)](https://codecov.io/gh/oscar-corpus/ungoliant)
 
 🕷️ **Ungoliant is a high-performance pipeline that provides tools to build corpus generation pipelines from CommonCrawl.** 🕷️
 
 It currently is the generation pipeline for [OSCAR corpus](https://oscar-corpus.com), from [CommonCrawl](https://commoncrawl.org).
 Ungoliant is a replacement of [goclassy](https://github.com/oscar-corpus/goclassy).
+
+
+![](https://img.shields.io/github/workflow/status/oscar-corpus/ungoliant/Rust/master?label=main&style=flat-square)                           ![](https://img.shields.io/github/workflow/status/oscar-corpus/ungoliant/Rust/dev?label=dev&style=flat-square)
 
 ## Installation
 
