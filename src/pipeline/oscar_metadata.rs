@@ -7,7 +7,7 @@ use crate::{identifiers::FastText, processing::document::MergedPiece};
 use log::Level::Debug;
 use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
-use warc::{header::WarcHeader, RawRecord};
+use warc::{header::WarcHeader, Record};
 
 use crate::io::LangFiles;
 /// OSCAR v1.5 generation pipeline
