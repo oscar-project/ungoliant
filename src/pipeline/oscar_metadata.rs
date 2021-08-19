@@ -7,6 +7,7 @@ use crate::{identifiers::FastText, processing::document::MergedPiece};
 use log::Level::Debug;
 use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
+use warc::BufferedBody;
 use warc::{header::WarcHeader, Record};
 
 use crate::io::LangFiles;
@@ -81,21 +82,13 @@ impl OscarMetadata {
     /// and return (sentence, language) along with headers
     /// extracted from the WARC.
     fn process_record(
-        record: RawRecord,
+        record: Record<BufferedBody>,
         cls: &FastText,
     ) -> Option<(Vec<(String, &'static str)>, WarcHeaders)> {
         if log_enabled!(Debug) {
-            debug!(
-                "processing record {}",
-                String::from_utf8_lossy(
-                    record
-                        .headers
-                        .get(&WarcHeader::RecordID)
-                        .unwrap_or(&Vec::from("no record id".as_bytes()))
-                )
-            );
+            debug!("processing record {}", record.warc_id());
         };
-        let body = String::from_utf8(record.body).ok();
+        let body = String::from_utf8(record.body().to_vec()).ok();
 
         // process record if body is utf8-valid
         if let Some(sentences) = body {
@@ -112,12 +105,9 @@ impl OscarMetadata {
                 .filter_map(|sentence| Self::identify_sentence(sentence, cls))
                 .collect();
 
-            Some((results, record.headers))
+            Some((results, record.into_raw_parts().0.headers))
         } else {
-            error!(
-                "body not UTF-8 valid: {:?}",
-                record.headers.get(&WarcHeader::RecordID)
-            );
+            error!("body not UTF-8 valid: {:?}", record.warc_id());
             None
         }
     }
@@ -176,7 +166,7 @@ impl OscarMetadata {
 
                 let shard = shard.unwrap();
                 // convert into a parallel iterator
-                let wetfile = shard.enumerate().par_bridge();
+                let wetfile = shard.iter.enumerate().par_bridge();
 
                 let shard_results: Vec<(Vec<(String, &'static str)>, WarcHeaders)> = wetfile
                     .filter_map(|(idx_record, record)| match record {

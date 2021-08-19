@@ -8,8 +8,8 @@ use std::{fs::File, io::BufReader, path::Path};
 use crate::error::Error;
 use flate2::read::MultiGzDecoder;
 use std::io::BufRead;
-use warc::RawRecordIter;
-use warc::{RawRecordHeader, Record, WarcReader};
+use warc::RecordIter;
+use warc::WarcReader;
 
 /// Wet/Shard instance, generic over reader type.
 ///
@@ -19,8 +19,7 @@ use warc::{RawRecordHeader, Record, WarcReader};
 /// Be aware that CommonCrawl files are gzipped and need
 /// a multi gz decoder (such as [MultiGzDecoder]).
 pub struct Wet<T> {
-    // reader: WarcReader<T>,
-    pub iter: RawRecordIter<T>,
+    pub iter: RecordIter<T>,
 }
 
 // pub struct RecordIter<T: Iterator<Item = BufReader<MultiGzDecoder<File>>>> {
@@ -42,7 +41,7 @@ impl Wet<BufReader<MultiGzDecoder<File>>> {
 
         let reader = WarcReader::new(bufreader);
 
-        let x = reader.iter_raw_records();
+        let x = reader.iter_records();
         Ok(Self { iter: x })
     }
 }
@@ -51,24 +50,10 @@ impl Wet<BufReader<MultiGzDecoder<File>>> {
 impl<T: BufRead> Wet<T> {
     pub fn new(reader: T) -> Self {
         let reader = WarcReader::new(reader);
-        let iter = reader.iter_raw_records();
+        let iter = reader.iter_records();
         Self { iter }
     }
 }
-
-// impl<R: BufRead> Iterator for Wet<R> {
-//     type Item = Result<warc::Record<R>, Error>;
-//     fn next(&mut self) -> Option<Self::Item> {
-//         if let Some(n) = self.iter.next() {
-//             match n {
-//                 Ok(record) => Some(Ok(record)),
-//                 Err(e) => Some(Err(Error::Warc(e))),
-//             }
-//         } else {
-//             None
-//         }
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

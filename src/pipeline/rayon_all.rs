@@ -12,7 +12,7 @@ use log::{debug, info, warn};
 use rayon::prelude::*;
 use std::hash::BuildHasherDefault;
 use twox_hash::XxHash64;
-use warc::RawRecord;
+use warc::{BufferedBody, Record};
 
 /// pipeline-specific functions and [Pipeline] implementation.
 pub struct RayonAll {
@@ -73,8 +73,11 @@ impl RayonAll {
     /// and sentences that do not meet the criteria
     ///
     /// then groups identified sentences by language.
-    fn process_record(record: RawRecord, cls: &FastText) -> Option<Vec<(String, &'static str)>> {
-        let body = String::from_utf8(record.body).ok();
+    fn process_record(
+        record: Record<BufferedBody>,
+        cls: &FastText,
+    ) -> Option<Vec<(String, &'static str)>> {
+        let body = String::from_utf8(record.body().to_vec()).ok();
 
         // process record if body is utf8-valid
         if let Some(sentences) = body {
@@ -149,7 +152,7 @@ impl Pipeline<()> for RayonAll {
             info!("processing shard {:?}", idx);
 
             // convert into a parallel iterator
-            let wetfile = shard.enumerate().par_bridge();
+            let wetfile = shard.iter.enumerate().par_bridge();
 
             let shard_results: Vec<Vec<(String, &'static str)>> = wetfile
                 .filter_map(|(idx_record, record)| match record {

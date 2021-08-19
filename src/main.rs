@@ -3,7 +3,6 @@ use download::Downloader;
 use log::LevelFilter;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
 use structopt::StructOpt;
 
 use crate::processing::Metadata;
