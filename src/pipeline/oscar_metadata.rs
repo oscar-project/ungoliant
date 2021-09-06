@@ -238,3 +238,37 @@ impl OscarMetadata {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{env::temp_dir, path::PathBuf};
+
+    use warc::{EmptyBody, Record};
+
+    use crate::identifiers::FastText;
+
+    use super::OscarMetadata;
+    #[test]
+    fn test_process_record() {
+        let cls = FastText::new_lid().unwrap();
+        let record = ();
+
+        // let oscar_metadata =
+        //     OscarMetadata::new(temp_dir(), temp_dir(), PathBuf::from("lid.176.bin"));
+
+        let mut record: Record<EmptyBody> = Record::default();
+        let body = "english test that is longer than one hundred characters. english test that is longer than one hundred characters.
+phrase française de plus de cent caractères. Ceci est une phrase française de plus de cent caractères.";
+        println!("{}", body.len());
+        let record = record.add_body(body);
+        let (identifications, headers) = OscarMetadata::process_record(record, &cls).unwrap();
+
+        for (sentence, id) in identifications {
+            if id == "en" {
+                assert_eq!(sentence, "english test that is longer than one hundred characters. english test that is longer than one hundred characters.");
+            } else if id == "fr" {
+                assert_eq!(sentence, "phrase française de plus de cent caractères. Ceci est une phrase française de plus de cent caractères.");
+            }
+        }
+    }
+}
