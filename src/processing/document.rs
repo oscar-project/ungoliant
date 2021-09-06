@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 // use std::convert::TryFrom;
 // use std::string::FromUtf8Error;
-use warc::header::WarcHeader;
+use warc::WarcHeader;
 
 /// represents a whole docuement, that is:
 /// - its header, as provided by warc library

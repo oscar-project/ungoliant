@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::string::FromUtf8Error;
 
-use warc::header::WarcHeader;
+use warc::WarcHeader;
 
 use crate::error::Error;
 

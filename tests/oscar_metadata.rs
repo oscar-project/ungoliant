@@ -13,9 +13,9 @@ use ungoliant::lang::LANG;
 use ungoliant::pipeline::OscarMetadata;
 use ungoliant::processing::Metadata;
 use ungoliant::sources::commoncrawl::Wet;
-use warc::header::WarcHeader;
 use warc::BufferedBody;
 use warc::Record;
+use warc::WarcHeader;
 
 #[test]
 //todo assert error type

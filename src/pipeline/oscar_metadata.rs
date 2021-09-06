@@ -8,7 +8,7 @@ use log::Level::Debug;
 use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
-use warc::{header::WarcHeader, Record};
+use warc::{Record, WarcHeader};
 
 use crate::io::LangFiles;
 /// OSCAR v1.5 generation pipeline

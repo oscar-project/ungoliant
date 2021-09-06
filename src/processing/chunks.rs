@@ -90,7 +90,7 @@ pub fn group_by<T: Eq + std::hash::Hash + Copy>(
 mod tests {
 
     use super::*;
-    use warc::header::WarcHeader;
+    use warc::WarcHeader;
 
     #[test]
     fn group_by_simple() {

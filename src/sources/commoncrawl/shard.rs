@@ -60,7 +60,7 @@ mod tests {
 
     use serde_json;
     use std::collections::HashMap;
-    use warc::header::WarcHeader;
+    use warc::WarcHeader;
 
     use super::Wet;
 

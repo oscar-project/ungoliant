@@ -132,7 +132,7 @@ mod tests {
         io::{BufRead, Read},
     };
 
-    use warc::header::WarcHeader;
+    use warc::WarcHeader;
 
     use super::*;
 
