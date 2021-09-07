@@ -37,7 +37,7 @@ The usual way of generating corpora is:
 
 You can find more information on each command's `--help`.
 
-```
+```text
 ungoliant 0.1.0
 corpus generation tool.
 
