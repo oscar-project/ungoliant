@@ -1,59 +1,81 @@
-use std::io;
-use std::io::BufReader;
-use std::io::prelude::*;
+#![doc = include_str!("../README.md")]
+use download::Downloader;
+use log::LevelFilter;
 use std::fs::File;
-//use flate2::bufread::MultiGzDecoder;
+use std::io::Write;
+use structopt::StructOpt;
 
-fn main() {
-    let base_url = "https://commoncrawl.s3.amazonaws.com/";
+use crate::processing::Metadata;
 
-    let f = File::open("test.wet.paths").unwrap();
-    let f = BufReader::new(f);
-    let mut i = 0;
+#[macro_use]
+extern crate log;
 
-    let mut err_file = File::create("errors.txt").expect("failed to create error file");
-    let mut log_file = File::create("log.txt").expect("failed to create log file");
+mod cli;
+mod download;
+mod error;
+mod identifiers;
+mod io;
+mod lang;
+mod pipeline;
+mod processing;
+mod sources;
 
-    for line in f.lines() {
-        let line = line.unwrap();
-        let target = format!("{}{}", base_url, line);
+#[tokio::main]
+async fn main() -> Result<(), error::Error> {
+    // set devault log level to info
+    let mut builder = env_logger::Builder::new();
+    builder.filter_level(LevelFilter::Info);
+    builder.parse_env("RUST_LOG");
+    builder.init();
 
-        let res = reqwest::blocking::get(&target);
-        let res = match res {
-            Ok(resp) => resp,
-            Err(error) => {
-                write!(err_file, "Problem downloading the file: {} => {}\n", line, i).unwrap();
-                write!(err_file, "Error: {}\n", error).unwrap();
-                i += 1;
-                continue;
-            },
-        };
-        println!("Crawling {} to file {}.txt.gz", line, i);
-        write!(log_file, "Crawling {} to file {}.txt.gz\n", target, i).unwrap();
+    let opt = cli::Ungoliant::from_args();
+    debug!("cli args\n{:#?}", opt);
 
-        let out = File::create(format!("result/{}.txt.gz", i.to_string()));
-        let mut out = match out{
-            Ok(file) => file,
-            Err(error) => {
-                write!(err_file, "Problem creating the file: {}.txt.gz\n", i).unwrap();
-                write!(err_file, "Error: {}\n", error).unwrap();
-                i += 1;
-                continue;
-            },
-        };
-        let mut buf = BufReader::new(res);
-        match io::copy(&mut buf, &mut out) {
-            Ok(_) => (),
-            Err(error) => {
-                write!(err_file, "Problem writing to file: {}.txt.gz\n", i).unwrap();
-                write!(err_file, "Error: {}\n", error).unwrap();
-                i += 1;
-                continue;
-            },
-        };
-        // let buf = BufReader::new(res);
-        // let mut gz = MultiGzDecoder::new(buf);
-        // io::copy(&mut gz, &mut out).unwrap();
-        i += 1;
-    }
+    match opt {
+        cli::Ungoliant::Download(e) => {
+            let paths = File::open(e.paths_file)?;
+            let mut dl = Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?;
+            let results = dl.download(&e.dst, e.offset).await;
+
+            let mut error_file = File::create("errors.txt")?;
+
+            // write eventual download errors
+            for failure in results.iter().filter(|result| result.is_err()) {
+                error!("Error during download:\n {:?}", failure);
+                // match failure.as_ref().unwrap_err() {
+                //     download::Error::Download(e) => {
+                //         write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
+                //     }
+                //     _ => (),
+                // };
+                if let download::Error::Download(e) = failure.as_ref().unwrap_err() {
+                    write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
+                }
+            }
+        }
+
+        cli::Ungoliant::Pipeline(p) => {
+            let mut schema_filepath = p.dst.clone();
+            let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
+            p.run()?;
+
+            schema_filepath.push("metadata_schema.json");
+            info!("creating json schema file {:?}", schema_filepath);
+            let mut f = File::create(schema_filepath)?;
+            f.write_all(Metadata::get_schema()?.as_bytes())?;
+        }
+        cli::Ungoliant::Dedup(d) => {
+            processing::dedup::dedup(&d.src, &d.dst, Some(d.bufsize))?;
+        }
+        cli::Ungoliant::Split(s) => {
+            processing::split::split(&s.src, &s.dst, s.part_size, Some(s.bufsize));
+        }
+        cli::Ungoliant::Compress(c) => {
+            processing::compress::compress_corpus(&c.src, &c.dst)?;
+        }
+        cli::Ungoliant::Package(p) => {
+            processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
+        }
+    };
+    Ok(())
 }

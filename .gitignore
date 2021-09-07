@@ -1,4 +1,8 @@
-/target
-/result
-test.wet.paths
-wet.paths
+debug/
+target/
+Cargo.lock
+**/*.rs.bk
+/pdb
+/dst*
+/result*
+lid*
