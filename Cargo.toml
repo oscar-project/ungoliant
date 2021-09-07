@@ -20,7 +20,7 @@ log = "*"
 itertools = "0.10.0"
 tokio = { version = "1", features = ["full"] }
 tokio-util = {version="0.6.6", features=["compat"]}
-warc = {git = "https://github.com/jedireza/warc", rev="58fe5f", features = ["with_serde"]}
+warc = {git = "https://github.com/jedireza/warc", features=["with_serde"], version = "0.3"}
 fasttext = "0.6"
 bytes = "1"
 rayon = "1"

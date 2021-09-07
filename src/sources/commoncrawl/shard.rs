@@ -8,6 +8,7 @@ use std::{fs::File, io::BufReader, path::Path};
 use crate::error::Error;
 use flate2::read::MultiGzDecoder;
 use std::io::BufRead;
+use warc::RecordIter;
 use warc::WarcReader;
 
 /// Wet/Shard instance, generic over reader type.
@@ -18,8 +19,14 @@ use warc::WarcReader;
 /// Be aware that CommonCrawl files are gzipped and need
 /// a multi gz decoder (such as [MultiGzDecoder]).
 pub struct Wet<T> {
-    reader: WarcReader<T>,
+    pub iter: RecordIter<T>,
 }
+
+// pub struct RecordIter<T: Iterator<Item = BufReader<MultiGzDecoder<File>>>> {
+// pub struct RecordIter<T: Iterator<Item = Result<(RawRecordHeader, std::vec::Vec<u8>), warc::Error>>>
+// {
+//     iter: T,
+// }
 
 /// Wet reader using [MultiGzDecoder] over a [File].
 impl Wet<BufReader<MultiGzDecoder<File>>> {
@@ -34,30 +41,17 @@ impl Wet<BufReader<MultiGzDecoder<File>>> {
 
         let reader = WarcReader::new(bufreader);
 
-        Ok(Self { reader })
+        let x = reader.iter_records();
+        Ok(Self { iter: x })
     }
 }
 
 #[allow(dead_code)]
 impl<T: BufRead> Wet<T> {
     pub fn new(reader: T) -> Self {
-        Self {
-            reader: WarcReader::new(reader),
-        }
-    }
-}
-
-impl<R: BufRead> Iterator for Wet<R> {
-    type Item = Result<warc::RawRecord, Error>;
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(n) = self.reader.next() {
-            match n {
-                Ok(record) => Some(Ok(record)),
-                Err(e) => Some(Err(Error::Warc(e))),
-            }
-        } else {
-            None
-        }
+        let reader = WarcReader::new(reader);
+        let iter = reader.iter_records();
+        Self { iter }
     }
 }
 
@@ -66,7 +60,7 @@ mod tests {
 
     use serde_json;
     use std::collections::HashMap;
-    use warc::header::WarcHeader;
+    use warc::WarcHeader;
 
     use super::Wet;
 
@@ -87,18 +81,19 @@ mod tests {
         // for a better explanation of fields
         let shard = Wet::from_path_gzip("results/0.txt.gz").unwrap();
 
-        for (idx, record) in shard.enumerate().skip(1).take(4) {
+        for (idx, record) in shard.iter.enumerate().skip(1).take(4) {
             let record = record.unwrap();
-            let headers: HashMap<WarcHeader, String> = record
-                .headers
-                .into_iter()
-                .map(|(k, v)| (k, String::from_utf8_lossy(&v).to_string()))
-                .collect();
-            println!("record {}", idx);
-            println!(
-                "headers: {}",
-                serde_json::to_string_pretty(&headers).unwrap()
-            );
+            println!("{:#?}", record);
+            // let headers: HashMap<WarcHeader, String> = record
+            //     .headers
+            //     .into_iter()
+            //     .map(|(k, v)| (k, String::from_utf8_lossy(&v).to_string()))
+            //     .collect();
+            // println!("record {}", idx);
+            // println!(
+            //     "headers: {}",
+            //     serde_json::to_string_pretty(&headers).unwrap()
+            // );
         }
     }
 

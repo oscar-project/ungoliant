@@ -58,7 +58,7 @@ impl LangFiles {
 mod tests {
 
     use crate::processing::MergedPiece;
-    use warc::header::WarcHeader;
+    use warc::WarcHeader;
 
     use super::*;
 

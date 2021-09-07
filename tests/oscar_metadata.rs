@@ -13,8 +13,9 @@ use ungoliant::lang::LANG;
 use ungoliant::pipeline::OscarMetadata;
 use ungoliant::processing::Metadata;
 use ungoliant::sources::commoncrawl::Wet;
-use warc::header::WarcHeader;
-use warc::RawRecord;
+use warc::BufferedBody;
+use warc::Record;
+use warc::WarcHeader;
 
 #[test]
 //todo assert error type
@@ -42,10 +43,10 @@ fn gen_test_shards(src: &Path, dst: &Path) -> Result<(), error::Error> {
         let buf = flate2::write::GzEncoder::new(dst, Compression::default());
         let mut writer = warc::WarcWriter::new(buf);
 
-        for (_, record) in records.skip(0).take(30).enumerate() {
+        for (_, record) in records.iter.skip(0).take(30).enumerate() {
             // println!("writing record {}", idx);
             let record = record.unwrap();
-            writer.write_raw(&record)?;
+            writer.write(&record)?;
         }
     }
     Ok(())
@@ -200,7 +201,8 @@ fn assert_meta_validity() {
     let shard = Wet::from_path_gzip(&source).unwrap();
 
     // unwrap and ignore errors
-    let shard_records: Vec<RawRecord> = shard
+    let shard_records: Vec<Record<BufferedBody>> = shard
+        .iter
         .filter_map(|x| {
             if x.is_ok() {
                 x.ok()
@@ -213,7 +215,8 @@ fn assert_meta_validity() {
 
     let shard_metadata: Vec<Metadata> = shard_records
         .iter()
-        .map(|record| Metadata::try_from(record.headers.clone()).unwrap())
+        // .map(|record| Metadata::try_from(record.headers.clone()).unwrap())
+        .map(|record| Metadata::try_from(record.clone().into_raw_parts().0.headers).unwrap())
         .collect();
 
     for lang in LANG.iter() {
@@ -274,7 +277,7 @@ fn assert_meta_validity() {
 
                 // get lines from shard
                 // in a vec
-                let shard_string = String::from_utf8_lossy(&shard_records[m.0].body);
+                let shard_string = String::from_utf8_lossy(&shard_records[m.0].body());
                 let shard_lines: HashSet<&str> = shard_string.lines().collect();
 
                 // ensure that corpus is into shard
@@ -417,13 +420,12 @@ fn assert_meta_validity_multishard() {
         shard_path.push(format!("{}.txt.gz", shard_idx));
         let shard = Wet::from_path_gzip(&shard_path).unwrap();
 
-        let records = shard.filter_map(|record| match record {
+        let records = shard.iter.filter_map(|record| match record {
             Ok(record) => {
                 // get record_id and body
                 // parse to strings
-                let record_id = record.headers.get(&WarcHeader::RecordID).unwrap().clone();
-                let body = record.body.clone();
-                let record_id = String::from_utf8_lossy(&record_id).to_string();
+                let record_id = record.warc_id().to_owned();
+                let body = record.body();
 
                 //transform body into a vector of sentences
                 let body = String::from_utf8_lossy(&body)
@@ -453,7 +455,7 @@ fn assert_meta_validity_multishard() {
                 .collect();
 
             let record_id = meta.headers.get(&WarcHeader::RecordID).unwrap();
-            let shard_body = record_index.get(record_id).unwrap();
+            let shard_body = record_index.get(record_id.as_str()).unwrap();
             let shard_body_hs: HashSet<&String> = shard_body.iter().collect();
             for sentence in shard_body {
                 assert!(shard_body_hs.contains(sentence));

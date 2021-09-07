@@ -4,7 +4,7 @@ use std::path::Path;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use ungoliant::io::LangFiles;
 use ungoliant::processing::MergedPiece;
-use warc::header::WarcHeader;
+use warc::WarcHeader;
 
 fn english_sentences(nb: i32) -> Vec<String> {
     (0..nb)
