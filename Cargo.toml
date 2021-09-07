@@ -1,7 +1,7 @@
 [package]
 name = "ungoliant"
-version = "0.1.0"
-authors = ["Julien Abadji <julien.e.abadji@gmail.com, Pedro J. Ortiz <pedro@pjortiz.com>"]
+version = "1.0.0"
+authors = ["Julien Abadji <julien.e.abadji@gmail.com>, Pedro J. Ortiz <pedro@pjortiz.com>"]
 edition = "2018"
 description = "The pipeline for the OSCAR corpus."
 license = "Apache-2.0"
