@@ -7,7 +7,6 @@ use std::ops::RangeInclusive;
 
 use serde::Deserialize;
 use serde::Serialize;
-use warc::WarcHeader;
 
 use crate::error::Error;
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
@@ -58,7 +57,7 @@ impl Origin {
     /// get [Origin] from a comma-separated entry.
     /// headers are available in [Origin::csv_headers]
     fn from_csv(csv: &str) -> Result<Self, Error> {
-        let mut parsed = csv.split(",");
+        let mut parsed = csv.split(',');
         let shard_number: u32 = parsed.next().ok_or(Error::MalformedOrigin)?.parse()?;
         let record_id = parsed.next().ok_or(Error::MalformedOrigin)?.to_string();
         let range_start: u32 = parsed.next().ok_or(Error::MalformedOrigin)?.parse()?;
@@ -73,7 +72,6 @@ impl Origin {
 }
 #[cfg(test)]
 mod tests {
-    use warc::WarcHeader;
 
     use super::*;
 
