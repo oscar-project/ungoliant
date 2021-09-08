@@ -1,5 +1,5 @@
 //! Error enum
-use std::string::FromUtf8Error;
+use std::{num::ParseIntError, string::FromUtf8Error};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -12,6 +12,14 @@ pub enum Error {
     Serde(serde_json::Error),
     Glob(glob::GlobError),
     GlobPattern(glob::PatternError),
+    MalformedOrigin,
+    ParseInt(ParseIntError),
+}
+
+impl From<ParseIntError> for Error {
+    fn from(v: ParseIntError) -> Self {
+        Self::ParseInt(v)
+    }
 }
 
 impl From<std::io::Error> for Error {

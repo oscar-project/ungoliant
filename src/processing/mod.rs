@@ -10,6 +10,7 @@ pub mod dedup;
 pub mod document;
 pub mod metadata;
 pub mod package;
+pub mod rebuild;
 pub mod split;
 
 pub use document::{Document, MergedPiece, PartChunk};
