@@ -76,6 +76,9 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::Package(p) => {
             processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
         }
+        cli::Ungoliant::PrepRebuild(p) => {
+            processing::rebuild::prep_rebuild(&p.src_corpus, &p.src_shards, &p.dst)?;
+        }
     };
     Ok(())
 }

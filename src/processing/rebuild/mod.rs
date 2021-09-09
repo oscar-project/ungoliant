@@ -42,3 +42,5 @@
 !*/
 
 mod origin;
+mod rebuilder;
+pub use rebuilder::prep_rebuild;

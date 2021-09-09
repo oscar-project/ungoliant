@@ -19,6 +19,18 @@ pub enum Ungoliant {
     Compress(Compress),
     #[structopt(about = "package")]
     Package(Package),
+    #[structopt(about = "prepare an origin file for pre-v1.2 OSCAR Schema rebuilding")]
+    PrepRebuild(PrepRebuild),
+}
+
+#[derive(Debug, StructOpt)]
+pub struct PrepRebuild {
+    #[structopt(parse(from_os_str), help = "source corpus location")]
+    pub src_corpus: PathBuf,
+    #[structopt(parse(from_os_str), help = "source corpus location")]
+    pub src_shards: PathBuf,
+    #[structopt(parse(from_os_str), help = "destination of rebuild files")]
+    pub dst: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
