@@ -3,6 +3,7 @@ use std::{num::ParseIntError, string::FromUtf8Error};
 
 #[derive(Debug)]
 #[allow(dead_code)]
+#[cfg(not(tarpaulin_include))]
 pub enum Error {
     Io(std::io::Error),
     Warc(warc::Error),
