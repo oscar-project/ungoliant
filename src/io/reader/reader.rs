@@ -1,13 +1,16 @@
 /*! Reader for a specific language.
 !*/
-use std::path::Path;
+use std::{fs::File, path::Path};
 
 use crate::{
     error::Error,
     processing::{MergedPiece, Metadata},
 };
 
-use super::{metareader::MetaReader, textreader::TextReader};
+use super::{
+    metareader::MetaReader,
+    textreader::{ByteReader, ReaderKind, ReaderTrait, TextReader},
+};
 
 /// Analoguous to [MergedPiece] but containing [Metadata].
 ///
@@ -36,7 +39,8 @@ impl From<PieceMeta> for MergedPiece {
 }
 #[derive(Debug)]
 pub struct Reader {
-    textreader: TextReader,
+    // textreader: TextReader,
+    textreader: ReaderKind<File>,
     metareader: MetaReader,
     lang: &'static str,
 }
@@ -50,7 +54,20 @@ impl Reader {
         let metareader = MetaReader::new(dst, lang)?;
 
         Ok(Self {
-            textreader,
+            textreader: ReaderKind::Line(textreader),
+            metareader,
+            lang,
+        })
+    }
+
+    /// Create a new reader (with bytes reader for text)
+    /// TODO: find a better way to do this and use only one new().
+    pub fn new_bytes(dst: &Path, lang: &'static str) -> Result<Self, Error> {
+        let textreader = ByteReader::new(dst, lang)?;
+        let metareader = MetaReader::new(dst, lang)?;
+
+        Ok(Self {
+            textreader: ReaderKind::Byte(textreader),
             metareader,
             lang,
         })
@@ -66,7 +83,7 @@ impl Iterator for Reader {
             (Some(Ok(sentences)), Some(Ok(metadata))) => Some(Ok(PieceMeta {
                 sentences,
                 headers: metadata,
-                identification: self.textreader.lang,
+                identification: self.textreader.lang(),
             })),
             // If text or meta readers return some error, propagate it
             (_, Some(Err(e))) | (Some(Err(e)), _) => Some(Err(e)),

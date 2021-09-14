@@ -41,7 +41,8 @@
         If that's the case, we should see a number of ranges equal to the number of entries.
 !*/
 
+pub(super) mod location;
 mod origin;
-mod patch;
 mod rebuilder;
+
 pub use rebuilder::prep_rebuild;

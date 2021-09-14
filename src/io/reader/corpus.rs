@@ -15,15 +15,34 @@ pub struct Corpus {
 }
 
 impl Corpus {
-    /// generates readers from the list of languages in [crate::lang::LANG]
-    ///
-    /// Erorrs are *not* returned but rather printed out if some language files are not found.
-    fn get_file_list(src: &Path) -> HashMap<&'static str, Reader> {
-        let (readers, errors): (HashMap<_, _>, HashMap<_, _>) = LANG
-            .iter()
+    /// get (line) readers
+    fn readers(
+        src: &Path,
+    ) -> (
+        HashMap<&'static str, Result<Reader, Error>>,
+        HashMap<&'static str, Result<Reader, Error>>,
+    ) {
+        LANG.iter()
             .map(|lang| (*lang, Reader::new(src, lang)))
-            .partition(|(_, v)| v.is_ok());
+            .partition(|(_, v)| v.is_ok())
+    }
 
+    /// get byte readers. See [Reader] for more info.
+    fn readers_byte(
+        src: &Path,
+    ) -> (
+        HashMap<&'static str, Result<Reader, Error>>,
+        HashMap<&'static str, Result<Reader, Error>>,
+    ) {
+        LANG.iter()
+            .map(|lang| (*lang, Reader::new_bytes(src, lang)))
+            .partition(|(_, v)| v.is_ok())
+    }
+
+    fn filter_errors(
+        readers: HashMap<&'static str, Result<Reader, Error>>,
+        errors: HashMap<&'static str, Result<Reader, Error>>,
+    ) -> HashMap<&'static str, Reader> {
         let readers: HashMap<&'static str, Reader> =
             readers.into_iter().map(|(k, v)| (k, v.unwrap())).collect();
 
@@ -42,11 +61,35 @@ impl Corpus {
 
         readers
     }
+    /// generates readers from the list of languages in [crate::lang::LANG]
+    ///
+    /// Erorrs are *not* returned but rather printed out if some language files are not found.
+    fn get_file_list(src: &Path) -> HashMap<&'static str, Reader> {
+        let (readers, errors) = Self::readers(src);
+        Self::filter_errors(readers, errors)
+    }
+
+    /// generates byte readers from the list of languages in [crate::lang::LANG]
+    ///
+    /// Erorrs are *not* returned but rather printed out if some language files are not found.
+    fn get_file_list_bytes(src: &Path) -> HashMap<&'static str, Reader> {
+        let (readers, errors) = Self::readers_byte(src);
+        Self::filter_errors(readers, errors)
+    }
 
     // Create a new Corpus reader.
     pub fn new(src: &Path) -> Self {
         Self {
             readers: Self::get_file_list(src),
+        }
+    }
+
+    /// Create a new Corpus reader that has the ability to read byte by byte.
+    ///
+    /// See [super::textreader::ByteReader]
+    pub fn new_bytes(src: &Path) -> Self {
+        Self {
+            readers: Self::get_file_list_bytes(src),
         }
     }
 }

@@ -21,6 +21,7 @@ The process is, for a given language:
 
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
+    fs::File,
     path::Path,
 };
 
@@ -32,17 +33,18 @@ use crate::{
     },
     sources::commoncrawl::Wet,
 };
+
 use log::debug;
 use log::error;
 use log::warn;
 
-use super::patch;
+use super::location::Corpus as CorpusLocation;
 
 type Records = HashSet<String>;
 
 /// prepare a rebuild file for <1.2 Oscar schema
 pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<(), Error> {
-    let mut corpus = Corpus::new(src_corpus);
+    let mut corpus = Corpus::new_bytes(src_corpus);
 
     // only load english language
     let mut language_corpus = corpus
@@ -93,6 +95,22 @@ fn build_record_index(language_reader: &mut Reader) -> Result<HashSet<String>, E
         })
         .collect()
 }
+
+// fn record_index(
+//     language_reader: &mut ByteReader,
+// ) -> Result<HashMap<String, CorpusLocation>, Error> {
+//     language_reader
+//         .map(|record| match record {
+//             Ok(r) => {
+//                 let record_id = extract_record_id(r);
+//                 let mut c = CorpusLocation::from(r);
+//                 let loc = language_reader.pos();
+//                 Ok(extract_record_id(r));
+//             }
+//             Err(e) => Err(e),
+//         })
+//         .collect()
+// }
 
 /// extracts shard number from n.gz
 ///

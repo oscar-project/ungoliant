@@ -1,6 +1,7 @@
 /*! Patching for <1.2 OSCAR Schema !*/
 
 use crate::io::reader::reader::PieceMeta;
+
 pub enum Location {
     Corpus(Corpus),
     Shard(Shard),
@@ -12,6 +13,13 @@ pub struct Corpus {
     offset: usize,
     nb_sentences: usize,
     loc: usize,
+}
+
+impl Corpus {
+    /// Set the corpus's loc.
+    pub fn set_loc(&mut self, loc: usize) {
+        self.loc = loc;
+    }
 }
 
 /// represents an entry in the shard by its id, its (first) and (last) lines (relative to the record), alongh with the starting location of it in the file.

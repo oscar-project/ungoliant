@@ -1,24 +1,80 @@
+/*! Reading facilities
+
+Readers implement [Iterator] in order to properly iterate on sentence groups.
+
+There are two kinds of readers:
+
+- [LineReader] : Reads lines, no access to file position.
+- [ByteReader] : Reads bytes (implements [Iterator]) on sentences groups too.
+
+!*/
 use std::{
     fs::File,
-    io::{BufRead, BufReader, Lines, Read, Seek, SeekFrom},
-    path::Path,
+    io::{BufRead, BufReader, Lines, Read, Seek},
+    path::{Path, PathBuf},
 };
 
 use crate::error::Error;
 
-#[derive(Debug)]
-pub struct Reader<T>
-where
-    T: Read,
-{
-    br: BufReader<T>,
-    pub lang: &'static str,
+/// Enables iterating and lang retreival.
+pub trait ReaderTrait: Iterator {
+    fn lang(&self) -> &'static str;
 }
 
-impl<T> Reader<T>
+/// Holds different kinds of Readers
+#[derive(Debug)]
+pub enum ReaderKind<T>
 where
     T: Read,
 {
+    Byte(ByteReader<T>),
+    Line(LineReader<T>),
+}
+
+impl<T> ReaderTrait for ReaderKind<T>
+where
+    T: Read,
+{
+    fn lang(&self) -> &'static str {
+        match self {
+            Self::Byte(e) => e.lang(),
+            Self::Line(e) => e.lang(),
+        }
+    }
+}
+
+impl<T> Iterator for ReaderKind<T>
+where
+    T: Read,
+{
+    type Item = Result<Vec<String>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            ReaderKind::Byte(r) => r.next(),
+            ReaderKind::Line(r) => r.next(),
+        }
+    }
+}
+
+/// Byte-oriented reader, useful for rebuilding.
+///
+/// Prefer [LineReader] for more practical reading of corpus files.
+#[derive(Debug)]
+pub struct ByteReader<T>
+where
+    T: Read,
+{
+    path: PathBuf,
+    br: BufReader<T>,
+    lang: &'static str,
+}
+
+impl<T> ByteReader<T>
+where
+    T: Read,
+{
+    /// Get next line (read until `\n`)
     fn next_line(&mut self) -> Option<Result<String, Error>> {
         let mut s = String::new();
         match self.br.read_line(&mut s) {
@@ -27,16 +83,22 @@ where
             _ => Some(Ok(s)),
         }
     }
+
+    pub fn lang(&self) -> &'static str {
+        self.lang
+    }
 }
+
 /// Reader that yields sequences of strings
 /// that are newline separated.
 #[derive(Debug)]
 pub struct LineReader<T> {
+    path: PathBuf,
     lines: Lines<BufReader<T>>,
-    pub lang: &'static str,
+    lang: &'static str,
 }
 
-pub type ByteTextReader = Reader<File>;
+pub type ByteTextReader = ByteReader<File>;
 pub type TextReader = LineReader<File>;
 
 impl ByteTextReader {
@@ -44,9 +106,17 @@ impl ByteTextReader {
         let filename = format!("{}.txt", lang);
         let mut src = src.to_path_buf();
         src.push(filename);
-        let texthandler = File::open(src)?;
+        let texthandler = File::open(&src)?;
         let br = BufReader::new(texthandler);
-        Ok(Self { br, lang })
+        Ok(Self {
+            path: src,
+            br,
+            lang,
+        })
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        &self.path
     }
 
     /// Returns the position in the stream. See [std::io::Seek::stream_position] for more details.
@@ -55,6 +125,15 @@ impl ByteTextReader {
     }
 }
 
+impl<T> LineReader<T> {
+    pub fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    fn lang(&self) -> &'static str {
+        self.lang
+    }
+}
 impl TextReader {
     pub fn new(src: &Path, lang: &'static str) -> Result<Self, Error> {
         Ok(ByteTextReader::new(src, lang)?.into())
@@ -64,6 +143,7 @@ impl TextReader {
 impl From<ByteTextReader> for TextReader {
     fn from(tr: ByteTextReader) -> TextReader {
         TextReader {
+            path: tr.path().to_owned(),
             lines: tr.br.lines(),
             lang: tr.lang,
         }
@@ -92,7 +172,7 @@ where
     }
 }
 
-impl<T> Iterator for Reader<T>
+impl<T> Iterator for ByteReader<T>
 where
     T: Read,
 {
@@ -143,6 +223,7 @@ record 3",
 
         let br = BufReader::new(sentences);
         let tr = LineReader {
+            path: PathBuf::new(), //empty, for testing
             lines: br.lines(),
             lang: "en",
         };
@@ -178,6 +259,7 @@ record 1",
 
         let br = BufReader::new(sentences);
         let tr = LineReader {
+            path: PathBuf::new(),
             lines: br.lines(),
             lang: "en",
         };
