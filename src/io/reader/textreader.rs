@@ -19,13 +19,14 @@ use crate::error::Error;
 /// Enables iterating and lang retreival.
 pub trait ReaderTrait: Iterator {
     fn lang(&self) -> &'static str;
+    fn pos(&mut self) -> Option<Result<u64, Error>>;
 }
 
 /// Holds different kinds of Readers
 #[derive(Debug)]
 pub enum ReaderKind<T>
 where
-    T: Read,
+    T: Read + Seek,
 {
     Byte(ByteReader<T>),
     Line(LineReader<T>),
@@ -33,7 +34,7 @@ where
 
 impl<T> ReaderTrait for ReaderKind<T>
 where
-    T: Read,
+    T: Read + Seek,
 {
     fn lang(&self) -> &'static str {
         match self {
@@ -41,11 +42,18 @@ where
             Self::Line(e) => e.lang(),
         }
     }
+
+    fn pos(&mut self) -> Option<Result<u64, Error>> {
+        match self {
+            Self::Byte(e) => e.pos(),
+            _ => None,
+        }
+    }
 }
 
 impl<T> Iterator for ReaderKind<T>
 where
-    T: Read,
+    T: Read + Seek,
 {
     type Item = Result<Vec<String>, Error>;
 
@@ -72,7 +80,7 @@ where
 
 impl<T> ByteReader<T>
 where
-    T: Read,
+    T: Read + Seek,
 {
     /// Get next line (read until `\n`)
     fn next_line(&mut self) -> Option<Result<String, Error>> {
@@ -80,28 +88,26 @@ where
         match self.br.read_line(&mut s) {
             Ok(0) => None,
             Err(e) => Some(Err(Error::Io(e))),
-            _ => Some(Ok(s)),
+            // trim_end to remove the trailing newline.
+            _ => Some(Ok(s.trim_end().to_owned())),
         }
     }
 
     pub fn lang(&self) -> &'static str {
         self.lang
     }
+
+    /// Returns the position in the stream. See [std::io::Seek::stream_position] for more details.
+    pub fn pos(&mut self) -> Option<Result<u64, Error>> {
+        Some(self.br.stream_position().map_err(Error::Io))
+    }
+
+    fn path(&self) -> &PathBuf {
+        &self.path
+    }
 }
 
-/// Reader that yields sequences of strings
-/// that are newline separated.
-#[derive(Debug)]
-pub struct LineReader<T> {
-    path: PathBuf,
-    lines: Lines<BufReader<T>>,
-    lang: &'static str,
-}
-
-pub type ByteTextReader = ByteReader<File>;
-pub type TextReader = LineReader<File>;
-
-impl ByteTextReader {
+impl ByteReader<File> {
     pub fn new(src: &Path, lang: &'static str) -> Result<Self, Error> {
         let filename = format!("{}.txt", lang);
         let mut src = src.to_path_buf();
@@ -114,14 +120,33 @@ impl ByteTextReader {
             lang,
         })
     }
+}
 
-    pub fn path(&self) -> &PathBuf {
-        &self.path
+/// Reader that yields sequences of strings
+/// that are newline separated.
+#[derive(Debug)]
+pub struct LineReader<T> {
+    path: PathBuf,
+    lines: Lines<BufReader<T>>,
+    lang: &'static str,
+}
+
+impl LineReader<File> {
+    pub fn new(src: &Path, lang: &'static str) -> Result<Self, Error> {
+        Ok(ByteReader::new(src, lang)?.into())
     }
+}
 
-    /// Returns the position in the stream. See [std::io::Seek::stream_position] for more details.
-    pub fn pos(&mut self) -> Result<u64, Error> {
-        Ok(self.br.stream_position()?)
+impl<T> From<ByteReader<T>> for LineReader<T>
+where
+    T: Read + Seek,
+{
+    fn from(br: ByteReader<T>) -> LineReader<T> {
+        LineReader {
+            path: br.path().to_owned(),
+            lines: br.br.lines(),
+            lang: br.lang,
+        }
     }
 }
 
@@ -134,21 +159,6 @@ impl<T> LineReader<T> {
         self.lang
     }
 }
-impl TextReader {
-    pub fn new(src: &Path, lang: &'static str) -> Result<Self, Error> {
-        Ok(ByteTextReader::new(src, lang)?.into())
-    }
-}
-
-impl From<ByteTextReader> for TextReader {
-    fn from(tr: ByteTextReader) -> TextReader {
-        TextReader {
-            path: tr.path().to_owned(),
-            lines: tr.br.lines(),
-            lang: tr.lang,
-        }
-    }
-}
 
 impl<T> Iterator for LineReader<T>
 where
@@ -158,12 +168,14 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let mut ret = Vec::new();
         while let Some(Ok(sen)) = self.lines.next() {
+            //cut at empty line
             if sen.is_empty() {
                 return Some(ret.into_iter().collect());
             }
             ret.push(Ok(sen));
         }
 
+        // close eventual last vec
         if ret.is_empty() {
             None
         } else {
@@ -174,7 +186,7 @@ where
 
 impl<T> Iterator for ByteReader<T>
 where
-    T: Read,
+    T: Read + Seek,
 {
     type Item = Result<Vec<String>, Error>;
 
@@ -233,6 +245,38 @@ record 3",
         }
     }
 
+    #[test]
+    fn test_iter_bytes() {
+        let sentences = std::io::Cursor::new(
+            "aaa
+bbb
+ccc
+
+record 2
+this is record 2
+end of record 2
+
+bye!
+record 3",
+        );
+
+        let expected = vec![
+            vec!["aaa", "bbb", "ccc"],
+            vec!["record 2", "this is record 2", "end of record 2"],
+            vec!["bye!", "record 3"],
+        ];
+
+        let br = BufReader::new(sentences);
+        let tr = ByteReader {
+            path: PathBuf::new(), //empty, for testing
+            br,
+            lang: "en",
+        };
+        for (res, exp) in tr.zip(expected.iter()) {
+            let res = res.unwrap();
+            assert_eq!(&res, exp);
+        }
+    }
     #[test]
     fn test_iter_single_record() {
         let sentences = std::io::Cursor::new(

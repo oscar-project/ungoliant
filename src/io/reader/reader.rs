@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     metareader::MetaReader,
-    textreader::{ByteReader, ReaderKind, ReaderTrait, TextReader},
+    textreader::{ByteReader, LineReader, ReaderKind, ReaderTrait},
 };
 
 /// Analoguous to [MergedPiece] but containing [Metadata].
@@ -45,12 +45,21 @@ pub struct Reader {
     lang: &'static str,
 }
 
+impl ReaderTrait for Reader {
+    fn lang(&self) -> &'static str {
+        self.lang
+    }
+
+    fn pos(&mut self) -> Option<Result<u64, Error>> {
+        self.textreader.pos()
+    }
+}
 impl Reader {
     /// Create a new reader.
     ///
     /// Propagates errors from inner [TextReader] and [MetaReader].
     pub fn new(dst: &Path, lang: &'static str) -> Result<Self, Error> {
-        let textreader = TextReader::new(dst, lang)?;
+        let textreader = LineReader::new(dst, lang)?;
         let metareader = MetaReader::new(dst, lang)?;
 
         Ok(Self {

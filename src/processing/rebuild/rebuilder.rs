@@ -39,7 +39,7 @@ use log::error;
 use log::warn;
 
 use super::location::Corpus as CorpusLocation;
-
+use crate::io::reader::ReaderTrait;
 type Records = HashSet<String>;
 
 /// prepare a rebuild file for <1.2 Oscar schema
@@ -53,31 +53,30 @@ pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<
         .ok_or_else(|| Error::UnknownLang("en".to_string()))?;
 
     //get record ids of english corpus
-    let record_ids = build_record_index(&mut language_corpus)?;
-    debug!(
-        "size is {} bytes for {} entries",
-        record_ids.iter().fold(0, |acc, x| acc + x.len()),
-        record_ids.len()
-    );
+    let record_ids = record_index(&mut language_corpus)?;
+    debug!("{:#?}", record_ids);
+    // debug!(
+    //     "size is {} bytes for {} entries",
+    //     record_ids.iter().fold(0, |acc, x| acc + x.len()),
+    //     record_ids.len()
+    // );
 
     // get rid -> shard_id correspondence
-    let index = link_records_to_shards(record_ids, src_shards)?;
+    // let index = link_records_to_shards(record_ids, src_shards)?;
 
-    let shards_to_open: HashSet<&u64> = index.values().collect();
-    debug!(
-        "{} shards to open : {:?}",
-        shards_to_open.len(),
-        shards_to_open
-    );
+    // let shards_to_open: HashSet<&u64> = index.values().collect();
+    // debug!(
+    //     "{} shards to open : {:?}",
+    //     shards_to_open.len(),
+    //     shards_to_open
+    // );
 
-    let zozz = to_shards_to_records(&index);
-    println!("{:?}", zozz.get(&0));
+    // let zozz = to_shards_to_records(&index);
     Ok(())
 }
 
 #[inline]
-fn extract_record_id(record: PieceMeta) -> String {
-    println!("{:#?}", record);
+fn extract_record_id(record: &PieceMeta) -> String {
     record
         .headers
         .headers
@@ -90,27 +89,77 @@ fn extract_record_id(record: PieceMeta) -> String {
 fn build_record_index(language_reader: &mut Reader) -> Result<HashSet<String>, Error> {
     language_reader
         .map(|record| match record {
-            Ok(r) => Ok(extract_record_id(r)),
+            Ok(r) => Ok(extract_record_id(&r)),
             Err(e) => Err(e),
         })
         .collect()
 }
 
-// fn record_index(
-//     language_reader: &mut ByteReader,
-// ) -> Result<HashMap<String, CorpusLocation>, Error> {
-//     language_reader
-//         .map(|record| match record {
-//             Ok(r) => {
-//                 let record_id = extract_record_id(r);
-//                 let mut c = CorpusLocation::from(r);
-//                 let loc = language_reader.pos();
-//                 Ok(extract_record_id(r));
-//             }
-//             Err(e) => Err(e),
-//         })
-//         .collect()
-// }
+fn build_location(
+    pm: PieceMeta,
+    pos: Option<Result<u64, Error>>,
+) -> (String, Result<CorpusLocation, Error>) {
+    let record_id = extract_record_id(&pm);
+    let mut c = CorpusLocation::from(pm);
+    let loc = match pos {
+        Some(Ok(loc)) => loc,
+        Some(Err(e)) => return (record_id, Err(e)),
+        None => {
+            warn!(
+                "no loc data for record {:?}. Check for correct ReaderKind usage.",
+                record_id
+            );
+            0
+        }
+    };
+    c.set_loc(loc);
+    (record_id, Ok(c))
+}
+
+/// Build the record index.
+///
+/// A record index is a [HashMap] mapping record IDs to [CorpusLocation], rassembling (line)offset, nb_sentences, and (byte)offset (loc) in corpus file.
+fn record_index(language_reader: &mut Reader) -> Result<HashMap<String, CorpusLocation>, Error> {
+    let mut ret = HashMap::new();
+    let mut cur_record = language_reader.next();
+
+    // iterate while there are records to get
+    while cur_record.is_some() {
+        // unwrap is safe since we tested for is_some().
+        let r = cur_record.unwrap()?;
+        let record_id = extract_record_id(&r);
+
+        // new corpuslocation from record.
+        // note that the loc is set to 0.
+        let mut c = CorpusLocation::from(r);
+
+        // watch for a valid location from reader
+        let loc = match language_reader.pos() {
+            Some(Ok(pos)) => pos,
+
+            // inner error (during IO)
+            Some(Err(e)) => {
+                error!("Could not read position of record");
+                return Err(e);
+            }
+
+            // This should be catch at compile time, since
+            // it is an implementation problem.
+            // TODO: refactor textreader to provide better guarantees
+            None => {
+                error!("unable to get position from this reader");
+                return Err(Error::Custom("Wrong kind of reader".to_string()));
+            }
+        };
+
+        // put found loc in corpuslocation, insert and advance iterator
+        c.set_loc(loc);
+        ret.insert(record_id, c);
+        cur_record = language_reader.next();
+    }
+
+    Ok(ret)
+}
 
 /// extracts shard number from n.gz
 ///
@@ -222,7 +271,7 @@ mod tests {
             identification: "en",
             headers: Metadata::try_from(headers).unwrap(),
         };
-        let result_record_id = extract_record_id(piece_meta);
+        let result_record_id = extract_record_id(&piece_meta);
 
         assert_eq!(expected_record_id, result_record_id);
     }

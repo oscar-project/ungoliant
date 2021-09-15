@@ -9,3 +9,4 @@ pub mod reader;
 mod textreader;
 
 pub use corpus::Corpus;
+pub use textreader::ReaderTrait;

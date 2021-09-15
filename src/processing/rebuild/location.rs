@@ -8,20 +8,22 @@ pub enum Location {
     Both(Both),
 }
 
+#[derive(Debug)]
 /// represents an entry in the corpus by its id, its (line) offset and nb_sentences, along with the starting location of it in the file.
 pub struct Corpus {
     offset: usize,
     nb_sentences: usize,
-    loc: usize,
+    loc: u64,
 }
 
 impl Corpus {
     /// Set the corpus's loc.
-    pub fn set_loc(&mut self, loc: usize) {
+    pub fn set_loc(&mut self, loc: u64) {
         self.loc = loc;
     }
 }
 
+#[derive(Debug)]
 /// represents an entry in the shard by its id, its (first) and (last) lines (relative to the record), alongh with the starting location of it in the file.
 pub struct Shard {
     first: usize,
@@ -29,6 +31,7 @@ pub struct Shard {
     loc: usize,
 }
 
+#[derive(Debug)]
 pub struct Both {
     offset: usize,
     nb_sentences: usize,
