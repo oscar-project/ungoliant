@@ -22,7 +22,7 @@ The process is, for a given language:
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     fs::File,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -38,6 +38,7 @@ use log::debug;
 use log::error;
 use log::warn;
 
+use super::location::Both as BothLocation;
 use super::location::Corpus as CorpusLocation;
 use crate::io::reader::ReaderTrait;
 type Records = HashSet<String>;
@@ -54,24 +55,19 @@ pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<
 
     //get record ids of english corpus
     let record_ids = record_index(&mut language_corpus)?;
-    debug!("{:#?}", record_ids);
-    // debug!(
-    //     "size is {} bytes for {} entries",
-    //     record_ids.iter().fold(0, |acc, x| acc + x.len()),
-    //     record_ids.len()
-    // );
+    debug!("got {:#?} records", record_ids.len());
+    let shard_ids = shard_index(record_ids, src_shards)?;
+    debug!("got {:#?} shards", shard_ids.len());
 
-    // get rid -> shard_id correspondence
-    // let index = link_records_to_shards(record_ids, src_shards)?;
+    std::fs::create_dir(&dst)?;
+    let mut path_rebuild = PathBuf::from(dst);
+    path_rebuild.push("en.json");
 
-    // let shards_to_open: HashSet<&u64> = index.values().collect();
-    // debug!(
-    //     "{} shards to open : {:?}",
-    //     shards_to_open.len(),
-    //     shards_to_open
-    // );
+    debug!("writing to {:?}", &path_rebuild);
+    let f = File::create(&path_rebuild)?;
 
-    // let zozz = to_shards_to_records(&index);
+    serde_json::to_writer(f, &shard_ids)?;
+
     Ok(())
 }
 
@@ -200,6 +196,42 @@ fn to_shards_to_records(records_to_shards: &HashMap<String, u64>) -> HashMap<u64
     ret
 }
 
+fn shard_index(
+    records: HashMap<String, CorpusLocation>,
+    src_shards: &Path,
+) -> Result<HashMap<u64, Vec<BothLocation>>, Error> {
+    let mut ret = HashMap::new();
+    // get shard paths
+    let shards = std::fs::read_dir(&src_shards)?
+        .filter_map(|shard| {
+            shard.map_or_else(
+                |e| {
+                    error!("error reading shard directory: {}", e);
+                    None
+                },
+                Some,
+            )
+        })
+        .map(|shard| shard.path());
+
+    for shard_path in shards {
+        let shard_number = parse_shard_number(&shard_path)?;
+        let shard = Wet::from_path_gzip(&shard_path)?;
+
+        for (shard_record_number, shard_record) in shard.iter.enumerate() {
+            let shard_record = shard_record?;
+            let shard_record_id = shard_record.warc_id();
+            match records.get(shard_record_id) {
+                Some(r) => {
+                    let e = ret.entry(shard_number).or_insert_with(Vec::new);
+                    e.push(r.add_shard_loc(shard_record_id, shard_number, shard_record_number));
+                }
+                None => (),
+            }
+        }
+    }
+    Ok(ret)
+}
 /// link record_id to shard_number
 /// TODO: maybe put start/end search in this?
 fn link_records_to_shards(
