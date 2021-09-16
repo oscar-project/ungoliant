@@ -41,8 +41,8 @@
         If that's the case, we should see a number of ranges equal to the number of entries.
 !*/
 
+mod avro_schema;
 pub(super) mod location;
 mod origin;
 mod rebuilder;
-
 pub use rebuilder::prep_rebuild;

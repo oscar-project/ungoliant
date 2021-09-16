@@ -25,6 +25,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use super::avro_schema::{SCHEMA_RECORD, SCHEMA_RECORD_LIST, SCHEMA_WHOLE};
 use crate::{
     error::Error,
     io::reader::{
@@ -33,7 +34,7 @@ use crate::{
     },
     sources::commoncrawl::Wet,
 };
-
+use avro_rs::{Codec, Schema, Writer};
 use log::debug;
 use log::error;
 use log::warn;
@@ -41,7 +42,6 @@ use log::warn;
 use super::location::Both as BothLocation;
 use super::location::Corpus as CorpusLocation;
 use crate::io::reader::ReaderTrait;
-type Records = HashSet<String>;
 
 /// prepare a rebuild file for <1.2 Oscar schema
 pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<(), Error> {
@@ -61,12 +61,21 @@ pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<
 
     std::fs::create_dir(&dst)?;
     let mut path_rebuild = PathBuf::from(dst);
-    path_rebuild.push("en.json");
+    path_rebuild.push("en.avro");
 
     debug!("writing to {:?}", &path_rebuild);
     let f = File::create(&path_rebuild)?;
 
-    serde_json::to_writer(f, &shard_ids)?;
+    let schema = Schema::parse_list(&[SCHEMA_RECORD, SCHEMA_RECORD_LIST, SCHEMA_WHOLE]).unwrap();
+    debug!("{:#?}", schema);
+    let mut wtr = Writer::with_codec(&schema[2], &f, Codec::Snappy);
+
+    let shard_ids: HashMap<String, _> = shard_ids
+        .into_iter()
+        .map(|(k, v)| (format!("{}", k), v))
+        .collect();
+
+    wtr.append_ser(shard_ids).unwrap();
 
     Ok(())
 }
@@ -79,37 +88,6 @@ fn extract_record_id(record: &PieceMeta) -> String {
         .get(&warc::WarcHeader::RecordID)
         .unwrap()
         .to_string()
-}
-
-/// build a record_id set
-fn build_record_index(language_reader: &mut Reader) -> Result<HashSet<String>, Error> {
-    language_reader
-        .map(|record| match record {
-            Ok(r) => Ok(extract_record_id(&r)),
-            Err(e) => Err(e),
-        })
-        .collect()
-}
-
-fn build_location(
-    pm: PieceMeta,
-    pos: Option<Result<u64, Error>>,
-) -> (String, Result<CorpusLocation, Error>) {
-    let record_id = extract_record_id(&pm);
-    let mut c = CorpusLocation::from(pm);
-    let loc = match pos {
-        Some(Ok(loc)) => loc,
-        Some(Err(e)) => return (record_id, Err(e)),
-        None => {
-            warn!(
-                "no loc data for record {:?}. Check for correct ReaderKind usage.",
-                record_id
-            );
-            0
-        }
-    };
-    c.set_loc(loc);
-    (record_id, Ok(c))
 }
 
 /// Build the record index.
@@ -182,20 +160,6 @@ fn parse_shard_number(path: &Path) -> Result<u64, Error> {
     Ok(shard_number)
 }
 
-/// transform (record_id -> shard_id) to (shzard_id -> [record_ids]).
-fn to_shards_to_records(records_to_shards: &HashMap<String, u64>) -> HashMap<u64, Vec<String>> {
-    let shards = records_to_shards.values();
-    let mut ret: HashMap<u64, Vec<String>> = HashMap::with_capacity(shards.count());
-
-    for (record_id, shard_id) in records_to_shards {
-        ret.entry(*shard_id)
-            .or_insert_with(Vec::new)
-            .push(record_id.to_string());
-    }
-
-    ret
-}
-
 fn shard_index(
     records: HashMap<String, CorpusLocation>,
     src_shards: &Path,
@@ -216,68 +180,42 @@ fn shard_index(
 
     for shard_path in shards {
         let shard_number = parse_shard_number(&shard_path)?;
-        let shard = Wet::from_path_gzip(&shard_path)?;
-
-        for (shard_record_number, shard_record) in shard.iter.enumerate() {
-            let shard_record = shard_record?;
-            let shard_record_id = shard_record.warc_id();
-            match records.get(shard_record_id) {
-                Some(r) => {
-                    let e = ret.entry(shard_number).or_insert_with(Vec::new);
-                    e.push(r.add_shard_loc(shard_record_id, shard_number, shard_record_number));
+        match process_shard(&shard_path, shard_number, &records) {
+            Ok(v) => {
+                // insert returns old value if there was one.
+                // this way we check for return value and
+                // inform if the key was already present.
+                if ret.insert(shard_number, v).is_some() {
+                    warn!("got same shard ({}) twice!", shard_number);
                 }
-                None => (),
+            }
+            Err(e) => {
+                error!("Could not process shard {}: {:?}", shard_number, e)
             }
         }
     }
     Ok(ret)
 }
-/// link record_id to shard_number
-/// TODO: maybe put start/end search in this?
-fn link_records_to_shards(
-    records: Records,
-    src_shards: &Path,
-) -> Result<HashMap<String, u64>, Error> {
-    // init with capacity since we know it beforehand.
-    // this will save time because of limited/no reallocation
-    let mut links: HashMap<String, u64> = HashMap::with_capacity(records.len());
 
-    let shards = std::fs::read_dir(&src_shards)?
-        .filter_map(|shard| {
-            shard.map_or_else(
-                |e| {
-                    error!("error reading shard directory: {}", e);
-                    None
-                },
-                Some,
-            )
-        })
-        .map(|shard| shard.path());
-
-    for r in shards {
-        let shard_number = parse_shard_number(&r)?;
-
-        // open shard
-        let shard = Wet::from_path_gzip(r)?;
-        debug!("working on shard {}", shard_number);
-
-        // fetch record_ids
-        let records_in_shard: HashSet<String> = shard
-            .iter
-            .filter_map(|r| match r {
-                Ok(r) => Some(r.warc_id().to_string()),
-                Err(e) => {
-                    error!("error reading record: {}", e);
-                    None
-                }
-            })
-            .collect();
-
-        for r in records.intersection(&records_in_shard) {
-            links.insert(r.to_string(), shard_number);
+fn process_shard(
+    shard_path: &Path,
+    shard_number: u64,
+    records: &HashMap<String, CorpusLocation>,
+) -> Result<Vec<BothLocation>, Error> {
+    let shard = Wet::from_path_gzip(&shard_path)?;
+    let mut ret = Vec::new();
+    for (shard_record_number, shard_record) in shard.iter.enumerate() {
+        let shard_record = shard_record?;
+        let shard_record_id = shard_record.warc_id();
+        match records.get(shard_record_id) {
+            Some(r) => {
+                ret.push(r.add_shard_loc(shard_record_id, shard_number, shard_record_number));
+            }
+            None => (),
         }
     }
-    Ok(links)
+
+    Ok(ret)
 }
 
 #[cfg(test)]
@@ -310,30 +248,31 @@ mod tests {
 
     #[test]
     fn test_to_shards_to_records() {
-        let mut index = HashMap::new();
-        index.insert("r1".to_string(), 0);
-        index.insert("r2".to_string(), 1);
-        index.insert("r3".to_string(), 3);
-        index.insert("r4".to_string(), 4);
-        index.insert("r5".to_string(), 1);
-        index.insert("r6".to_string(), 0);
-        index.insert("r7".to_string(), 2);
-        index.insert("r8".to_string(), 2);
+        // let mut index = HashMap::new();
+        // index.insert("r1".to_string(), 0);
+        // index.insert("r2".to_string(), 1);
+        // index.insert("r3".to_string(), 3);
+        // index.insert("r4".to_string(), 4);
+        // index.insert("r5".to_string(), 1);
+        // index.insert("r6".to_string(), 0);
+        // index.insert("r7".to_string(), 2);
+        // index.insert("r8".to_string(), 2);
 
-        let shard_index = to_shards_to_records(&index);
+        // let shard_index = shard_index(&index);
+        // todo!();
 
-        for (shard_number, mut r_ids) in shard_index {
-            // sort to have a stable vec layout
-            r_ids.sort();
+        // for (shard_number, mut r_ids) in shard_index {
+        //     // sort to have a stable vec layout
+        //     r_ids.sort();
 
-            match shard_number {
-                0 => assert_eq!(r_ids, vec!["r1", "r6"]),
-                1 => assert_eq!(r_ids, vec!["r2", "r5"]),
-                2 => assert_eq!(r_ids, vec!["r7", "r8"]),
-                3 => assert_eq!(r_ids, vec!["r3"]),
-                4 => assert_eq!(r_ids, vec!["r4"]),
-                _ => panic!("invalid shard number"),
-            }
-        }
+        //     match shard_number {
+        //         0 => assert_eq!(r_ids, vec!["r1", "r6"]),
+        //         1 => assert_eq!(r_ids, vec!["r2", "r5"]),
+        //         2 => assert_eq!(r_ids, vec!["r7", "r8"]),
+        //         3 => assert_eq!(r_ids, vec!["r3"]),
+        //         4 => assert_eq!(r_ids, vec!["r4"]),
+        //         _ => panic!("invalid shard number"),
+        //     }
+        // }
     }
 }
