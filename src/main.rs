@@ -79,6 +79,9 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::PrepRebuild(p) => {
             processing::rebuild::prep_rebuild(&p.src_corpus, &p.src_shards, &p.dst)?;
         }
+        cli::Ungoliant::Rebuild(p) => {
+            processing::rebuild::rebuild(&p.src_rebuild, &p.src_shards, &p.dst)?;
+        }
     };
     Ok(())
 }

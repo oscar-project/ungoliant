@@ -44,5 +44,8 @@
 mod avro_schema;
 pub(super) mod location;
 mod origin;
+mod rebuild;
 mod rebuilder;
+
+pub use rebuild::rebuild;
 pub use rebuilder::prep_rebuild;

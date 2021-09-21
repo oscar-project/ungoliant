@@ -1,7 +1,11 @@
 /*! Patching for <1.2 OSCAR Schema !*/
 
+use std::hash::Hasher;
+
 use crate::io::reader::reader::PieceMeta;
 use serde::{Deserialize, Serialize};
+
+use twox_hash::XxHash64;
 
 pub enum Location {
     Corpus(Corpus),
@@ -10,10 +14,11 @@ pub enum Location {
 }
 
 #[derive(Debug)]
-/// represents an entry in the corpus by its id, its (line) offset and nb_sentences, along with the starting location of it in the file.
+/// represents an entry in the corpus by its id, its (line) offset and nb_sentences, along with the starting (loc)ation of it in the file.
 pub struct Corpus {
     offset: usize,
     nb_sentences: usize,
+    start_hash: u64, // hash of the starting line
     loc: u64,
 }
 
@@ -34,6 +39,7 @@ impl Corpus {
             corpus_offset_lines: self.offset,
             nb_sentences: self.nb_sentences,
             corpus_offset_bytes: self.loc,
+            start_hash: self.start_hash,
             shard_number,
             shard_record_number,
         }
@@ -55,23 +61,93 @@ pub struct Shard {
 /// - `corpus_offset_bytes`: offset (in bytes) to the beginning of the record text (0=start of the file). Useful for seeking.
 /// - `shard_number`: shard number where the record is located.
 /// - `shard_record_number`: offset (in records) to the record.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Both {
     record_id: String,
     corpus_offset_lines: usize,
     nb_sentences: usize,
     corpus_offset_bytes: u64,
-
+    start_hash: u64,
     shard_number: u64,
     shard_record_number: usize,
 }
 
+/// Avro-safe version (with u64 as i64)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BothAvro {
+    record_id: String,
+    corpus_offset_lines: usize,
+    nb_sentences: usize,
+    corpus_offset_bytes: i64,
+    start_hash: i64,
+    shard_number: i64,
+    shard_record_number: usize,
+}
+
+impl From<Both> for BothAvro {
+    fn from(b: Both) -> BothAvro {
+        BothAvro {
+            record_id: b.record_id,
+            corpus_offset_lines: b.corpus_offset_lines,
+            nb_sentences: b.nb_sentences,
+            shard_record_number: b.shard_record_number,
+            corpus_offset_bytes: b.corpus_offset_bytes as i64,
+            start_hash: b.start_hash as i64,
+            shard_number: b.shard_number as i64,
+        }
+    }
+}
+
+impl From<BothAvro> for Both {
+    fn from(b: BothAvro) -> Both {
+        Both {
+            record_id: b.record_id,
+            corpus_offset_lines: b.corpus_offset_lines,
+            nb_sentences: b.nb_sentences,
+            shard_record_number: b.shard_record_number,
+            corpus_offset_bytes: b.corpus_offset_bytes as u64,
+            start_hash: b.start_hash as u64,
+            shard_number: b.shard_number as u64,
+        }
+    }
+}
+
+impl Both {
+    /// Get a reference to the both's record id.
+    pub fn record_id(&self) -> &str {
+        self.record_id.as_str()
+    }
+
+    /// Get a reference to the both's shard record number.
+    pub fn shard_record_number(&self) -> &usize {
+        &self.shard_record_number
+    }
+
+    /// Get a reference to the both's start hash.
+    pub fn start_hash(&self) -> &u64 {
+        &self.start_hash
+    }
+
+    /// Set the both's start hash.
+    pub fn set_start_hash(&mut self, start_hash: u64) {
+        self.start_hash = start_hash;
+    }
+
+    pub fn nb_sentences(&self) -> &usize {
+        &self.nb_sentences
+    }
+}
+
 impl From<PieceMeta> for Corpus {
     fn from(piece: PieceMeta) -> Corpus {
+        let mut hasher = XxHash64::default();
+        hasher.write(piece.sentences.first().unwrap().as_bytes());
         Corpus {
             offset: piece.headers.offset,
             nb_sentences: piece.headers.nb_sentences,
             loc: 0,
+            start_hash: hasher.finish(),
+            // start_hash: u64::MAX,
         }
     }
 }
