@@ -1,5 +1,7 @@
 # Ungoliant
 
+<img align="left" src="img/logo.png" width="200" height="200" /> 
+
 ![](https://img.shields.io/crates/d/ungoliant?style=flat-square) ![](https://img.shields.io/crates/l/ungoliant?style=flat-square) 
 [![codecov](https://codecov.io/gh/oscar-corpus/ungoliant/branch/master/graph/badge.svg?token=Q3M8F86E2G)](https://codecov.io/gh/oscar-corpus/ungoliant)
 
