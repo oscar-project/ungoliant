@@ -9,7 +9,7 @@ use warc::{BufferedBody, Record};
 
 use crate::{
     error::Error,
-    io::reader::reader::PieceMeta,
+    io::{reader::reader::PieceMeta, writer},
     processing::{
         rebuild::{
             avro_schema::{SCHEMA, SCHEMA_RECORD, SCHEMA_RECORD_LIST, SCHEMA_WHOLE},
@@ -32,7 +32,8 @@ fn build_piecemeta(record: Record<BufferedBody>, loc: &Both) -> Result<PieceMeta
         .take(*loc.nb_sentences())
         .map(String::from);
 
-    let metadata: Metadata = Metadata::try_from(record.into_raw_parts().0.headers)?;
+    let mut metadata: Metadata = Metadata::try_from(record.into_raw_parts().0.headers)?;
+    metadata.nb_sentences = *loc.nb_sentences();
 
     let pm = PieceMeta {
         sentences: lines_kept.collect(),
@@ -66,7 +67,6 @@ fn extract_from_shard(
             Some(loc) => {
                 let rec = rec.unwrap();
                 let pm = build_piecemeta(rec, loc).unwrap();
-                println!("{:?}", pm);
                 Some(pm)
             }
             None => None,
@@ -88,22 +88,26 @@ fn extract_from_shard(
 }
 
 pub fn rebuild(src_rebuild: &Path, src_shards: &Path, dst: &Path) -> Result<(), Error> {
+    // open avro rebuild file
     let f = File::open(src_rebuild).unwrap();
     let schema = avro_rs::Schema::parse_str(&SCHEMA).unwrap();
     let reader = avro_rs::Reader::with_schema(&schema, &f).unwrap();
 
+    let mut langwriter = writer::Writer::new(dst, "en", None)?;
     let mut count = 0;
     for r in reader {
+        // unwrap/parse value
         let r = r.unwrap();
         let r: ShardEntry = avro_rs::from_value::<ShardEntryAvro>(&r).unwrap().into();
-        let pieces = extract_from_shard(&r, src_shards, false);
-        // println!(
-        //     "{:#?}",
-        //     r.records()
-        //         .iter()
-        //         .map(|x| x.record_id())
-        //         .collect::<Vec<&str>>()
-        // );
+
+        // extract pieces from shard and convert to merged pieces
+        let pieces = extract_from_shard(&r, src_shards, false)?
+            .into_iter()
+            .map(|p| p.into())
+            .collect();
+
+        //write pieces
+        langwriter.write(pieces);
         count += r.records().len();
         println!("{} records total", count);
     }
