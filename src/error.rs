@@ -15,6 +15,14 @@ pub enum Error {
     GlobPattern(glob::PatternError),
     MalformedOrigin,
     ParseInt(ParseIntError),
+    Avro(avro_rs::Error),
+}
+
+#[cfg(not(tarpaulin_include))]
+impl From<avro_rs::Error> for Error {
+    fn from(v: avro_rs::Error) -> Self {
+        Self::Avro(v)
+    }
 }
 
 impl From<ParseIntError> for Error {

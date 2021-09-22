@@ -20,14 +20,14 @@ The process is, for a given language:
 !*/
 
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
-    fs::File,
+    collections::HashMap,
+    fs::{self, File},
     hash::Hasher,
     io::BufRead,
     path::{Path, PathBuf},
 };
 
-use super::avro_schema::{SCHEMA, SCHEMA_RECORD, SCHEMA_RECORD_LIST, SCHEMA_WHOLE};
+use super::avro_schema::SCHEMA;
 use crate::{
     error::Error,
     io::reader::{
@@ -48,13 +48,15 @@ use super::location::BothAvro as BothLocationAvro;
 use super::location::Corpus as CorpusLocation;
 use crate::io::reader::ReaderTrait;
 
-// #[derive(Serialize, Deserialize, Debug)]
+/// List of relevant records (coded in [BothLocation])
+/// per shard
 #[derive(Debug)]
 pub struct ShardEntry {
     shard_id: u64,
     records: Vec<BothLocation>,
 }
 
+/// Avro-compatible version of [ShardEntry]. (u64 as i64)
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ShardEntryAvro {
     shard_id: i64,
@@ -95,7 +97,7 @@ impl ShardEntry {
 pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<(), Error> {
     let mut corpus = Corpus::new_bytes(src_corpus);
 
-    // only load english language
+    // only load english language (for now)
     let mut language_corpus = corpus
         .readers
         .get_mut("en")
@@ -127,42 +129,46 @@ pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<
         .map(|shard| shard.path());
 
     // load schema and writer
-    let schema = Schema::parse_str(&SCHEMA).unwrap();
+    let schema = Schema::parse_str(SCHEMA)?;
     debug!("{:#?}", schema);
     let mut wtr = Writer::with_codec(&schema, &f, Codec::Snappy);
 
     // iterate on shards
     for shard_path in shard_paths {
         let shard_ids = shard_index(&record_ids, &shard_path)?;
-        // debug!("got {:#?} shards", &shard_ids.records().len());
-        // debug!("{:#?}", &shard_ids.records().iter().map(|x| x.start_hash()));
         let shard_ids: ShardEntryAvro = shard_ids.into();
-        wtr.append_ser(shard_ids).unwrap();
+        wtr.append_ser(shard_ids)?;
     }
 
     // open corpus and convert start_hash to start_line
     let mut dst_rebuild = PathBuf::from(&path_rebuild);
     dst_rebuild.set_file_name("en_lines.avro");
     debug!("{:?}", dst_rebuild);
-    get_line_starts(&path_rebuild, &src_shards, &dst_rebuild)?;
+    get_line_starts(&path_rebuild, src_shards, &dst_rebuild)?;
 
+    // delete old file, replace by new one with line offsets.
+    fs::rename("en.avro", "en_lines.avro")?;
     Ok(())
 }
 
+/// Gets line starts in shard records.
 fn get_line_starts(src_rebuild: &Path, src_shards: &Path, dst_rebuild: &Path) -> Result<(), Error> {
     //open rebuild file
     let f = File::open(src_rebuild)?;
-    let schema = avro_rs::Schema::parse_str(&SCHEMA).unwrap();
-    let reader = avro_rs::Reader::with_schema(&schema, &f).unwrap();
+    let schema = avro_rs::Schema::parse_str(SCHEMA)?;
+    let reader = avro_rs::Reader::with_schema(&schema, &f)?;
 
     //open rebuild file (corrected)
     let fw = File::create(&dst_rebuild)?;
     let mut writer = avro_rs::Writer::with_codec(&schema, fw, Codec::Snappy);
 
+    // iterate on already generated avro file
     for se in reader {
-        let se = se.unwrap();
-        let shards_rebuild: ShardEntry = avro_rs::from_value::<ShardEntryAvro>(&se).unwrap().into();
+        // get entry
+        let se = se?;
+        let shards_rebuild: ShardEntry = avro_rs::from_value::<ShardEntryAvro>(&se)?.into();
 
+        // forge path and open related shard
         let mut shard_path = PathBuf::from(src_shards);
         shard_path.push(format!("{}.txt.gz", shards_rebuild.shard_id()));
 
@@ -184,36 +190,26 @@ fn get_line_starts(src_rebuild: &Path, src_shards: &Path, dst_rebuild: &Path) ->
                     Some(r) => {
                         // unwrap and filter like OSCAR v1.2
                         let shard_record = shard_record.unwrap();
-                        // debug!("working on record {:?}", shard_record.warc_id());
-                        // debug!("working on entry {:?}", r);
                         let body_lines = shard_record
                             .body()
                             .lines()
                             .filter(|l| l.as_ref().unwrap().chars().count() > 100)
-                            // .inspect(|x| {
-                            //     println!("{}", x.as_ref().unwrap());
-                            //     println!("{:?}", x.as_ref().unwrap());
-                            // })
                             .map(|l| Some(l.as_ref().unwrap().trim_end().to_owned()));
-                        // .inspect(|x| {
-                        //     println!("{}", x.as_ref().unwrap());
-                        //     println!("{:?}", x.as_ref().unwrap());
-                        // });
 
                         // iteratively hash each sentence to find the one that starts the record
-                        // debug!("looking for line hash : {}", &r.start_hash());
                         let line_start = body_lines
                             .enumerate()
-                            .find(|(idx, line)| {
+                            .find(|(_, line)| {
                                 let line = line.as_ref().unwrap();
-                                let hash = hash_sentence(&line);
-                                // debug!("({}): {}", idx, hash);
+                                let hash = hash_sentence(line);
                                 r.start_hash() == &hash
                             })
+                            // only get line index of matching line
                             .map(|(idx, _)| idx);
 
+                        // clone location and update start_hash
+                        // that will be used as record-level line offet (TODO: improve that)
                         let mut re = r.clone();
-                        // debug!("finding line for record {:?}", shard_record.warc_id());
                         re.set_start_hash(line_start.unwrap() as u64);
                         Some(re)
                     }
@@ -222,16 +218,14 @@ fn get_line_starts(src_rebuild: &Path, src_shards: &Path, dst_rebuild: &Path) ->
             })
             .collect();
 
+        // create a new shard entry
         let shardentry_fixed = ShardEntry {
             shard_id: *shards_rebuild.shard_id(),
             records: ret,
         };
 
-        debug!("writing to new avro file");
-        writer
-            .append_ser::<ShardEntryAvro>(shardentry_fixed.into())
-            .unwrap();
-        // println!("{:#?}", ret);
+        // write it!
+        writer.append_ser::<ShardEntryAvro>(shardentry_fixed.into())?;
     }
     Ok(())
 }
@@ -242,6 +236,7 @@ fn hash_sentence(s: &str) -> u64 {
     hasher.write(s.as_bytes());
     hasher.finish()
 }
+
 #[inline]
 fn extract_record_id(record: &PieceMeta) -> String {
     record
@@ -318,16 +313,15 @@ fn parse_shard_number(path: &Path) -> Result<u64, Error> {
         _ => (),
     }
 
-    let shard_number = shard_number.unwrap().unwrap();
-    Ok(shard_number)
+    shard_number.unwrap()
 }
 
 fn shard_index(
     records: &HashMap<String, CorpusLocation>,
     src_shard: &Path,
 ) -> Result<ShardEntry, Error> {
-    let shard_number = parse_shard_number(&src_shard)?;
-    process_shard(&src_shard, shard_number, records)
+    let shard_number = parse_shard_number(src_shard)?;
+    process_shard(src_shard, shard_number, records)
 }
 
 fn process_shard(
@@ -340,11 +334,8 @@ fn process_shard(
     for (shard_record_number, shard_record) in shard.iter.enumerate() {
         let shard_record = shard_record?;
         let shard_record_id = shard_record.warc_id();
-        match records.get(shard_record_id) {
-            Some(r) => {
-                ret.push(r.add_shard_loc(shard_record_id, shard_number, shard_record_number));
-            }
-            None => (),
+        if let Some(r) = records.get(shard_record_id) {
+            ret.push(r.add_shard_loc(shard_record_id, shard_number, shard_record_number));
         }
     }
 
@@ -390,24 +381,22 @@ mod tests {
     //     }
     //     println!("nb iter {}", count);
     // }
-    #[test]
-    fn test_avro_map_iter() {
-        let f = File::open("../data_test/100/rebuild/en.avro").unwrap();
-        let schema =
-            avro_rs::Schema::parse_list(&[SCHEMA_RECORD, SCHEMA_RECORD_LIST, SCHEMA_WHOLE])
-                .unwrap();
-        let reader = avro_rs::Reader::with_schema(&schema[2], &f).unwrap();
-        let mut count = 0;
-        for r in reader {
-            let r = r.unwrap();
-            match r {
-                avro_rs::types::Value::Map(hm) => {}
-                _ => panic!("wrong type"),
-            };
-            count += 1;
-        }
-        println!("nb iter {}", count);
-    }
+    // #[test]
+    // fn test_avro_map_iter() {
+    //     let f = File::open("../data_test/100/rebuild/en.avro").unwrap();
+    //     let schema = avro_rs::Schema::parse_str(&SCHEMA).unwrap();
+    //     let reader = avro_rs::Reader::with_schema(&schema, &f).unwrap();
+    //     let mut count = 0;
+    //     for r in reader {
+    //         let r = r.unwrap();
+    //         match r {
+    //             avro_rs::types::Value::Map(hm) => {}
+    //             _ => panic!("wrong type"),
+    //         };
+    //         count += 1;
+    //     }
+    //     println!("nb iter {}", count);
+    // }
     #[test]
     fn test_extract_record_id() {
         // get expected record id

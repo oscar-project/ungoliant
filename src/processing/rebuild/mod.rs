@@ -43,7 +43,6 @@
 
 mod avro_schema;
 pub(super) mod location;
-mod origin;
 mod rebuild;
 mod rebuilder;
 

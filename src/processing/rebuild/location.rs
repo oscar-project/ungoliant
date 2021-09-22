@@ -1,4 +1,11 @@
-/*! Patching for <1.2 OSCAR Schema !*/
+/*! Record location encoding
+
+Rebuilding OSCAR needs some information about a record location both in generated corpus and in record id.
+
+This module holds location structure as in corpus, shard, or both.
+For the [Both] version, an Avro-compatible struct is also present and named [BothAvro].
+
+!*/
 
 use std::hash::Hasher;
 
@@ -7,14 +14,19 @@ use serde::{Deserialize, Serialize};
 
 use twox_hash::XxHash64;
 
+/**
+Location types
+*/
 pub enum Location {
     Corpus(Corpus),
     Shard(Shard),
     Both(Both),
 }
 
-#[derive(Debug)]
-/// represents an entry in the corpus by its id, its (line) offset and nb_sentences, along with the starting (loc)ation of it in the file.
+#[derive(Debug, Default)]
+/** represents an entry in the corpus by its id, its (line) offset and nb_sentences, along with the starting (loc)ation of it in the file.
+Also stores first sentence hash.
+*/
 pub struct Corpus {
     offset: usize,
     nb_sentences: usize,
@@ -28,6 +40,7 @@ impl Corpus {
         self.loc = loc;
     }
 
+    /// Adds the shard location, converting the [Corpus] location to a [Both] one
     pub fn add_shard_loc(
         &self,
         record_id: &str,
@@ -43,6 +56,16 @@ impl Corpus {
             shard_number,
             shard_record_number,
         }
+    }
+
+    /// Set the corpus's nb sentences.
+    pub fn set_nb_sentences(&mut self, nb_sentences: usize) {
+        self.nb_sentences = nb_sentences;
+    }
+
+    /// Set the corpus's start hash.
+    pub fn set_start_hash(&mut self, start_hash: u64) {
+        self.start_hash = start_hash;
     }
 }
 
@@ -61,6 +84,7 @@ pub struct Shard {
 /// - `corpus_offset_bytes`: offset (in bytes) to the beginning of the record text (0=start of the file). Useful for seeking.
 /// - `shard_number`: shard number where the record is located.
 /// - `shard_record_number`: offset (in records) to the record.
+/// - `start_hash`: hash of first sentence
 #[derive(Debug, Clone)]
 pub struct Both {
     record_id: String,
@@ -72,7 +96,9 @@ pub struct Both {
     shard_record_number: usize,
 }
 
-/// Avro-safe version (with u64 as i64)
+/// Avro-safe version (with u64 as i64).
+///
+/// Avro's long type is equivalent to i64, so we need to cast our u64 into i64.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BothAvro {
     record_id: String,
@@ -133,6 +159,7 @@ impl Both {
         self.start_hash = start_hash;
     }
 
+    /// Get a reference to the both's nb sentences.
     pub fn nb_sentences(&self) -> &usize {
         &self.nb_sentences
     }
