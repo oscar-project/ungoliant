@@ -28,6 +28,7 @@ use std::{
 };
 
 use super::avro_schema::SCHEMA;
+use super::shard_entry::{ShardEntry, ShardEntryAvro};
 use crate::{
     error::Error,
     io::reader::{
@@ -40,58 +41,11 @@ use avro_rs::{Codec, Schema, Writer};
 use log::debug;
 use log::error;
 use log::{info, warn};
-use serde::{Deserialize, Serialize};
 use twox_hash::XxHash64;
 
 use super::location::Both as BothLocation;
-use super::location::BothAvro as BothLocationAvro;
 use super::location::Corpus as CorpusLocation;
 use crate::io::reader::ReaderTrait;
-
-/// List of relevant records (coded in [BothLocation])
-/// per shard
-#[derive(Debug)]
-pub struct ShardEntry {
-    shard_id: u64,
-    records: Vec<BothLocation>,
-}
-
-/// Avro-compatible version of [ShardEntry]. (u64 as i64)
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ShardEntryAvro {
-    shard_id: i64,
-    records: Vec<BothLocationAvro>,
-}
-
-impl From<ShardEntry> for ShardEntryAvro {
-    fn from(s: ShardEntry) -> ShardEntryAvro {
-        ShardEntryAvro {
-            shard_id: s.shard_id as i64,
-            records: s.records.into_iter().map(|b| b.into()).collect(),
-        }
-    }
-}
-
-impl From<ShardEntryAvro> for ShardEntry {
-    fn from(s: ShardEntryAvro) -> ShardEntry {
-        ShardEntry {
-            shard_id: s.shard_id as u64,
-            records: s.records.into_iter().map(|b| b.into()).collect(),
-        }
-    }
-}
-
-impl ShardEntry {
-    /// Get a reference to the shard entry's records.
-    pub fn records(&self) -> &[BothLocation] {
-        self.records.as_slice()
-    }
-
-    /// Get a reference to the shard entry's shard id.
-    pub fn shard_id(&self) -> &u64 {
-        &self.shard_id
-    }
-}
 
 /// prepare a rebuild file for <1.2 Oscar schema
 pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<(), Error> {
@@ -219,10 +173,7 @@ fn get_line_starts(src_rebuild: &Path, src_shards: &Path, dst_rebuild: &Path) ->
             .collect();
 
         // create a new shard entry
-        let shardentry_fixed = ShardEntry {
-            shard_id: *shards_rebuild.shard_id(),
-            records: ret,
-        };
+        let shardentry_fixed = ShardEntry::new(*shards_rebuild.shard_id(), ret);
 
         // write it!
         writer.append_ser::<ShardEntryAvro>(shardentry_fixed.into())?;
@@ -339,10 +290,7 @@ fn process_shard(
         }
     }
 
-    Ok(ShardEntry {
-        records: ret,
-        shard_id: shard_number,
-    })
+    Ok(ShardEntry::new(shard_number, ret))
 }
 
 #[cfg(test)]

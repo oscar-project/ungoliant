@@ -10,11 +10,7 @@ use crate::{
     error::Error,
     io::{reader::reader::PieceMeta, writer},
     processing::{
-        rebuild::{
-            avro_schema::SCHEMA,
-            location::Both,
-            rebuilder::{ShardEntry, ShardEntryAvro},
-        },
+        rebuild::{avro_schema::SCHEMA, location::Both, ShardEntry, ShardEntryAvro},
         Metadata,
     },
     sources::commoncrawl::Wet,

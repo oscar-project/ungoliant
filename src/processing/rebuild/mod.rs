@@ -45,6 +45,9 @@ mod avro_schema;
 pub(super) mod location;
 mod rebuild;
 mod rebuilder;
+mod shard_entry;
+
+use shard_entry::{ShardEntry, ShardEntryAvro};
 
 pub use rebuild::rebuild;
 pub use rebuilder::prep_rebuild;
