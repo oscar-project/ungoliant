@@ -41,6 +41,7 @@ use avro_rs::{Codec, Schema, Writer};
 use log::debug;
 use log::error;
 use log::{info, warn};
+use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use twox_hash::XxHash64;
 
 use super::location::Both as BothLocation;
@@ -51,22 +52,29 @@ use crate::io::reader::ReaderTrait;
 pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<(), Error> {
     let mut corpus = Corpus::new_bytes(src_corpus);
 
-    // only load english language (for now)
-    let mut language_corpus = corpus
-        .readers
-        .get_mut("en")
-        .ok_or_else(|| Error::UnknownLang("en".to_string()))?;
+    std::fs::create_dir(&dst)?;
 
-    //get record ids of english corpus
-    let record_ids = record_index(&mut language_corpus)?;
-    debug!("got {:#?} records", record_ids.len());
+    for (lang, mut reader) in corpus.readers {
+        rebuild_lang(&mut reader, lang, src_shards, dst)?;
+    }
+    Ok(())
+}
+
+fn rebuild_lang(
+    language_corpus: &mut Reader,
+    lang: &'static str,
+    src_shards: &Path,
+    dst: &Path,
+) -> Result<(), Error> {
+    info!("prepping {} rebuild file", lang);
+    let record_ids = record_index(language_corpus)?;
+    info!("Got records");
 
     // create avro file
-    std::fs::create_dir(&dst)?;
     let mut path_rebuild = PathBuf::from(dst);
-    path_rebuild.push("en.avro");
+    path_rebuild.push(format!("{}.avro", lang));
 
-    debug!("writing to {:?}", &path_rebuild);
+    info!("writing to {:?}", &path_rebuild);
     let f = File::create(&path_rebuild)?;
 
     //get shard paths
@@ -84,24 +92,24 @@ pub fn prep_rebuild(src_corpus: &Path, src_shards: &Path, dst: &Path) -> Result<
 
     // load schema and writer
     let schema = Schema::parse_str(SCHEMA)?;
-    debug!("{:#?}", schema);
     let mut wtr = Writer::with_codec(&schema, &f, Codec::Snappy);
 
     // iterate on shards
     for shard_path in shard_paths {
+        debug!("indexing {:?}", shard_path);
         let shard_ids = shard_index(&record_ids, &shard_path)?;
         let shard_ids: ShardEntryAvro = shard_ids.into();
         wtr.append_ser(shard_ids)?;
     }
 
     // open corpus and convert start_hash to start_line
-    let mut dst_rebuild = PathBuf::from(&path_rebuild);
-    dst_rebuild.set_file_name("en_lines.avro");
-    debug!("{:?}", dst_rebuild);
-    get_line_starts(&path_rebuild, src_shards, &dst_rebuild)?;
+    let mut path_rebuild_fixed = PathBuf::from(&path_rebuild);
+    path_rebuild_fixed.set_file_name(format!("{}_lines.avro", lang));
+    debug!("{:?}", path_rebuild_fixed);
+    get_line_starts(&path_rebuild, src_shards, &path_rebuild_fixed)?;
 
     // delete old file, replace by new one with line offsets.
-    fs::rename("en.avro", "en_lines.avro")?;
+    fs::rename(path_rebuild_fixed, path_rebuild)?;
     Ok(())
 }
 
