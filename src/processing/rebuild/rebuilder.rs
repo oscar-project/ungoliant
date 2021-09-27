@@ -25,6 +25,7 @@ use std::{
     hash::Hasher,
     io::BufRead,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use super::avro_schema::SCHEMA;
@@ -41,7 +42,8 @@ use avro_rs::{Codec, Schema, Writer};
 use log::debug;
 use log::error;
 use log::{info, warn};
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+// use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use rayon::prelude::*;
 use twox_hash::XxHash64;
 
 use super::location::Both as BothLocation;
@@ -92,15 +94,31 @@ fn rebuild_lang(
 
     // load schema and writer
     let schema = Schema::parse_str(SCHEMA)?;
-    let mut wtr = Writer::with_codec(&schema, &f, Codec::Snappy);
+    let wtr = Arc::new(Mutex::new(Writer::with_codec(&schema, &f, Codec::Snappy)));
 
     // iterate on shards
-    for shard_path in shard_paths {
-        debug!("indexing {:?}", shard_path);
-        let shard_ids = shard_index(&record_ids, &shard_path)?;
-        let shard_ids: ShardEntryAvro = shard_ids.into();
-        wtr.append_ser(shard_ids)?;
-    }
+    shard_paths
+        .collect::<Vec<PathBuf>>()
+        .par_iter()
+        .map(|shard_path| {
+            debug!("[{}]indexing {:?}", lang, shard_path);
+            let shard_ids = shard_index(&record_ids, &shard_path)?;
+            let shard_ids: ShardEntryAvro = shard_ids.into();
+
+            let wtr_arc = wtr.clone();
+            let mut wtr_mutex = wtr_arc.lock().unwrap();
+            wtr_mutex.append_ser(shard_ids)?;
+
+            Ok(())
+        })
+        .collect::<Vec<Result<_, Error>>>();
+
+    // for shard_path in shard_paths {
+    //     debug!("indexing {:?}", shard_path);
+    //     let shard_ids = shard_index(&record_ids, &shard_path)?;
+    //     let shard_ids: ShardEntryAvro = shard_ids.into();
+    //     wtr.append_ser(shard_ids)?;
+    // }
 
     // open corpus and convert start_hash to start_line
     let mut path_rebuild_fixed = PathBuf::from(&path_rebuild);
@@ -122,73 +140,99 @@ fn get_line_starts(src_rebuild: &Path, src_shards: &Path, dst_rebuild: &Path) ->
 
     //open rebuild file (corrected)
     let fw = File::create(&dst_rebuild)?;
-    let mut writer = avro_rs::Writer::with_codec(&schema, fw, Codec::Snappy);
+    let mut writer = Arc::new(Mutex::new(avro_rs::Writer::with_codec(
+        &schema,
+        fw,
+        Codec::Snappy,
+    )));
 
-    // iterate on already generated avro file
-    for se in reader {
-        // get entry
-        let se = se?;
-        let shards_rebuild: ShardEntry = avro_rs::from_value::<ShardEntryAvro>(&se)?.into();
+    let reader = reader.par_bridge();
 
-        // forge path and open related shard
-        let mut shard_path = PathBuf::from(src_shards);
-        shard_path.push(format!("{}.txt.gz", shards_rebuild.shard_id()));
+    let failures = reader
+        .map(|se| {
+            let se = se?;
+            let shards_rebuild: ShardEntry = avro_rs::from_value::<ShardEntryAvro>(&se)?.into();
 
-        info!("working on shard {}", shards_rebuild.shard_id());
+            let shardentry_fixed = get_shard_line_starts(src_shards, shards_rebuild)?;
 
-        let shard = Wet::from_path_gzip(shard_path)?;
+            // write it!
+            let wtr_arc = writer.clone();
+            let mut wtr_lock = wtr_arc.lock().unwrap();
+            wtr_lock.append_ser::<ShardEntryAvro>(shardentry_fixed.into())?;
 
-        // iterate on the shard records
-        let ret: Vec<BothLocation> = shard
-            .iter
-            .enumerate()
-            .filter_map(|(idx, shard_record)| {
-                //find records that are on both the shard and the rebuild
-                match shards_rebuild
-                    .records()
-                    .iter()
-                    .find(|record_rebuild| record_rebuild.shard_record_number() == &idx)
-                {
-                    Some(r) => {
-                        // unwrap and filter like OSCAR v1.2
-                        let shard_record = shard_record.unwrap();
-                        let body_lines = shard_record
-                            .body()
-                            .lines()
-                            .filter(|l| l.as_ref().unwrap().chars().count() > 100)
-                            .map(|l| Some(l.as_ref().unwrap().trim_end().to_owned()));
+            Ok(())
+        })
+        .collect::<Result<Vec<()>, Error>>();
 
-                        // iteratively hash each sentence to find the one that starts the record
-                        let line_start = body_lines
-                            .enumerate()
-                            .find(|(_, line)| {
-                                let line = line.as_ref().unwrap();
-                                let hash = hash_sentence(line);
-                                r.start_hash() == &hash
-                            })
-                            // only get line index of matching line
-                            .map(|(idx, _)| idx);
-
-                        // clone location and update start_hash
-                        // that will be used as record-level line offet (TODO: improve that)
-                        let mut re = r.clone();
-                        re.set_start_hash(line_start.unwrap() as u64);
-                        Some(re)
-                    }
-                    None => None,
-                }
-            })
-            .collect();
-
-        // create a new shard entry
-        let shardentry_fixed = ShardEntry::new(*shards_rebuild.shard_id(), ret);
-
-        // write it!
-        writer.append_ser::<ShardEntryAvro>(shardentry_fixed.into())?;
+    if failures.is_err() {
+        error!("{:?}", failures);
     }
+    // // iterate on already generated avro file
+    // for se in reader {
+    //     // get entry
+    // }
     Ok(())
 }
 
+fn get_shard_line_starts(
+    src_shards: &Path,
+    shards_rebuild: ShardEntry,
+) -> Result<ShardEntry, Error> {
+    // forge path and open related shard
+    let mut shard_path = PathBuf::from(src_shards);
+    shard_path.push(format!("{}.txt.gz", shards_rebuild.shard_id()));
+
+    info!("working on shard {}", shards_rebuild.shard_id());
+
+    let shard = Wet::from_path_gzip(shard_path)?;
+
+    // iterate on the shard records
+    let ret: Vec<BothLocation> = shard
+        .iter
+        .enumerate()
+        .filter_map(|(idx, shard_record)| {
+            //find records that are on both the shard and the rebuild
+            match shards_rebuild
+                .records()
+                .iter()
+                .find(|record_rebuild| record_rebuild.shard_record_number() == &idx)
+            {
+                Some(r) => {
+                    // unwrap and filter like OSCAR v1.2
+                    let shard_record = shard_record.unwrap();
+                    let body_lines = shard_record
+                        .body()
+                        .lines()
+                        .filter(|l| l.as_ref().unwrap().chars().count() > 100)
+                        .map(|l| Some(l.as_ref().unwrap().trim_end().to_owned()));
+
+                    // iteratively hash each sentence to find the one that starts the record
+                    let line_start = body_lines
+                        .enumerate()
+                        .find(|(_, line)| {
+                            let line = line.as_ref().unwrap();
+                            let hash = hash_sentence(line);
+                            r.start_hash() == &hash
+                        })
+                        // only get line index of matching line
+                        .map(|(idx, _)| idx);
+
+                    // clone location and update start_hash
+                    // that will be used as record-level line offet (TODO: improve that)
+                    let mut re = r.clone();
+                    re.set_start_hash(line_start.unwrap() as u64);
+                    Some(re)
+                }
+                None => None,
+            }
+        })
+        .collect();
+
+    // create a new shard entry
+    let shardentry_fixed = ShardEntry::new(*shards_rebuild.shard_id(), ret);
+
+    Ok(shardentry_fixed)
+}
 #[inline]
 fn hash_sentence(s: &str) -> u64 {
     let mut hasher = XxHash64::default();
