@@ -13,6 +13,7 @@ extern crate log;
 mod cli;
 mod download;
 mod error;
+mod filtering;
 mod identifiers;
 mod io;
 mod lang;
