@@ -8,8 +8,22 @@ use super::filter::FilterMut;
 use super::sentence::Length;
 use super::Filter;
 use std::cmp::Ordering;
-enum FilterKind {
+pub enum FilterKind {
     PFilter(PFilter),
+}
+
+impl Default for FilterKind {
+    fn default() -> Self {
+        FilterKind::PFilter(PFilter::default())
+    }
+}
+
+impl Filter<&Record<BufferedBody>> for FilterKind {
+    fn detect(&self, reader: &Record<BufferedBody>) -> bool {
+        match self {
+            Self::PFilter(p) => p.detect(reader),
+        }
+    }
 }
 
 /// Filters out documents that doesn't have its content enough in long newline-separated strings.
@@ -17,7 +31,7 @@ enum FilterKind {
 /// For each document, we compute the size (in bytes) of newline-separated strings, that we bucket in two bins
 /// depending on their size (<>min_length).
 /// If the >min_length bin makes for at least sentence_threshold of the document, we keep it.
-struct PFilter {
+pub struct PFilter {
     sentence_threshold: f64,
     sentence_filter: Length,
 }
@@ -80,6 +94,8 @@ impl Filter<&Record<BufferedBody>> for PFilter {
 }
 
 impl Default for PFilter {
+    /// inits PFilter with a threshold of 0.6 (that means, at least 60% of content is from long sentences)
+    /// sentence filter's default long sentence threshold (100 codepoints).
     fn default() -> Self {
         PFilter {
             sentence_threshold: 0.6,
