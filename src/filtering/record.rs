@@ -71,25 +71,16 @@ impl Filter<&Record<BufferedBody>> for PFilter {
         // get threshold in bytes
         let threshold = self.sentence_threshold * f64::from(bucket_lower + bucket_upper);
 
-        println!(
-            "low: {:?} up: {:?} tot:{:?}, thresh:{:?}",
-            bucket_lower,
-            bucket_upper,
-            bucket_lower + &bucket_upper,
-            threshold
-        );
         // if the number of bytes in lower bucket exceeds the threshold's one,
         // the document is rejected.
-        // if f64::from(bucket_lower) > threshold {
+        //
+        // long form:
+        // if f64::from(bucket_upper) < threshold {
         //     false
         // } else {
         //     true
         // }
-        if f64::from(bucket_upper) < threshold {
-            false
-        } else {
-            true
-        }
+        !(f64::from(bucket_upper) < threshold)
     }
 }
 
