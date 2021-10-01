@@ -8,6 +8,6 @@ pub mod oscar_metadata;
 pub mod pipeline;
 mod rayon_all;
 
-// pub use doc::OscarDoc;
+pub use doc::OscarDoc;
 pub use oscar_metadata::OscarMetadata;
 // pub use rayon_all::RayonAll;

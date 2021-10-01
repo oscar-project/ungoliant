@@ -1,4 +1,5 @@
 mod document;
 mod oscar_doc;
 
-// pub use oscar_doc::OscarDoc;
+use document::Document;
+pub use oscar_doc::OscarDoc;

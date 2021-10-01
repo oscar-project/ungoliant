@@ -1,14 +1,18 @@
+use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 
+use crate::error::Error;
 use crate::filtering::{record, Filter};
-use crate::identifiers;
+use crate::identifiers::{self, Identification, Identifier};
 use crate::lang::LANG;
+use crate::pipeline::doc::document::{Document, Metadata};
 use crate::sources::commoncrawl::Wet;
-use crate::{error::Error, processing::document::Document};
 use crate::{identifiers::FastText, processing::document::MergedPiece};
+use fasttext::Prediction;
 use log::Level::Debug;
 use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
+use std::convert::TryFrom;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
@@ -67,7 +71,7 @@ impl OscarDoc {
 
     /// Process a shard
     fn process_shard(
-        shard_path: &PathBuf,
+        shard_path: &Path,
         identifier: &identifiers::FastText,
         filter: Option<record::FilterKind>,
     ) -> Result<(), Error> {
@@ -75,7 +79,7 @@ impl OscarDoc {
         let record_iter = shard.iter.par_bridge();
 
         // get specified filter or resort to default filter kind
-        let f = filter.unwrap_or_else(|| record::FilterKind::default());
+        let f = filter.unwrap_or_else(record::FilterKind::default);
 
         // get iterator on filtered records.
         // only get records that are valid *and* pass the filter.
@@ -94,11 +98,69 @@ impl OscarDoc {
         });
 
         // identify
-        record_iter.map(|record| {
-            let body = String::from_utf8_lossy(record.body());
-            let lines = body.lines();
-            let ids = lines.map(|line| identifier.predict(line));
-        });
+        let r: Vec<Result<(), Error>> = record_iter
+            .map(|record| Self::process_record(record, identifier))
+            .collect();
+        Ok(())
+    }
+
+    /// process a record
+    fn process_record(
+        record: Record<BufferedBody>,
+        identifier: &identifiers::FastText,
+    ) -> Result<(), Error> {
+        // get lines
+        let (headers, body) = record.into_raw_parts();
+        let body = String::from_utf8_lossy(&body);
+        let lines = body.lines();
+
+        // per-lang and total byte counts
+        let mut lang_count = HashMap::new();
+        let mut total_count = 0;
+
+        // get identifications
+        // We use option because of sentences that can't be properly identified
+        let ids: Vec<Option<Identification>> = lines
+            .map(|line| {
+                // identify
+                let id = identifier.identify(line);
+
+                // add to byte count for document-level identification
+                if let Ok(Some(ref ide)) = id {
+                    let byte_count = line.bytes().count();
+                    lang_count
+                        .entry(*ide.label())
+                        .and_modify(|count| *count += byte_count)
+                        .or_insert(byte_count);
+
+                    total_count += byte_count;
+                }
+
+                id
+            })
+            .collect::<Result<_, Error>>()?;
+
+        // figure out document language
+        // count bytes per language, get language that got most bytes
+        let document_language = lang_count.iter().max_by_key(|(_, v)| *v);
+
+        if let Some((id, lang_byte_count)) = document_language {
+            // build an Identification with prob = number of bytes from most identified language / total number of bytes
+            let document_identification =
+                Identification::new(*id, *lang_byte_count as f32 / total_count as f32);
+
+            let metadata = Metadata::new(&document_identification, &ids);
+            let doc = Document::new(body.into_owned(), headers, metadata);
+        } else {
+            debug!(
+                "Record {:?} does not have an identifiable language",
+                headers
+                    .headers
+                    .get(&WarcHeader::RecordID)
+                    .map(|x| Some(String::from_utf8_lossy(x)))
+            );
+        }
+
         Ok(())
     }
     pub fn run(&self) -> Result<(), Error> {
