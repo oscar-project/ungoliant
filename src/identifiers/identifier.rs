@@ -2,8 +2,42 @@
 
 All identifiers should implement [Identifier] to be useable in processing and pipelines.
 !*/
-use crate::error::Error;
+use std::str::FromStr;
+
+use fasttext::Prediction;
+
+use crate::{error::Error, lang::Lang};
+
+#[derive(Debug, Clone)]
+pub struct Identification {
+    label: Lang,
+    prob: f32,
+}
+
+impl Identification {
+    pub fn new(label: Lang, prob: f32) -> Self {
+        Self { label, prob }
+    }
+    /// Get a reference to the identification's label.
+    pub fn label(&self) -> &Lang {
+        &self.label
+    }
+
+    /// Get a reference to the identification's prob.
+    pub fn prob(&self) -> &f32 {
+        &self.prob
+    }
+}
+
+impl From<Prediction> for Identification {
+    fn from(prediction: Prediction) -> Self {
+        Self {
+            prob: prediction.prob,
+            label: Lang::from_str(&prediction.label.chars().skip(9).collect::<String>()).unwrap(),
+        }
+    }
+}
 pub trait Identifier {
     /// returns a language identification token (from [crate::lang::LANG]).
-    fn identify(&self, sentence: &str) -> Result<Option<&'static str>, Error>;
+    fn identify(&self, sentence: &str) -> Result<Option<Identification>, Error>;
 }
