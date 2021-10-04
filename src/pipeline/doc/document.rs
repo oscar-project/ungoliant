@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use warc::{RawRecordHeader, WarcHeader};
 
@@ -24,6 +24,8 @@ impl Metadata {
 }
 
 /// A Document is a structure holding content, WARC headers and OSCAR-specific metadata.
+/// - TODO: Change warc_headers from [RawRecordHeader] to [warc::Record] with [warc::EmptyBody]?
+/// This way we shouldn't have to parse strings or use unwrap on [RawRecordHeader].
 pub struct Document {
     content: String,
     warc_headers: RawRecordHeader,
@@ -37,6 +39,21 @@ impl Document {
             warc_headers,
             metadata,
         }
+    }
+
+    pub fn identification(&self) -> &Identification {
+        &self.metadata.identification
+    }
+
+    /// get warc record id
+    pub fn warc_id(&self) -> Cow<str> {
+        String::from_utf8_lossy(
+            &self
+                .warc_headers
+                .headers
+                .get(&WarcHeader::RecordID)
+                .unwrap(),
+        )
     }
 }
 

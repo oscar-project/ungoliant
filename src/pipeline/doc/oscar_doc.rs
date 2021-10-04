@@ -74,7 +74,7 @@ impl OscarDoc {
         shard_path: &Path,
         identifier: &identifiers::FastText,
         filter: Option<record::FilterKind>,
-    ) -> Result<(), Error> {
+    ) -> Result<Vec<Document>, Error> {
         let shard = Wet::from_path_gzip(&shard_path)?;
         let record_iter = shard.iter.par_bridge();
 
@@ -98,17 +98,27 @@ impl OscarDoc {
         });
 
         // identify
-        let r: Vec<Result<(), Error>> = record_iter
+        let r = record_iter
             .map(|record| Self::process_record(record, identifier))
-            .collect();
-        Ok(())
+            .filter_map(|res| match res {
+                Ok(Some(res)) => Some(res),
+                Ok(None) => None,
+                Err(e) => {
+                    error!("{:?}", e);
+                    None
+                }
+            });
+
+        Ok(r.collect())
     }
 
     /// process a record
+    /// identify each line of the document
+    /// then compute the most present identification
     fn process_record(
         record: Record<BufferedBody>,
         identifier: &identifiers::FastText,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<Document>, Error> {
         // get lines
         let (headers, body) = record.into_raw_parts();
         let body = String::from_utf8_lossy(&body);
@@ -151,18 +161,21 @@ impl OscarDoc {
 
             let metadata = Metadata::new(&document_identification, &ids);
             let doc = Document::new(body.into_owned(), headers, metadata);
+
+            debug!("{} : {:?}", doc.warc_id(), doc.identification());
+            Ok(Some(doc))
         } else {
             debug!(
-                "Record {:?} does not have an identifiable language",
+                "{:?} : NONE",
                 headers
                     .headers
                     .get(&WarcHeader::RecordID)
                     .map(|x| Some(String::from_utf8_lossy(x)))
             );
+            Ok(None)
         }
-
-        Ok(())
     }
+
     pub fn run(&self) -> Result<(), Error> {
         // let errors;
 
