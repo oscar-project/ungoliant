@@ -12,6 +12,8 @@ This leads the [TextWriter]/[MetaWriter] couple to be cumbersome to use outside 
 mod metawriter;
 mod textwriter;
 pub mod writer;
+mod writer_doc;
 use metawriter::MetaWriter;
 use textwriter::TextWriter;
 pub use writer::Writer;
+pub use writer_doc::WriterDoc;

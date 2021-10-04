@@ -7,8 +7,9 @@ use std::str::FromStr;
 use fasttext::Prediction;
 
 use crate::{error::Error, lang::Lang};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Identification {
     label: Lang,
     prob: f32,

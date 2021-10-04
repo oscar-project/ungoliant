@@ -12,11 +12,12 @@ use std::{
 };
 
 use log::{debug, warn};
+use serde::{Deserialize, Serialize};
 use structopt::lazy_static::lazy_static;
 
 use crate::error::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Lang {
     Af,
     Als,

@@ -3,8 +3,9 @@ use std::{borrow::Cow, collections::HashMap};
 use warc::{RawRecordHeader, WarcHeader};
 
 use crate::identifiers::Identification;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 /// OSCAR-specific metadata
 pub struct Metadata {
     identification: Identification,
@@ -23,17 +24,21 @@ impl Metadata {
     }
 }
 
+pub type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
+
 /// A Document is a structure holding content, WARC headers and OSCAR-specific metadata.
 /// - TODO: Change warc_headers from [RawRecordHeader] to [warc::Record] with [warc::EmptyBody]?
 /// This way we shouldn't have to parse strings or use unwrap on [RawRecordHeader].
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Document {
     content: String,
-    warc_headers: RawRecordHeader,
+    warc_headers: WarcHeaders,
     metadata: Metadata,
 }
 
 impl Document {
-    pub fn new(content: String, warc_headers: RawRecordHeader, metadata: Metadata) -> Document {
+    pub fn new(content: String, warc_headers: WarcHeaders, metadata: Metadata) -> Document {
         Self {
             content,
             warc_headers,
@@ -45,15 +50,12 @@ impl Document {
         &self.metadata.identification
     }
 
+    pub fn content(&self) -> &String {
+        &self.content
+    }
     /// get warc record id
     pub fn warc_id(&self) -> Cow<str> {
-        String::from_utf8_lossy(
-            &self
-                .warc_headers
-                .headers
-                .get(&WarcHeader::RecordID)
-                .unwrap(),
-        )
+        String::from_utf8_lossy(&self.warc_headers.get(&WarcHeader::RecordID).unwrap())
     }
 }
 
@@ -64,7 +66,6 @@ impl std::fmt::Debug for Document {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let headers_pp: HashMap<WarcHeader, String> = self
             .warc_headers
-            .headers
             .iter()
             .map(|(k, v)| (k.clone(), String::from_utf8_lossy(v).to_string()))
             .collect();

@@ -104,7 +104,7 @@ impl OscarDoc {
                 Ok(Some(res)) => Some(res),
                 Ok(None) => None,
                 Err(e) => {
-                    error!("{:?}", e);
+                    // error!("{:?}", e);
                     None
                 }
             });
@@ -160,7 +160,7 @@ impl OscarDoc {
                 Identification::new(*id, *lang_byte_count as f32 / total_count as f32);
 
             let metadata = Metadata::new(&document_identification, &ids);
-            let doc = Document::new(body.into_owned(), headers, metadata);
+            let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
             Ok(Some(doc))
@@ -192,10 +192,11 @@ impl OscarDoc {
         let langfiles = LangFiles::new(&self.dst, None)?;
 
         //iterate over shards
-        let r: Vec<Error> = results
-            .filter_map(|(idx, shard)| Self::process_shard(&shard, &cls, None).err())
-            .collect();
-
+        let r = results.map(|(idx, shard)| (idx, Self::process_shard(&shard, &cls, None)));
+        r.for_each(|(idx, shard_result)| match shard_result {
+            Ok(sr) => info!("found {} docs in shard {}", sr.len(), idx),
+            Err(e) => error!("Error in shard {}: {:?}", idx, e),
+        });
         Ok(())
     }
     //     /// attempt to predict language on provided sentence.
