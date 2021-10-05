@@ -8,15 +8,22 @@ Each language (provided by [crate::lang::LANG]) is given a [self::Writer] wrappe
 use std::{
     collections::HashMap,
     path::Path,
+    str::FromStr,
     sync::{Arc, Mutex},
 };
 
-use crate::error;
 use crate::io::writer::Writer;
 use crate::lang::LANG;
+use crate::{error, lang::Lang};
+
+use super::writer::{WriterDoc, WriterTrait};
 /// Holds references to [Writer].
 pub struct LangFiles {
     writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
+}
+
+pub struct LangFilesDoc {
+    writers: HashMap<Lang, Arc<Mutex<WriterDoc>>>,
 }
 
 impl LangFiles {
@@ -41,6 +48,42 @@ impl LangFiles {
 
     /// Get a non-mutable reference to the writers.
     pub fn writers(&self) -> &HashMap<&'static str, Arc<Mutex<Writer>>> {
+        &self.writers
+    }
+
+    /// Fix open metadata files by removing trailing comma and closing the array.
+    pub fn close_meta(&self) -> Result<(), error::Error> {
+        for writer in self.writers.values() {
+            let mut writer_lock = writer.lock().unwrap();
+            writer_lock.close_meta()?;
+        }
+        Ok(())
+    }
+}
+
+impl LangFilesDoc {
+    /// Create a new LangFiles. `part_size_bytes` sets an indication of the maximum size
+    /// by part.
+    /// Note that if it is set too low and a unique record can't be stored in an unique part
+    /// then a part will still be created, being larger than the `part_size_bytes`. This is expected behaviour.
+    ///
+    /// Also keep in mind that [Self::close_meta] has to be called once every write is done.
+    ///
+    // [Self::close_meta] could be integrated in an `impl Drop`
+    pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Result<Self, error::Error> {
+        let mut writers = HashMap::with_capacity(LANG.len());
+        let mut w;
+        for lang in LANG.iter() {
+            w = WriterDoc::new(dst, lang, part_size_bytes)?;
+            let lang = Lang::from_str(lang)?;
+            writers.insert(lang, Arc::new(Mutex::new(w)));
+        }
+
+        Ok(Self { writers })
+    }
+
+    /// Get a non-mutable reference to the writers.
+    pub fn writers(&self) -> &HashMap<Lang, Arc<Mutex<WriterDoc>>> {
         &self.writers
     }
 

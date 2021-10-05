@@ -4,7 +4,8 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
 use crate::identifiers::{self, Identification, Identifier};
-use crate::lang::LANG;
+use crate::io::writer::WriterTrait;
+use crate::lang::{Lang, LANG};
 use crate::pipeline::doc::document::{Document, Metadata};
 use crate::sources::commoncrawl::Wet;
 use crate::{identifiers::FastText, processing::document::MergedPiece};
@@ -16,7 +17,7 @@ use std::convert::TryFrom;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
-use crate::io::LangFiles;
+use crate::io::{LangFiles, LangFilesDoc};
 /// OSCAR v1.5 generation pipeline
 ///
 /// OSCAR v1.5 is a retrocompatible corpus
@@ -75,6 +76,7 @@ impl OscarDoc {
         identifier: &identifiers::FastText,
         filter: Option<record::FilterKind>,
     ) -> Result<Vec<Document>, Error> {
+        info!("working on shard: {:?}", shard_path);
         let shard = Wet::from_path_gzip(&shard_path)?;
         let record_iter = shard.iter.par_bridge();
 
@@ -176,6 +178,34 @@ impl OscarDoc {
         }
     }
 
+    /// Gets a vector of documents and outputs a hashmap listing the documents per language
+    fn sort_by_lang(documents: Vec<Document>) -> HashMap<Lang, Vec<Document>> {
+        let mut ret = HashMap::new();
+        for document in documents {
+            let e = ret
+                .entry(*document.identification().label())
+                .or_insert_with(Vec::new);
+            e.push(document);
+        }
+
+        ret
+    }
+
+    // concurrently write documets
+    fn write_documents(
+        langfiles: &LangFilesDoc,
+        documents: HashMap<Lang, Vec<Document>>,
+    ) -> Result<(), Error> {
+        documents.into_par_iter().for_each(|(lang, docs)| {
+            debug!("[{}]: {} documents", lang, docs.len());
+            let writer = langfiles.writers().get(&lang).unwrap();
+            let mut writer_lock = writer.lock().unwrap();
+            writer_lock.write(docs).unwrap();
+        });
+
+        Ok(())
+    }
+
     pub fn run(&self) -> Result<(), Error> {
         // let errors;
 
@@ -189,257 +219,21 @@ impl OscarDoc {
         //      ourselves.
         let results = results.enumerate().par_bridge();
 
-        let langfiles = LangFiles::new(&self.dst, None)?;
+        let langfiles = LangFilesDoc::new(&self.dst, None)?;
 
         //iterate over shards
-        let r = results.map(|(idx, shard)| (idx, Self::process_shard(&shard, &cls, None)));
-        r.for_each(|(idx, shard_result)| match shard_result {
-            Ok(sr) => info!("found {} docs in shard {}", sr.len(), idx),
-            Err(e) => error!("Error in shard {}: {:?}", idx, e),
+        let shards_results =
+            results.map(|(idx, shard)| (idx, Self::process_shard(&shard, &cls, None)));
+
+        // for each shard result, sort by lang and write concurrently.
+        shards_results.for_each(|(idx, shard_result)| {
+            if let Ok(shard_result) = shard_result {
+                let hm = Self::sort_by_lang(shard_result);
+                Self::write_documents(&langfiles, hm).unwrap();
+            } else {
+                error!("Error with shard idx {}:{:?}", idx, shard_result);
+            }
         });
         Ok(())
     }
-    //     /// attempt to predict language on provided sentence.
-    //     ///
-    //     /// Returns [None] if no language is detected.
-    //     // why return the sentence itself?
-    //     // TODO: change return type to Option<&'static str>.
-    //     // fn identify_sentence(sentence: &str, cls: &FastText) -> Option<(String, &'static str)> {
-    //     //     let prediction = cls.predict(sentence).ok();
-
-    //     //     if let Some(Some(lang)) = prediction {
-    //     //         //TODO: rewrite these two lines more elegantly
-    //     //         //      we can unwrap since predict returns None if no predictions are
-    //     //         //      found
-    //     //         let lang = lang.get(0).unwrap();
-
-    //     //         // check if fasttext provided lang exists
-    //     //         // return None if not
-    //     //         match LANG.get(lang.label.as_str()) {
-    //     //             Some(lang) => Some((sentence.to_string(), *lang)),
-    //     //             None => {
-    //     //                 warn!("lang {} does not exist!", lang.label);
-    //     //                 None
-    //     //             }
-    //     //         }
-    //     //     } else {
-    //     //         None
-    //     //     }
-    //     // }
-
-    //     fn identify_sentence(sentence: &str, cls: &FastText) -> Option<&'static str> {
-    //         let prediction = cls.predict(sentence).ok();
-
-    //         if let Some(Some(lang)) = prediction {
-    //             //TODO: rewrite these two lines more elegantly
-    //             //      we can unwrap since predict returns None if no predictions are
-    //             //      found
-    //             let lang = lang.get(0).unwrap();
-
-    //             // check if fasttext provided lang exists
-    //             // return None if not
-    //             match LANG.get(lang.label.as_str()) {
-    //                 Some(lang) => Some(*lang),
-    //                 None => {
-    //                     warn!("lang {} does not exist!", lang.label);
-    //                     None
-    //                 }
-    //             }
-    //         } else {
-    //             None
-    //         }
-    //     }
-
-    //     /// Process a provided record.
-    //     ///
-    //     /// Here, sentences that are >100 chars are processed,
-    //     /// and the others are discarded.
-    //     /// See [String::chars::count].
-    //     ///
-    //     /// Then, we identify language for each sentence
-    //     /// and return (sentence, language) along with headers
-    //     /// extracted from the WARC.
-    //     fn process_record(
-    //         record: &Record<BufferedBody>,
-    //         cls: &FastText,
-    //     ) -> Option<(Vec<(String, &'static str)>, WarcHeaders)> {
-    //         if log_enabled!(Debug) {
-    //             debug!("processing record {}", record.warc_id());
-    //         };
-    //         let body = String::from_utf8(record.body().to_vec()).ok();
-
-    //         // process record if body is utf8-valid
-    //         if let Some(sentences) = body {
-    //             // filter out lines that does not contain 100 characters.
-    //             // then convert into a parallel iterator
-    //             let sentences = sentences.lines().par_bridge();
-
-    //             let results: Vec<&'static str> = sentences
-    //                 // predict for each sentence, discarding
-    //                 // predictions that does not meet threshold
-    //                 .filter_map(|sentence| Self::identify_sentence(sentence, cls))
-    //                 .collect();
-
-    //             Some((results, record.into_raw_parts().0.headers))
-    //         } else {
-    //             error!("body not UTF-8 valid: {:?}", record.warc_id());
-    //             None
-    //         }
-    //     }
-
-    //     /// Run the whole pipeline
-    // //     pub fn run(&self) -> Result<(), Error> {
-    // //         // let errors;
-
-    // //         let cls = FastText::new(&self.lid_path, 1, 0.8)?;
-
-    // //         // list files in source folder,
-    // //         // filter out errors from fs and from gzip/wet.
-    // //         // This means that invalid gz files and invalid
-    // //         // wet files are discarded silently
-    // //         let results = std::fs::read_dir(&self.src)?
-    // //             .filter_map(|shard| {
-    // //                 shard.map_or_else(
-    // //                     |e| {
-    // //                         error!("error reading shard directory: {}", e);
-    // //                         None
-    // //                     },
-    // //                     Some,
-    // //                 )
-    // //             })
-    // //             .map(|shard| shard.path());
-
-    // //         // convert to parallel iterator
-    // //         // /!\: We use par_bridge, that is suboptimal
-    // //         //      compared to implementing IntoParallelIterator
-    // //         //      ourselves.
-    // //         let results = results.enumerate().par_bridge();
-
-    // //         // holds file handles
-    // //         // let langfiles = match self.part_size {
-    // //         //     Some(ps) => LangFiles::new(&self.dst, Some(ps * 1_000_000))?,
-    // //         //     None => LangFiles::new(&self.dst, None)?,
-    // //         // };
-
-    // //         let langfiles = LangFiles::new(&self.dst, None)?;
-
-    // //         // iterate over shards
-    // //         let r: Vec<Error> = results
-    // //             .filter_map(|(idx, shard)| {
-    // //                 // holds merged pieces by lang
-    // //                 let mut lang_pieces: HashMap<&'static str, Vec<MergedPiece>> = HashMap::new();
-
-    // //                 // get an atomic reference to global offsets
-    // //                 // let offsets_global_arc = offsets_global.clone();
-    // //                 info!("processing shard {}: {:?}", idx, &shard);
-
-    // //                 let shard = Wet::from_path_gzip(&shard);
-    // //                 if shard.is_err() {
-    // //                     error!("Could not read/open shard {}", idx);
-    // //                     return shard.err();
-    // //                 }
-
-    // //                 let shard = shard.unwrap();
-    // //                 // convert into a parallel iterator
-    // //                 let wetfile = shard.iter.enumerate().par_bridge();
-
-    // //                 let shard_results: Vec<(Vec<(String, &'static str)>, WarcHeaders)> = wetfile
-    // //                     .filter_map(|(idx_record, record)| match record {
-    // //                         Ok(record) => OscarDoc::process_record(&record, &cls),
-    // //                         Err(e) => {
-    // //                             warn!("Error on record {} of shard {}: {:?}", idx_record, idx, e);
-    // //                             None
-    // //                         }
-    // //                     })
-    // //                     // collect here is blocking
-    // //                     // because we can't write concurrently into a HashMap
-    // //                     // and using Mutexes might ruin performance.
-    // //                     .collect(); //TODO: test with a for_each and a channel to send?
-
-    // //                 // Iterate over (record, header) tuples
-    // //                 let shard_results = shard_results.into_iter().filter_map(|(record, header)| {
-    // //                     // split between langs and sentences
-    // //                     let langs: Vec<&str> = record.iter().map(|(_, lang)| *lang).collect();
-    // //                     let sentences: Vec<String> =
-    // //                         record.into_iter().map(|(sentences, _)| sentences).collect();
-
-    // //                     // create new document for current record
-    // //                     let doc = Document::new(header, sentences, langs);
-
-    // //                     match doc {
-    // //                         Ok(doc) => Some(doc),
-    // //                         Err(e) => {
-    // //                             warn!("{:?}", e);
-    // //                             None
-    // //                         }
-    // //                     }
-    // //                 });
-
-    // //                 // merge all documents together
-    // //                 // get a vector of merged pieces of difference languages
-    // //                 let docs_merged = shard_results
-    // //                     .map(|doc| doc.into_merged_pieces_lang())
-    // //                     .flatten()
-    // //                     .collect::<Vec<MergedPiece>>();
-
-    // //                 // sort merged pieces into different langs
-    // //                 // now there's a hashmap that points each lang
-    // //                 // to a vector of merged pieces
-    // //                 for piece in docs_merged {
-    // //                     let e = lang_pieces
-    // //                         .entry(piece.identification())
-    // //                         .or_insert_with(Vec::new);
-    // //                     e.push(piece);
-    // //                 }
-
-    // //                 // write concurrently
-    // //                 lang_pieces.into_par_iter().for_each(|(lang, pieces)| {
-    // //                     let writer = langfiles.writers().get(lang).unwrap();
-    // //                     let mut writer_lock = writer.lock().unwrap();
-    // //                     writer_lock.write(pieces).unwrap();
-    // //                 });
-
-    // //                 None
-    // //             })
-    // //             .collect();
-
-    // //         // fix trailing comma
-    // //         // langfiles.close_meta()?;
-
-    // //         for err in r {
-    // //             error!("{:?}", err);
-    // //         }
-
-    // //         Ok(())
-    // //     }
-    // }
-
-    // #[cfg(test)]
-    // mod tests {
-    //     use std::{env::temp_dir, path::PathBuf};
-
-    //     use warc::{EmptyBody, Record};
-
-    //     use crate::identifiers::FastText;
-
-    //     use super::OscarDoc;
-
-    //     #[test]
-    //     fn test_process_record() {
-    //         let cls = FastText::new_lid().unwrap();
-    //         let record = ();
-
-    //         // let oscar_metadata =
-    //         //     OscarMetadata::new(temp_dir(), temp_dir(), PathBuf::from("lid.176.bin"));
-
-    //         let mut record: Record<EmptyBody> = Record::default();
-    //         let body = "english test that is longer than one hundred characters. english test that is longer than one hundred characters.
-    // phrase française de plus de cent caractères. Ceci est une phrase française de plus de cent caractères.";
-    //         println!("{}", body.len());
-    //         let record = record.add_body(body);
-    //         let identifications = OscarDoc::process_record(&record, &cls).unwrap();
-
-    //         println!("{:#?}", identifications);
-    //         assert!(false)
-    //     }
 }

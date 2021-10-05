@@ -7,6 +7,7 @@ Offline corpus splitting.
 use crate::{
     io::{
         reader::{reader::Reader, Corpus},
+        writer::WriterTrait,
         Writer,
     },
     processing::MergedPiece,

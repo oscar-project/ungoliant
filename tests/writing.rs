@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use ungoliant::io::writer::WriterTrait;
 use ungoliant::io::LangFiles;
 use ungoliant::processing::MergedPiece;
 use warc::WarcHeader;

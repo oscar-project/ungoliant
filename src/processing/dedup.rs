@@ -5,6 +5,7 @@ This currently only uses [runiq](https://github.com/whitfin/runiq) to check for 
 use crate::error::Error;
 use crate::io::reader::reader::{PieceMeta, Reader};
 use crate::io::reader::Corpus;
+use crate::io::writer::WriterTrait;
 use crate::io::Writer;
 use crate::processing::MergedPiece;
 use log::info;

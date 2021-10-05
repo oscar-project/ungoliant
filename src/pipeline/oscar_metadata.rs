@@ -1,5 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 
+use crate::io::writer::WriterTrait;
 use crate::lang::LANG;
 use crate::sources::commoncrawl::Wet;
 use crate::{error::Error, processing::document::Document};

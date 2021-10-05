@@ -18,34 +18,35 @@ use crate::{
     io::writer::{MetaWriter, TextWriter},
 };
 
+use super::WriterTrait;
+
 pub struct WriterDoc {
     handle: MetaWriter,
     lang: &'static str,
     offset: usize,
 }
 
-impl WriterDoc {
+impl WriterDoc {}
+
+impl WriterTrait for WriterDoc {
+    type Item = Document;
     /// Create a new Writer for provided language.
     /// Files will be written at the root of the `dst` file, and shouldn't exceed `size_limit`.
     ///
     /// _See [TextWriter] to have an explanation about the *shouldn't*._
-    pub fn new(
-        dst: &Path,
-        lang: &'static str,
-        size_limit: Option<u64>,
-    ) -> Result<Self, error::Error> {
+    fn new(dst: &Path, lang: &'static str, size_limit: Option<u64>) -> Result<Self, error::Error> {
         Ok(Self {
             handle: MetaWriter::new(dst, lang),
             lang,
             offset: 0,
         })
     }
-
     /// writes the provided [MergedPiece], checking language identification.
-    pub fn write(&mut self, pieces: Vec<Document>) -> Result<(), error::Error> {
+    fn write(&mut self, pieces: Vec<Document>) -> Result<(), error::Error> {
         let mut piece_str = String::new();
         for piece in pieces {
-            piece_str += &serde_json::to_string_pretty(&piece)?;
+            piece_str += &serde_json::to_string(&piece)?;
+            piece_str.push('\n');
         }
         self.handle.write_all(piece_str.as_bytes())?;
         // get size of whole pieces.
@@ -84,6 +85,9 @@ impl WriterDoc {
         Ok(())
     }
 
+    fn write_single(&mut self, piece: &Document) -> Result<(), error::Error> {
+        todo!();
+    }
     // pub fn write_single(&mut self, piece: &MergedPiece) -> Result<(), error::Error> {
     //     if piece.identification() != self.lang {
     //         return Err(error::Error::Custom(format!(
@@ -122,7 +126,7 @@ impl WriterDoc {
     // }
     /// Binds to [MetaWriter::close_file].
     /// Closes current metadata file.
-    pub fn close_meta(&mut self) -> Result<(), error::Error> {
+    fn close_meta(&mut self) -> Result<(), error::Error> {
         self.handle.close_file()
     }
 }
@@ -181,14 +185,15 @@ Ecoutez ça va plutôt bien.";
 
         // check if content is the same
         let mut sentences = String::new();
-        let mut f = File::open("dst_test_write/fr.txt").unwrap();
-        f.read_to_string(&mut sentences).unwrap();
+        let mut f = File::open("dst_test_write/fr_meta.jsonl").unwrap();
+        // f.read_to_string(&mut sentences).unwrap();
 
+        let document: Document = serde_json::from_reader(&f).unwrap();
+        let sentences = document.content();
         //to account for \n\n
         let mut from_merged_pieces = doc[0].content().clone();
-        from_merged_pieces.push_str("\n\n");
 
-        assert_eq!(sentences, from_merged_pieces);
+        assert_eq!(sentences, &from_merged_pieces);
 
         // succintly check if metadata are the same
         // let f = File::open("dst_test_write/fr_meta.jsonl").unwrap();

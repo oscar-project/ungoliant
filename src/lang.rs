@@ -226,7 +226,7 @@ impl FromStr for Lang {
             "bs" => Ok(Self::Bs),
             "bxr" => Ok(Self::Bxr),
             "ca" => Ok(Self::Ca),
-            "cbr" => Ok(Self::Cbk),
+            "cbk" => Ok(Self::Cbk),
             "ce" => Ok(Self::Ce),
             "ceb" => Ok(Self::Ceb),
             "ckb" => Ok(Self::Ckb),
@@ -376,7 +376,7 @@ impl FromStr for Lang {
             "xmf" => Ok(Self::Xmf),
             "yi" => Ok(Self::Yi),
             "yo" => Ok(Self::Yo),
-            "vue" => Ok(Self::Yue),
+            "yue" => Ok(Self::Yue),
             "zh" => Ok(Self::Zh),
             other => Err(Error::UnknownLang(other.to_string())),
         }
@@ -560,7 +560,7 @@ impl Display for Lang {
             Self::Xmf => "xmf",
             Self::Yi => "vi",
             Self::Yo => "yo",
-            Self::Yue => "vue",
+            Self::Yue => "yue",
             Self::Zh => "zh",
         };
 
