@@ -100,10 +100,17 @@ impl LangFilesDoc {
 #[cfg(test)]
 mod tests {
 
-    use crate::processing::MergedPiece;
-    use warc::WarcHeader;
+    use std::{fs::File, path::PathBuf};
+
+    use crate::{
+        identifiers::Identification,
+        pipeline::{Document, Metadata},
+        processing::MergedPiece,
+    };
+    use warc::{BufferedBody, Record, WarcHeader};
 
     use super::*;
+    use tempfile::{tempdir, tempfile};
 
     type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
@@ -148,5 +155,53 @@ hehe :)"
 
         fr_writer_locked.write(mp).unwrap();
         std::fs::remove_dir_all(dst).unwrap();
+    }
+
+    #[test]
+    fn init_doc() {
+        let dst = tempdir().unwrap();
+        LangFilesDoc::new(dst.path(), None).unwrap();
+    }
+
+    #[test]
+    fn write_one_doc() {
+        let dst = tempdir().unwrap();
+        let lf = LangFilesDoc::new(dst.path(), None).unwrap();
+
+        let content = "Hello!".to_string();
+
+        let record = Record::default();
+        let record: Record<BufferedBody> = record.add_body(content);
+
+        let record_id = Identification::new(Lang::En, 1.0);
+        let sentences_id = vec![Some(record_id.clone())];
+
+        let metadata = Metadata::new(&record_id, &sentences_id);
+        let (headers, content) = record.into_raw_parts();
+
+        let docs = vec![Document::new(
+            String::from_utf8_lossy(&content).to_string(),
+            headers.headers,
+            metadata,
+        )];
+
+        let w = lf
+            .writers
+            .get(docs[0].identification().label())
+            .unwrap()
+            .clone();
+
+        if let Ok(mut w) = w.try_lock() {
+            w.write(docs.to_vec()).unwrap();
+        }
+
+        let mut read_path = PathBuf::from(dst.path());
+        read_path.push("en_meta.jsonl");
+
+        let mut s = String::new();
+        let b = File::open(read_path).unwrap();
+        let doc_from_file: Document = serde_json::from_reader(b).unwrap();
+
+        assert_eq!(doc_from_file, docs[0]);
     }
 }

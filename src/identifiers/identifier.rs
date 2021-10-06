@@ -9,7 +9,7 @@ use fasttext::Prediction;
 use crate::{error::Error, lang::Lang};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(from = "IdentificationSer", into = "IdentificationSer")]
 pub struct Identification {
     label: Lang,

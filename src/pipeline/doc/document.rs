@@ -5,7 +5,7 @@ use warc::{RawRecordHeader, WarcHeader};
 use crate::identifiers::Identification;
 use serde::{ser::SerializeStruct, Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// OSCAR-specific metadata
 pub struct Metadata {
     identification: Identification,
@@ -31,7 +31,7 @@ pub type WarchHeadersSer = HashMap<WarcHeader, String>;
 /// - TODO: Change warc_headers from [RawRecordHeader] to [warc::Record] with [warc::EmptyBody]?
 /// This way we shouldn't have to parse strings or use unwrap on [RawRecordHeader].
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(from = "DocumentSer", into = "DocumentSer")]
 pub struct Document {
     content: String,
@@ -118,7 +118,7 @@ impl Document {
     }
     /// get warc record id
     pub fn warc_id(&self) -> Cow<str> {
-        String::from_utf8_lossy(&self.warc_headers.get(&WarcHeader::RecordID).unwrap())
+        String::from_utf8_lossy(self.warc_headers.get(&WarcHeader::RecordID).unwrap())
     }
 }
 
