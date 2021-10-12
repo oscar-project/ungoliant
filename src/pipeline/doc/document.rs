@@ -7,8 +7,10 @@ use serde::{ser::SerializeStruct, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 /// OSCAR-specific metadata
+/// TODO: make it a HashMap
 pub struct Metadata {
     identification: Identification,
+    annotation: Option<String>,
     sentence_identifications: Vec<Option<Identification>>,
 }
 
@@ -19,8 +21,19 @@ impl Metadata {
     ) -> Self {
         Metadata {
             identification: identification.clone(),
+            annotation: None,
             sentence_identifications: sentence_identifications.to_owned(),
         }
+    }
+
+    /// Set the metadata's annotation.
+    pub fn set_annotation(&mut self, annotation: Option<String>) {
+        self.annotation = annotation;
+    }
+
+    /// Get a reference to the metadata's annotation.
+    pub fn annotation(&self) -> Option<&String> {
+        self.annotation.as_ref()
     }
 }
 
@@ -119,6 +132,19 @@ impl Document {
     /// get warc record id
     pub fn warc_id(&self) -> Cow<str> {
         String::from_utf8_lossy(self.warc_headers.get(&WarcHeader::RecordID).unwrap())
+    }
+
+    /// Get a reference to the document's warc headers.
+    pub fn warc_headers(&self) -> &WarcHeaders {
+        &self.warc_headers
+    }
+
+    pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
+    }
+
+    pub(crate) fn metadata(&self) -> &Metadata {
+        &self.metadata
     }
 }
 

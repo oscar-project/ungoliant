@@ -8,6 +8,7 @@ use crate::io::writer::WriterTrait;
 use crate::lang::{Lang, LANG};
 use crate::pipeline::doc::document::{Document, Metadata};
 use crate::sources::commoncrawl::Wet;
+use crate::transformers;
 use crate::{identifiers::FastText, processing::document::MergedPiece};
 use fasttext::Prediction;
 use log::Level::Debug;
@@ -100,7 +101,7 @@ impl OscarDoc {
         });
 
         // identify
-        let r = record_iter
+        let record_iter = record_iter
             .map(|record| Self::process_record(record, identifier))
             .filter_map(|res| match res {
                 Ok(Some(res)) => Some(res),
@@ -111,7 +112,34 @@ impl OscarDoc {
                 }
             });
 
-        Ok(r.collect())
+        // annotate
+        let adult_filter = transformers::ContentDetector::default();
+        let record_iter: Vec<Document> =
+            record_iter.map(|r| adult_filter.transform_own(r)).collect();
+
+        // let mut adult_counter = 0;
+        // let mut non_adult_counter = 0;
+        // for document in record_iter.iter() {
+        //     if document.metadata().annotation().is_some() {
+        //     // if let Some(_) = document.metadata().annotation() {
+        //         adult_counter += 1;
+        //         info!(
+        //             "[{}]detected {:#?}",
+        //             document.identification().label(),
+        //             String::from_utf8_lossy(
+        //                 document.warc_headers().get(&WarcHeader::TargetURI).unwrap()
+        //             )
+        //         );
+        //         // info!("{}", document.content());
+        //     } else {
+        //         non_adult_counter += 1;
+        //     }
+        // }
+        // info!(
+        //     "annotated {}/{}  as adult links",
+        //     adult_counter, non_adult_counter
+        // );
+        Ok(record_iter)
     }
 
     /// process a record

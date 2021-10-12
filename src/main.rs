@@ -20,6 +20,7 @@ mod lang;
 mod pipeline;
 mod processing;
 mod sources;
+mod transformers;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
