@@ -19,6 +19,15 @@ pub struct ContentDetector<'a> {
 }
 
 impl<'a> ContentDetector<'a> {
+    pub fn new(bl: Blocklist<'a>) -> Self {
+        Self { bl }
+    }
+
+    pub fn with_defaults() -> Result<Self, Error> {
+        let bl = Blocklist::with_defaults()?;
+        Ok(Self { bl })
+    }
+
     pub fn transform(&self, doc: &mut Document) {
         let url = String::from_utf8_lossy(
             doc.warc_headers()
@@ -76,10 +85,57 @@ impl<'a> Transform for ContentDetector<'a> {
     }
 }
 
-impl<'a> Default for ContentDetector<'a> {
-    fn default() -> Self {
-        Self {
-            bl: Default::default(),
-        }
+#[cfg(test)]
+mod tests {
+    use std::collections::{HashMap, HashSet};
+
+    use ut1_blocklist::Blocklist;
+    use warc::WarcHeader;
+
+    use crate::{
+        pipeline::{Document, Metadata},
+        transformers::Transform,
+    };
+
+    use super::ContentDetector;
+
+    fn gen_document(url: &str) -> Document {
+        let content = String::new();
+        let mut headers = HashMap::new();
+        headers.insert(WarcHeader::TargetURI, url.as_bytes().to_vec());
+        let metadata = Metadata::default();
+        let d = Document::new(content, headers, metadata);
+
+        d
+    }
+
+    #[test]
+    fn test_annotation() {
+        let doc = gen_document("https://foo.bar");
+
+        let mut domains = HashSet::new();
+        domains.insert("foo.bar".to_string());
+
+        let bl = Blocklist::new("adult", domains, HashSet::new());
+        let cd = ContentDetector::new(bl);
+
+        let doc = cd.transform_own(doc);
+
+        assert_eq!(doc.metadata().annotation(), Some(&"adult".to_string()));
+    }
+
+    #[test]
+    fn test_annotation_false() {
+        let doc = gen_document("https://foo.bar");
+
+        let mut domains = HashSet::new();
+        domains.insert("baz.quux".to_string());
+
+        let bl = Blocklist::new("adult", domains, HashSet::new());
+        let cd = ContentDetector::new(bl);
+
+        let doc = cd.transform_own(doc);
+
+        assert!(doc.metadata().annotation().is_none());
     }
 }

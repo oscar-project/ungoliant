@@ -12,6 +12,13 @@ pub enum Error {
     Serde(serde_json::Error),
     Glob(glob::GlobError),
     GlobPattern(glob::PatternError),
+    Ut1(ut1_blocklist::Error),
+}
+
+impl From<ut1_blocklist::Error> for Error {
+    fn from(v: ut1_blocklist::Error) -> Self {
+        Self::Ut1(v)
+    }
 }
 
 impl From<std::io::Error> for Error {

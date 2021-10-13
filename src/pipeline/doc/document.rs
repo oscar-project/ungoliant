@@ -1,11 +1,12 @@
 use std::{borrow::Cow, collections::HashMap};
 
-use warc::{RawRecordHeader, WarcHeader};
+use warc::{BufferedBody, Record, WarcHeader};
 
 use crate::{identifiers::Identification, lang::Lang};
-use serde::{ser::SerializeStruct, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+
 /// OSCAR-specific metadata
 /// TODO: make it a HashMap
 pub struct Metadata {
@@ -104,28 +105,8 @@ impl From<DocumentSer> for Document {
     }
 }
 
-/// manually implement serialize for WarcHeader that are Vec<u8>
-/// See [impl Serialize on serde doc](https://serde.rs/impl-serialize.html).
-// impl Serialize for Document {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         let mut state = serializer.serialize_struct("Document", 3)?;
-//         let serializable_headers: HashMap<WarcHeader, String> = self
-//             .warc_headers
-//             .iter()
-//             .map(|(k, v)| (k.clone(), String::from_utf8_lossy(&v).to_string()))
-//             .collect();
-//         state.serialize_field("content", &self.content)?;
-//         state.serialize_field("headers", &serializable_headers)?;
-//         state.serialize_field("metadata", &self.metadata)?;
-
-//         state.end()
-//     }
-// }
 impl Document {
-    pub fn new(content: String, warc_headers: WarcHeaders, metadata: Metadata) -> Document {
+    pub fn new(content: String, warc_headers: WarcHeaders, metadata: Metadata) -> Self {
         Self {
             content,
             warc_headers,
@@ -133,13 +114,29 @@ impl Document {
         }
     }
 
+    /// Instantiate a Document from a record and a related metadata.
+    pub fn from_record(record: Record<BufferedBody>, metadata: Metadata) -> Self {
+        let (header, body) = record.into_raw_parts();
+        let content = String::from_utf8_lossy(&body).into_owned();
+        let warc_headers = header.headers;
+
+        Self {
+            content,
+            warc_headers,
+            metadata,
+        }
+    }
+
+    /// Get a reference to the Document's identification
     pub fn identification(&self) -> &Identification {
         &self.metadata.identification
     }
 
+    /// Get a reference to the content
     pub fn content(&self) -> &String {
         &self.content
     }
+
     /// get warc record id
     pub fn warc_id(&self) -> Cow<str> {
         String::from_utf8_lossy(self.warc_headers.get(&WarcHeader::RecordID).unwrap())
@@ -150,10 +147,12 @@ impl Document {
         &self.warc_headers
     }
 
+    /// Get a mutable reference to the document's metadata.
     pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
         &mut self.metadata
     }
 
+    /// Get a reference to the document's metadata.
     pub(crate) fn metadata(&self) -> &Metadata {
         &self.metadata
     }

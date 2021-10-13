@@ -137,6 +137,7 @@ mod tests {
         collections::HashMap,
         fs::File,
         io::{BufRead, Read},
+        path::PathBuf,
     };
 
     use warc::WarcHeader;
@@ -161,9 +162,8 @@ mod tests {
 
     #[test]
     fn write() {
-        let dst = Path::new("dst_test_write");
-        std::fs::create_dir(dst).unwrap();
-        let mut wr = WriterDoc::new(dst, "fr", Some(10)).unwrap();
+        let dst = tempfile::tempdir().unwrap();
+        let mut wr = WriterDoc::new(dst.path(), "fr", Some(10)).unwrap();
 
         let headers: WarcHeaders =
             vec![(WarcHeader::Filename, Vec::from("filenametest".as_bytes()))]
@@ -185,7 +185,8 @@ Ecoutez ça va plutôt bien.";
 
         // check if content is the same
         let mut sentences = String::new();
-        let mut f = File::open("dst_test_write/fr_meta.jsonl").unwrap();
+        let mut pathd = PathBuf::from(dst.path()).join("fr_meta.jsonl");
+        let mut f = File::open(pathd).unwrap();
         // f.read_to_string(&mut sentences).unwrap();
 
         let document: Document = serde_json::from_reader(&f).unwrap();

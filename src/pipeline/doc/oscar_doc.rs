@@ -110,7 +110,7 @@ impl OscarDoc {
             });
 
         // annotate
-        let adult_filter = transformers::ContentDetector::default();
+        let adult_filter = transformers::ContentDetector::with_defaults()?;
         let record_iter = record_iter.map(|r| adult_filter.transform_own(r));
 
         // remove short lines

@@ -45,6 +45,11 @@ impl RemoveShortSentences {
             filter: Length::with_min_size(min_length),
         }
     }
+
+    /// get filter detection threshold
+    fn filter_min_length(&self) -> &usize {
+        self.filter.min_size()
+    }
 }
 
 impl Transform for RemoveShortSentences {
@@ -91,6 +96,11 @@ mod tests {
 
     use super::RemoveShortSentences;
 
+    #[test]
+    fn test_rss_default() {
+        let rss = RemoveShortSentences::default();
+        assert_eq!(rss.filter_min_length(), &100);
+    }
     #[test]
     fn test_rss() {
         let content = r"foo
