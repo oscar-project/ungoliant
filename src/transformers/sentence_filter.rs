@@ -4,7 +4,7 @@
 //!
 //! By default the short sentence threshold is at 100
 //! Example:
-//! ```
+//! ```text
 //! foo
 //! bar
 //! baz
@@ -19,7 +19,7 @@
 //!
 //! will be transformed into
 //!
-//! ```
+//! ```text
 //! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 //! quux
 //! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -107,13 +107,11 @@ baz
 "
         .to_string();
 
-        let expected_content = r"
-xxxxxxxxxxx
+        let expected_content = r"xxxxxxxxxxx
 quux
 xxxxxxxxxxx
-xxxxxxxxxxx
-"
-        .to_string();
+xxxxxxxxxxx"
+            .to_string();
         let headers = HashMap::new();
         let metadata = Metadata::default();
         let doc = Document::new(content, headers, metadata);

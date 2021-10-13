@@ -1,3 +1,21 @@
+//! OSCAR Schema v2 generation pipeline
+//!
+//! OSCAR Schema v2 is a document-oriented corpus schema
+//! enhanced with metadata coming from CommonCrawl.
+//!
+//! The CommonCrawl dump is composed of shards,
+//! Each shard is composed of records,
+//! Each record is composed of a metadata header and a body containing sentences.
+//!
+//! # Processing
+//! 1. Each record passes through a quality filter that by default checks the content distribution between
+//!   short and long sentences, discarding records where the content is primarly in short sentences. (sentence = newline-separated string)
+//! 1. The remaining ones get identified both by line and as a whole (we keep the language that has the most information (=bytes)).
+//! 1. We pass the records in the adult content annotator
+//! 1. We remove remaining short sentences at start/end[^1]
+//! 1. We then write documents in files.
+//!
+//! [^1]: We should do this after step 1: better efficiency.
 use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 
@@ -19,33 +37,11 @@ use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
 use crate::io::{LangFiles, LangFilesDoc};
-/// OSCAR v1.5 generation pipeline
-///
-/// OSCAR v1.5 is a retrocompatible corpus
-/// enhanced with metadata coming from CommonCrawl.
-///
-/// The CommonCrawl dump is composed of shards,
-/// Each shard is composed of records,
-/// Each record is composed of a metadata header and a body containing sentences.
-///
-/// # Processing
-/// _every scope is concurrent, that means green threads are created on shards, records and sentences._
-/// - We process each record separately, getting a list of sentence-language pairs, along with metadata from the document.
-/// - Once we've treated each record of a given shard, we
-///   transform out list of sentence-language pairs into chunks of contiguous same-language sentences
-///   and we store shard-level line offsets on metadata.
-///   Then we group same-language chunks for each language (on shard-level) and we write on disk.
-/// - We also keep track of disk-level line offsets to sync shard-level offsets between writes.
-///
-/// TODO: Better document this step.
 pub struct OscarDoc {
     src: PathBuf,
     dst: PathBuf,
     lid_path: PathBuf,
 }
-
-// /// convinience type alias for [warc::Record] headers.
-// type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
 impl OscarDoc {
     pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf) -> Self {
@@ -54,6 +50,7 @@ impl OscarDoc {
 
     /// list files in source folder,
     /// filter out errors from fs and from gzip/wet.
+    ///
     /// This means that invalid gz files and invalid
     /// wet files are discarded silently
     fn get_paths_iter(&self) -> Result<impl Iterator<Item = PathBuf>, Error> {
@@ -71,7 +68,7 @@ impl OscarDoc {
         Ok(results)
     }
 
-    /// Process a shard
+    /// Process a shard, returning a [Vec] of [Document].
     fn process_shard(
         shard_path: &Path,
         identifier: &identifiers::FastText,
@@ -120,28 +117,6 @@ impl OscarDoc {
         let length_filter = transformers::RemoveShortSentences::default();
         let record_iter = record_iter.map(|r| length_filter.transform_own(r));
 
-        // let mut adult_counter = 0;
-        // let mut non_adult_counter = 0;
-        // for document in record_iter.iter() {
-        //     if document.metadata().annotation().is_some() {
-        //     // if let Some(_) = document.metadata().annotation() {
-        //         adult_counter += 1;
-        //         info!(
-        //             "[{}]detected {:#?}",
-        //             document.identification().label(),
-        //             String::from_utf8_lossy(
-        //                 document.warc_headers().get(&WarcHeader::TargetURI).unwrap()
-        //             )
-        //         );
-        //         // info!("{}", document.content());
-        //     } else {
-        //         non_adult_counter += 1;
-        //     }
-        // }
-        // info!(
-        //     "annotated {}/{}  as adult links",
-        //     adult_counter, non_adult_counter
-        // );
         Ok(record_iter.collect())
     }
 
@@ -265,6 +240,7 @@ impl OscarDoc {
                 error!("Error with shard idx {}:{:?}", idx, shard_result);
             }
         });
+
         Ok(())
     }
 }
