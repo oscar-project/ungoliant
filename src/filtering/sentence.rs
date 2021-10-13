@@ -1,4 +1,4 @@
-/*! sentence filtering !*/
+//! sentence-level filtering
 use super::filter::FilterMut;
 use super::Filter;
 use crate::error::Error;
@@ -20,7 +20,7 @@ pub struct Length {
 
 impl Length {
     /// specify a minimum length
-    fn with_min_size(min_size: usize) -> Self {
+    pub fn with_min_size(min_size: usize) -> Self {
         Self { min_size }
     }
 

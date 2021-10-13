@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::HashMap};
 
 use warc::{RawRecordHeader, WarcHeader};
 
-use crate::identifiers::Identification;
+use crate::{identifiers::Identification, lang::Lang};
 use serde::{ser::SerializeStruct, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -37,6 +37,17 @@ impl Metadata {
     }
 }
 
+impl Default for Metadata {
+    /// default Metadata is English with 1.0 prob,
+    /// no annotation and a single english sentence with 1.0 prob.
+    fn default() -> Self {
+        Self {
+            identification: Identification::new(Lang::En, 1.0),
+            annotation: None,
+            sentence_identifications: vec![Some(Identification::new(Lang::En, 1.0))],
+        }
+    }
+}
 pub type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 pub type WarchHeadersSer = HashMap<WarcHeader, String>;
 
@@ -145,6 +156,11 @@ impl Document {
 
     pub(crate) fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    /// Set the document's content.
+    pub fn set_content(&mut self, content: String) {
+        self.content = content;
     }
 }
 

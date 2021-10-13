@@ -1,4 +1,4 @@
-/*! Rejects/Accepts documents based on multiple filters !*/
+//! Document-level filtering.
 use std::convert::TryFrom;
 use std::io::Read;
 

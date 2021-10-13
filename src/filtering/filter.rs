@@ -1,3 +1,5 @@
+//! Filtering traits.
+
 /// immutable, pure filter (=2 successive equal inputs -> 2 equal outputs)
 pub trait Filter<T>: Default {
     fn detect(&self, item: T) -> bool;

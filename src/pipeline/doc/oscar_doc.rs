@@ -8,7 +8,7 @@ use crate::io::writer::WriterTrait;
 use crate::lang::{Lang, LANG};
 use crate::pipeline::doc::document::{Document, Metadata};
 use crate::sources::commoncrawl::Wet;
-use crate::transformers;
+use crate::transformers::{self, Transform};
 use crate::{identifiers::FastText, processing::document::MergedPiece};
 use fasttext::Prediction;
 use log::Level::Debug;
@@ -114,8 +114,11 @@ impl OscarDoc {
 
         // annotate
         let adult_filter = transformers::ContentDetector::default();
-        let record_iter: Vec<Document> =
-            record_iter.map(|r| adult_filter.transform_own(r)).collect();
+        let record_iter = record_iter.map(|r| adult_filter.transform_own(r));
+
+        // remove short lines
+        let length_filter = transformers::RemoveShortSentences::default();
+        let record_iter = record_iter.map(|r| length_filter.transform_own(r));
 
         // let mut adult_counter = 0;
         // let mut non_adult_counter = 0;
@@ -139,7 +142,7 @@ impl OscarDoc {
         //     "annotated {}/{}  as adult links",
         //     adult_counter, non_adult_counter
         // );
-        Ok(record_iter)
+        Ok(record_iter.collect())
     }
 
     /// process a record
