@@ -66,3 +66,21 @@ pub trait Identifier {
     /// returns a language identification token (from [crate::lang::LANG]).
     fn identify(&self, sentence: &str) -> Result<Option<Identification>, Error>;
 }
+
+#[cfg(test)]
+mod tests {
+    use fasttext::Prediction;
+
+    use super::Identification;
+
+    #[test]
+    fn test_from_pred() {
+        let prob = 1.0f32;
+        let label = "__label__en".to_string();
+        let p = Prediction { prob, label };
+
+        let id = Identification::from(p.clone());
+        assert_eq!(&id.label().to_string(), &"en");
+        assert_eq!(id.prob(), &p.prob);
+    }
+}

@@ -28,21 +28,6 @@ impl<'a> ContentDetector<'a> {
         Ok(Self { bl })
     }
 
-    pub fn transform(&self, doc: &mut Document) {
-        let url = String::from_utf8_lossy(
-            doc.warc_headers()
-                .get(&warc::WarcHeader::TargetURI)
-                .unwrap(),
-        );
-
-        let url = Url::from_str(&url).unwrap();
-
-        if self.bl.detect_domain(&url) {
-            doc.metadata_mut()
-                .set_annotation(Some(self.bl.kind().to_string()));
-        }
-    }
-
     /// Attempt to extract url from [Document].
     /// Returns [None] if no valid URL is found.
     fn parse_url(doc: &Document) -> Option<Url> {
@@ -51,23 +36,8 @@ impl<'a> ContentDetector<'a> {
             .map(|x| String::from_utf8_lossy(x))
             .and_then(|x| Url::from_str(&x).ok())
     }
-
-    /// Get annotation for a [Record].
-    /// Unused, may be removed.
-    pub fn get_annotation(&self, record: &Record<BufferedBody>) -> Option<String> {
-        if let Some(url) = record.header(warc::WarcHeader::TargetURI) {
-            let url = String::from_utf8_lossy(url.as_bytes());
-            let url = Url::from_str(&url).unwrap();
-            if self.bl.detect_url(&url) {
-                Some(self.bl.kind().to_string())
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
 }
+
 impl<'a> Transform for ContentDetector<'a> {
     fn transform_own(&self, mut doc: Document) -> Document {
         // attempt to get a valid url
@@ -87,7 +57,10 @@ impl<'a> Transform for ContentDetector<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::{
+        collections::{HashMap, HashSet},
+        path::Path,
+    };
 
     use ut1_blocklist::Blocklist;
     use warc::WarcHeader;
@@ -109,6 +82,17 @@ mod tests {
         d
     }
 
+    #[test]
+    fn test_init_defaults() {
+        let default_path = Path::new("./ut1-blacklists/blacklists/");
+
+        let cd = ContentDetector::with_defaults();
+        if default_path.exists() {
+            assert!(cd.is_ok());
+        } else {
+            assert!(cd.is_err());
+        }
+    }
     #[test]
     fn test_annotation() {
         let doc = gen_document("https://foo.bar");

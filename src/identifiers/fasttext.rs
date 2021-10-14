@@ -169,4 +169,9 @@ mod tests {
         assert!(cls1.is_err());
         assert!(cls2.is_err());
     }
+
+    // #[test]
+    // fn test_clean_prediction_invalid() -> {
+
+    // }
 }

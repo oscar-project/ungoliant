@@ -182,3 +182,32 @@ impl std::fmt::Debug for Document {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tokio_util::codec::AnyDelimiterCodecError;
+    use warc::{Record, WarcHeader};
+
+    use super::{Document, Metadata};
+
+    #[test]
+    fn test_from_record() {
+        let record = Record::default();
+        let body = "foo
+        bar
+        baz";
+
+        let record = record.add_body(body);
+        let metadata = Metadata::default();
+        let doc = Document::from_record(record.clone(), metadata);
+
+        let (headers, body) = record.into_raw_parts();
+        assert_eq!(doc.content(), &String::from_utf8_lossy(&body).into_owned());
+        assert_eq!(doc.warc_headers(), &headers.headers);
+        assert_eq!(
+            doc.warc_id(),
+            String::from_utf8_lossy(&headers.headers.get(&WarcHeader::RecordID).unwrap())
+                .into_owned()
+        );
+    }
+}
