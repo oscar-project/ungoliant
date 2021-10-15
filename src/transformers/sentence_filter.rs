@@ -29,7 +29,7 @@ use itertools::Itertools;
 
 use crate::{
     filtering::{sentence::Length, Filter},
-    pipeline::Document,
+    pipelines::oscardoc::types::Document,
 };
 
 use super::Transform;
@@ -92,7 +92,8 @@ impl Default for RemoveShortSentences {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::{pipeline::Document, pipeline::Metadata, transformers::Transform};
+    use crate::pipelines::oscardoc::types::{Document, Metadata};
+    use crate::transformers::Transform;
 
     use super::RemoveShortSentences;
 

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::{
     error::Error,
-    processing::{MergedPiece, Metadata},
+    pipelines::oscarmeta::types::{MergedPiece, Metadata},
 };
 
 use super::{metareader::MetaReader, textreader::TextReader};

@@ -13,15 +13,20 @@
 //! into_pieces can be useful if order of paragraphs is important and you wish to reconstruct documents, but will yield datasets that are not compatible with OSCAR2018.
 //!  
 use super::chunks;
-use super::Metadata;
+// use super::Metadata;
 use crate::error::Error;
 use log::warn;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::string::FromUtf8Error;
 // use std::convert::TryFrom;
 // use std::string::FromUtf8Error;
 use warc::WarcHeader;
 
+/// convinience type alias for [warc::Record] headers.
+pub(super) type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 /// represents a whole docuement, that is:
 /// - its header, as provided by warc library
 /// - its sentences, as an array of Strings
@@ -227,8 +232,42 @@ impl Document {
     }
 }
 
-#[cfg(test)]
+/// Holds record headers.
+///
+/// Each metadata is linked to a specific paragraph/text zone
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug, Default, JsonSchema)]
+// #[deprecated(since = "2.0.0")]
+pub struct Metadata {
+    pub headers: HashMap<WarcHeader, String>,
+    pub offset: usize,
+    pub nb_sentences: usize,
+}
 
+impl Metadata {
+    pub fn get_schema() -> Result<String, Error> {
+        serde_json::to_string_pretty(&schemars::schema_for!(Self)).map_err(Error::Serde)
+    }
+}
+
+impl TryFrom<HashMap<WarcHeader, Vec<u8>>> for Metadata {
+    type Error = FromUtf8Error;
+    fn try_from(hm: HashMap<WarcHeader, Vec<u8>>) -> Result<Self, Self::Error> {
+        let values: Vec<String> = hm
+            .values()
+            .map(|v| String::from_utf8(v.to_vec()))
+            .collect::<Result<Vec<String>, Self::Error>>()?;
+
+        let keys = hm.keys().cloned();
+        let headers = keys.into_iter().zip(values.into_iter()).collect();
+        Ok(Metadata {
+            headers,
+            offset: 0,
+            nb_sentences: 0,
+        })
+    }
+}
+
+#[cfg(test)]
 mod tests {
 
     use super::*;
@@ -416,4 +455,40 @@ mod tests {
     //         );
     //     }
     // }
+    #[test]
+    fn serialize() {
+        let mut headers: HashMap<WarcHeader, String> = HashMap::new();
+        headers.insert(WarcHeader::WarcType, "conversion".to_string());
+        headers.insert(WarcHeader::ContentLength, "6231".to_string());
+        headers.insert(
+            WarcHeader::Unknown("warc-identified-content-language".to_string()),
+            "zho".to_string(),
+        );
+        let metadata = Metadata {
+            headers,
+            offset: 0,
+            nb_sentences: 0,
+        };
+
+        assert!(serde_json::to_string(&metadata).is_ok());
+    }
+
+    #[test]
+    fn deserialize() {
+        let meta_json = r#"{"headers":{"warc-type":"conversion","content-length":"6231","warc-identified-content-language":"zho"},"offset":0, "nb_sentences": 0}"#;
+        let mut headers: HashMap<WarcHeader, String> = HashMap::new();
+        headers.insert(WarcHeader::WarcType, "conversion".to_string());
+        headers.insert(WarcHeader::ContentLength, "6231".to_string());
+        headers.insert(
+            WarcHeader::Unknown("warc-identified-content-language".to_string()),
+            "zho".to_string(),
+        );
+        let expected = Metadata {
+            headers,
+            offset: 0,
+            nb_sentences: 0,
+        };
+        let result: Metadata = serde_json::from_str(&meta_json).unwrap();
+        assert_eq!(result, expected);
+    }
 }

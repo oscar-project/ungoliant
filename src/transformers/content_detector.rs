@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use ut1_blocklist::{self, Blocklist};
 
-use crate::{error::Error, pipeline::Document};
+use crate::{error::Error, pipelines::oscardoc::types::Document};
 use url::Url;
 
 use super::transform::Transform;
@@ -65,7 +65,7 @@ mod tests {
     use warc::WarcHeader;
 
     use crate::{
-        pipeline::{Document, Metadata},
+        pipelines::oscardoc::types::{Document, Metadata},
         transformers::Transform,
     };
 

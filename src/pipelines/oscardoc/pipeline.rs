@@ -19,14 +19,14 @@
 use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 
+use super::types::{Document, Metadata};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
 use crate::identifiers::FastText;
 use crate::identifiers::{self, Identification, Identifier};
 use crate::io::writer::WriterTrait;
 use crate::lang::Lang;
-use crate::pipeline::doc::document::{Document, Metadata};
-use crate::pipeline::pipeline::Pipeline;
+use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Transform};
 use log::{debug, error, info};

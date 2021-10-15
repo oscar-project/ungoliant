@@ -7,7 +7,7 @@ Identification is checked too, preventing the writing of differently identified 
 use std::io::Write;
 use std::path::Path;
 
-use crate::pipeline::Document;
+use crate::pipelines::oscardoc::types::Document;
 
 use crate::{error, io::writer::MetaWriter};
 
@@ -64,7 +64,7 @@ mod tests {
     use crate::{
         identifiers::Identification,
         lang::Lang,
-        pipeline::{Document, Metadata},
+        pipelines::oscardoc::types::{Document, Metadata},
     };
 
     use super::*;

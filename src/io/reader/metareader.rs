@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use crate::error::Error;
-use crate::processing::Metadata;
+use crate::pipelines::oscarmeta::types::Metadata;
 
 /// Same implementation of Reader, same new, different iter implementation.
 /// This should be doable by defining a trait that implements Iterator.

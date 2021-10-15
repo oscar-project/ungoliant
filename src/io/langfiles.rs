@@ -104,8 +104,8 @@ mod tests {
 
     use crate::{
         identifiers::Identification,
-        pipeline::{Document, Metadata},
-        processing::MergedPiece,
+        pipelines::oscardoc::types::{Document, Metadata},
+        pipelines::oscarmeta::types::MergedPiece,
     };
     use warc::{BufferedBody, Record, WarcHeader};
 

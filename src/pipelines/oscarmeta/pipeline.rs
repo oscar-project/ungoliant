@@ -1,19 +1,23 @@
 use std::{collections::HashMap, path::PathBuf};
 
+use super::types::Document;
+use super::types::MergedPiece;
+use crate::error::Error;
+use crate::identifiers::FastText;
 use crate::io::writer::WriterTrait;
 use crate::lang::LANG;
 use crate::sources::commoncrawl::Wet;
-use crate::{error::Error, processing::document::Document};
-use crate::{identifiers::FastText, processing::document::MergedPiece};
 use log::Level::Debug;
 use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
-use warc::{Record, WarcHeader};
+use warc::Record;
 
 use crate::io::LangFiles;
 
-use super::pipeline::Pipeline;
+use crate::pipelines::pipeline::Pipeline;
+
+use super::types::WarcHeaders;
 /// OSCAR v1.5 generation pipeline
 ///
 /// OSCAR v1.5 is a retrocompatible corpus
@@ -38,9 +42,6 @@ pub struct OscarMetadata {
     dst: PathBuf,
     lid_path: PathBuf,
 }
-
-/// convinience type alias for [warc::Record] headers.
-type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
 impl OscarMetadata {
     pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf) -> Self {

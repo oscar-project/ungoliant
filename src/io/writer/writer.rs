@@ -8,11 +8,12 @@ use std::convert::TryFrom;
 use std::io::Write;
 use std::path::Path;
 
-use crate::processing::Metadata;
+// use crate::processing::Metadata;
 use itertools::Itertools;
 use log::{debug, error};
 
-use crate::processing::{MergedPiece, PartChunk};
+use crate::pipelines::oscarmeta::types::{MergedPiece, Metadata, PartChunk};
+// use crate::processing::{MergedPiece, PartChunk};
 use crate::{
     error,
     io::writer::{MetaWriter, TextWriter},

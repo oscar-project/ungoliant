@@ -4,7 +4,7 @@
 use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use crate::lang::LANG;
-use crate::pipeline::pipeline::Pipeline;
+use crate::pipelines::pipeline::Pipeline;
 use crate::{error::Error, lang::LangFiles};
 use crate::{identifiers::FastText, sources::commoncrawl::Wet};
 use itertools::Itertools;

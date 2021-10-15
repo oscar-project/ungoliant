@@ -10,7 +10,7 @@ use crate::{
         writer::WriterTrait,
         Writer,
     },
-    processing::MergedPiece,
+    pipelines::oscarmeta::types::MergedPiece,
 };
 use log::info;
 use rayon::prelude::*;
