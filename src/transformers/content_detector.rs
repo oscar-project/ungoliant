@@ -7,7 +7,6 @@ Currently the approach is to use the [UT1 blocklist](https://dsi.ut-capitole.fr/
 use std::str::FromStr;
 
 use ut1_blocklist::{self, Blocklist};
-use warc::{BufferedBody, Record};
 
 use crate::{error::Error, pipeline::Document};
 use url::Url;

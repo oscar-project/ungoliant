@@ -1,10 +1,8 @@
 //! Document-level filtering.
 use std::convert::TryFrom;
-use std::io::Read;
 
-use warc::{BufferedBody, Record, StreamingBody};
+use warc::{BufferedBody, Record};
 
-use super::filter::FilterMut;
 use super::sentence::Length;
 use super::Filter;
 use std::cmp::Ordering;

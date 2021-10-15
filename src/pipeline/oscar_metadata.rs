@@ -12,6 +12,8 @@ use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
 use crate::io::LangFiles;
+
+use super::pipeline::Pipeline;
 /// OSCAR v1.5 generation pipeline
 ///
 /// OSCAR v1.5 is a retrocompatible corpus
@@ -112,9 +114,13 @@ impl OscarMetadata {
             None
         }
     }
-
+}
+impl Pipeline<()> for OscarMetadata {
+    fn version() -> &'static str {
+        "1.1.0"
+    }
     /// Run the whole pipeline
-    pub fn run(&self) -> Result<(), Error> {
+    fn run(&self) -> Result<(), Error> {
         // let errors;
 
         let cls = FastText::new(&self.lid_path, 1, 0.8)?;
@@ -242,7 +248,6 @@ impl OscarMetadata {
 
 #[cfg(test)]
 mod tests {
-    use std::{env::temp_dir, path::PathBuf};
 
     use warc::{EmptyBody, Record};
 
@@ -252,17 +257,16 @@ mod tests {
     #[test]
     fn test_process_record() {
         let cls = FastText::new_lid().unwrap();
-        let record = ();
 
         // let oscar_metadata =
         //     OscarMetadata::new(temp_dir(), temp_dir(), PathBuf::from("lid.176.bin"));
 
-        let mut record: Record<EmptyBody> = Record::default();
+        let record: Record<EmptyBody> = Record::default();
         let body = "english test that is longer than one hundred characters. english test that is longer than one hundred characters.
 phrase française de plus de cent caractères. Ceci est une phrase française de plus de cent caractères.";
         println!("{}", body.len());
         let record = record.add_body(body);
-        let (identifications, headers) = OscarMetadata::process_record(record, &cls).unwrap();
+        let (identifications, _) = OscarMetadata::process_record(record, &cls).unwrap();
 
         for (sentence, id) in identifications {
             if id == "en" {

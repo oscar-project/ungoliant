@@ -185,7 +185,6 @@ impl std::fmt::Debug for Document {
 
 #[cfg(test)]
 mod tests {
-    use tokio_util::codec::AnyDelimiterCodecError;
     use warc::{Record, WarcHeader};
 
     use super::{Document, Metadata};

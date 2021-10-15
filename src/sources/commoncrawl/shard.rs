@@ -81,7 +81,7 @@ mod tests {
         // for a better explanation of fields
         let shard = Wet::from_path_gzip("results/0.txt.gz").unwrap();
 
-        for (idx, record) in shard.iter.enumerate().skip(1).take(4) {
+        for (_, record) in shard.iter.enumerate().skip(1).take(4) {
             let record = record.unwrap();
             println!("{:#?}", record);
             // let headers: HashMap<WarcHeader, String> = record

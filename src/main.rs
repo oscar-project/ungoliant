@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::Write;
 use structopt::StructOpt;
 
+use crate::pipeline::Pipeline;
 use crate::processing::Metadata;
 
 #[macro_use]

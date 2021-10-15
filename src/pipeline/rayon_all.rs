@@ -123,6 +123,9 @@ impl RayonAll {
 }
 
 impl Pipeline<()> for RayonAll {
+    fn version() -> &'static str {
+        "1.0"
+    }
     /// run the [RayonAll] pipeline.
     fn run(&self) -> Result<(), Error> {
         let cls = FastText::new_lid()?;

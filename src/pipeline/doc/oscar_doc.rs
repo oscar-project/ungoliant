@@ -21,22 +21,20 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::error::Error;
 use crate::filtering::{record, Filter};
+use crate::identifiers::FastText;
 use crate::identifiers::{self, Identification, Identifier};
 use crate::io::writer::WriterTrait;
-use crate::lang::{Lang, LANG};
+use crate::lang::Lang;
 use crate::pipeline::doc::document::{Document, Metadata};
+use crate::pipeline::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Transform};
-use crate::{identifiers::FastText, processing::document::MergedPiece};
-use fasttext::Prediction;
-use log::Level::Debug;
-use log::{debug, error, info, log_enabled, warn};
+use log::{debug, error, info};
 use rayon::prelude::*;
-use std::convert::TryFrom;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
-use crate::io::{LangFiles, LangFilesDoc};
+use crate::io::LangFilesDoc;
 pub struct OscarDoc {
     src: PathBuf,
     dst: PathBuf,
@@ -104,7 +102,7 @@ impl OscarDoc {
                 Ok(Some(res)) => Some(res),
                 Ok(None) => None,
                 Err(e) => {
-                    // error!("{:?}", e);
+                    error!("{:?}", e);
                     None
                 }
             });
@@ -211,8 +209,13 @@ impl OscarDoc {
 
         Ok(())
     }
+}
 
-    pub fn run(&self) -> Result<(), Error> {
+impl Pipeline<()> for OscarDoc {
+    fn version() -> &'static str {
+        "2.0.0"
+    }
+    fn run(&self) -> Result<(), Error> {
         // let errors;
 
         let cls = FastText::new(&self.lid_path, 1, 0.8)?;

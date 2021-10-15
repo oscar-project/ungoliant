@@ -20,6 +20,7 @@ use crate::error::Error;
 ///
 /// Each metadata is linked to a specific paragraph/text zone
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug, Default, JsonSchema)]
+// #[deprecated(since = "2.0.0")]
 pub struct Metadata {
     pub headers: HashMap<WarcHeader, String>,
     pub offset: usize,

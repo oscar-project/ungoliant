@@ -29,6 +29,7 @@ use warc::WarcHeader;
 ///
 /// a document is a filtered, annotated version of a record
 #[derive(Debug)]
+// #[deprecated(since = "1.1.0", note = "use ??? instead.")]
 pub struct Document {
     headers: HashMap<WarcHeader, Vec<u8>>,
     sentences: Vec<String>,
@@ -38,6 +39,7 @@ pub struct Document {
 /// A piece is a series of sentences from a same document
 /// that share the same language.
 #[derive(Debug)]
+// #[deprecated(since = "1.1.0", note = "use ??? instead.")]
 struct Piece {
     headers: HashMap<WarcHeader, Vec<u8>>,
     sentences: Vec<String>,
@@ -46,6 +48,7 @@ struct Piece {
 
 /// Holds a merged-down version of Piece, where sentences are merged into a single String
 #[derive(Debug, Clone)]
+// #[deprecated(since = "1.1.0", note = "use ??? instead.")]
 pub struct MergedPiece {
     pub headers: HashMap<WarcHeader, Vec<u8>>,
     pub sentences: String,
@@ -94,6 +97,7 @@ impl From<Piece> for MergedPiece {
 /// - one newline
 /// - next offset at nb_0+1
 #[derive(Debug)]
+// #[deprecated(since = "1.1.0", note = "use ??? instead.")]
 pub struct PartChunk {
     pub metadata: Vec<Metadata>,
     pub body: String,
@@ -355,18 +359,18 @@ mod tests {
         assert!(d.is_err());
     }
 
-    #[test]
-    fn document_into_pieces() {
-        let (headers, sentences, ids) = gen_test();
-        let d = Document::new(headers.clone(), sentences, ids).unwrap();
-        // let pieces = d.into_lang_pieces();
-        // // println!("{:#?}", pieces);
+    // #[test]
+    // fn document_into_pieces() {
+    //     let (headers, sentences, ids) = gen_test();
+    //     let d = Document::new(headers.clone(), sentences, ids).unwrap();
+    //     let pieces = d.into_merged_pieces_lang();
+    //     // println!("{:#?}", pieces);
 
-        // assert!(pieces.pieces().iter().all(|x| x.headers() == &headers));
-        // for (result, expected) in pieces.iter().zip(ids.iter()) {
-        //     assert_eq!(&result.identification(), expected);
-        // }
-    }
+    //     assert!(pieces.pieces().iter().all(|x| x.headers() == &headers));
+    //     for (result, expected) in pieces.iter().zip(ids.iter()) {
+    //         assert_eq!(&result.identification(), expected);
+    //     }
+    // }
 
     #[test]
     fn document_by_lang() {

@@ -11,6 +11,7 @@ use serial_test::serial;
 use ungoliant::error;
 use ungoliant::lang::LANG;
 use ungoliant::pipeline::OscarMetadata;
+use ungoliant::pipeline::Pipeline;
 use ungoliant::processing::Metadata;
 use ungoliant::sources::commoncrawl::Wet;
 use warc::BufferedBody;
@@ -81,7 +82,7 @@ fn get_lang_data(lang: &'static str, dst: &PathBuf) -> (Vec<String>, Vec<Metadat
 fn assert_meta_final_offset() {
     // generate test shards
     // and run pipeline on them
-    let mut src_gen = PathBuf::from("result_1");
+    let src_gen = PathBuf::from("result_1");
     let src = PathBuf::from("src_intg_final_offset_single");
     let dst = PathBuf::from("dst_intg_final_offset_single");
     std::fs::create_dir(&src).unwrap();
@@ -132,7 +133,7 @@ fn assert_meta_final_offset() {
 fn assert_meta_successive_offsets() {
     // generate test shards
     // and run pipeline on them
-    let mut src_gen = PathBuf::from("result_1");
+    let src_gen = PathBuf::from("result_1");
     let src = PathBuf::from("src_intg_successive_offsets_single");
     let dst = PathBuf::from("dst_intg_successive_offsets_single");
     std::fs::create_dir(&src).unwrap();
@@ -162,7 +163,7 @@ fn assert_meta_successive_offsets() {
 
         println!("{}: {} sentences", lang, nb_sentences_corpus);
         let metadata: Vec<Metadata> = serde_json::from_reader(metafile).unwrap();
-        let mut nb_sentences_metadata = metadata.iter().fold(0, |acc, x| {
+        let nb_sentences_metadata = metadata.iter().fold(0, |acc, x| {
             assert_eq!(acc, x.offset);
             acc + x.nb_sentences + 1 // account for newline
         });
@@ -173,8 +174,8 @@ fn assert_meta_successive_offsets() {
         );
         assert_eq!(nb_sentences_corpus, nb_sentences_metadata);
     }
-    std::fs::remove_dir_all(&src);
-    std::fs::remove_dir_all(&dst);
+    std::fs::remove_dir_all(&src).unwrap();
+    std::fs::remove_dir_all(&dst).unwrap();
 }
 
 #[test]
@@ -183,7 +184,7 @@ fn assert_meta_successive_offsets() {
 fn assert_meta_validity() {
     // generate test shards
     // and run pipeline on them
-    let mut src_gen = PathBuf::from("result_1");
+    let src_gen = PathBuf::from("result_1");
     let src = PathBuf::from("src_intg_meta_validity_single");
     let dst = PathBuf::from("dst_intg_meta_validity_single");
     std::fs::create_dir(&src).unwrap();
@@ -295,7 +296,7 @@ fn assert_meta_validity() {
 fn assert_meta_final_offset_multishard() {
     // generate test shards
     // and run pipeline on them
-    let mut src_gen = PathBuf::from("result_5");
+    let src_gen = PathBuf::from("result_5");
     let src = PathBuf::from("src_intg_final_offset_multi");
     let dst = PathBuf::from("dst_intg_final_offset_multi");
     std::fs::create_dir(&src).unwrap();
@@ -352,7 +353,7 @@ fn assert_meta_final_offset_multishard() {
 fn assert_meta_successive_offsets_multishard() {
     // generate test shards
     // and run pipeline on them
-    let mut src_gen = PathBuf::from("result_5");
+    let src_gen = PathBuf::from("result_5");
     let src = PathBuf::from("src_intg_successive_offsets_multi");
     let dst = PathBuf::from("dst_intg_successive_offsets_multi");
     std::fs::create_dir(&src).unwrap();
@@ -392,8 +393,8 @@ fn assert_meta_successive_offsets_multishard() {
         );
         assert_eq!(nb_sentences_corpus, nb_sentences_metadata);
     }
-    std::fs::remove_dir_all(&src);
-    std::fs::remove_dir_all(&dst);
+    std::fs::remove_dir_all(&src).unwrap();
+    std::fs::remove_dir_all(&dst).unwrap();
 }
 
 #[test]
@@ -401,11 +402,11 @@ fn assert_meta_successive_offsets_multishard() {
 #[ignore]
 fn assert_meta_validity_multishard() {
     // gen test shards and run pipeline
-    let mut src_gen = PathBuf::from("result_5");
+    let src_gen = PathBuf::from("result_5");
     let src = PathBuf::from("src_intg_meta_validity_multi");
     let dst = PathBuf::from("dst_intg_meta_validity_multi");
-    std::fs::create_dir(&src);
-    std::fs::create_dir(&dst);
+    std::fs::create_dir(&src).unwrap();
+    std::fs::create_dir(&dst).unwrap();
     gen_test_shards(&src_gen, &src)
         .expect("ensure to have a folder named result_5 containing 0.txt.gz as test shard.");
     let lid_path = PathBuf::from("lid.176.bin");
@@ -446,14 +447,8 @@ fn assert_meta_validity_multishard() {
 
     for lang in LANG.iter() {
         // get from corpus
-        let (sentences, metadata) = get_lang_data(lang, &dst);
+        let (_, metadata) = get_lang_data(lang, &dst);
         for meta in metadata {
-            let corpus_body: Vec<&String> = sentences
-                .iter()
-                .skip(meta.offset)
-                .take(meta.nb_sentences)
-                .collect();
-
             let record_id = meta.headers.get(&WarcHeader::RecordID).unwrap();
             let shard_body = record_index.get(record_id.as_str()).unwrap();
             let shard_body_hs: HashSet<&String> = shard_body.iter().collect();
@@ -463,8 +458,8 @@ fn assert_meta_validity_multishard() {
         }
     }
 
-    std::fs::remove_dir_all(&src);
-    std::fs::remove_dir_all(&dst);
+    std::fs::remove_dir_all(&src).unwrap();
+    std::fs::remove_dir_all(&dst).unwrap();
 }
 #[test]
 #[ignore]
@@ -477,5 +472,5 @@ fn pipeline_single_shard() {
     let res = p.run();
     assert!(res.is_ok());
 
-    std::fs::remove_dir_all(dst);
+    std::fs::remove_dir_all(dst).unwrap();
 }

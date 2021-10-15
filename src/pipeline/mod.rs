@@ -12,4 +12,5 @@ pub use doc::Document;
 pub use doc::Metadata;
 pub use doc::OscarDoc;
 pub use oscar_metadata::OscarMetadata;
+pub use pipeline::Pipeline;
 // pub use rayon_all::RayonAll;

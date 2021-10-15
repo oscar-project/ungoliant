@@ -1,8 +1,7 @@
 //! sentence-level filtering
 use super::filter::FilterMut;
 use super::Filter;
-use crate::error::Error;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 
 /// regroups sentence filter kinds
 enum FilterKind {

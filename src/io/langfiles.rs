@@ -110,7 +110,7 @@ mod tests {
     use warc::{BufferedBody, Record, WarcHeader};
 
     use super::*;
-    use tempfile::{tempdir, tempfile};
+    use tempfile::tempdir;
 
     type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
@@ -198,7 +198,6 @@ hehe :)"
         let mut read_path = PathBuf::from(dst.path());
         read_path.push("en_meta.jsonl");
 
-        let mut s = String::new();
         let b = File::open(read_path).unwrap();
         let doc_from_file: Document = serde_json::from_reader(b).unwrap();
 
