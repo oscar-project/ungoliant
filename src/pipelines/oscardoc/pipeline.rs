@@ -134,12 +134,17 @@ impl OscarDoc {
         let mut lang_count = HashMap::new();
         let mut total_count = 0;
 
+        // filter out unicode null chars
+        // this prevents fasttext errors and hopefully improves
+        // corpus quality
+        let lines = lines.map(|l| l.replace(char::from(0), ""));
+
         // get identifications
         // We use option because of sentences that can't be properly identified
         let ids: Vec<Option<Identification>> = lines
             .map(|line| {
                 // identify
-                let id = identifier.identify(line);
+                let id = identifier.identify(&line);
 
                 // add to byte count for document-level identification
                 if let Ok(Some(ref ide)) = id {

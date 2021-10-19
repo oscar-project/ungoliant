@@ -96,7 +96,10 @@ impl FastText {
 
 impl identifier::Identifier for FastText {
     fn identify(&self, sentence: &str) -> Result<Option<Identification>, Error> {
-        let prediction = self.predictor.predict(sentence, 1, self.threshold)?;
+        let prediction = self
+            .predictor
+            .predict(sentence, 1, self.threshold)
+            .map_err(|e| Error::FastText(e))?;
         // let prediction = prediction.sort_by(|a, b| a.prob.partial_cmp(&b.prob)).iter().take(1);
 
         if !prediction.is_empty() {

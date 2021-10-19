@@ -13,6 +13,7 @@ pub enum Error {
     Glob(glob::GlobError),
     GlobPattern(glob::PatternError),
     Ut1(ut1_blocklist::Error),
+    FastText(String),
 }
 
 impl From<ut1_blocklist::Error> for Error {
