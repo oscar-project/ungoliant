@@ -116,10 +116,12 @@ impl OscarMetadata {
         }
     }
 }
+
 impl Pipeline<()> for OscarMetadata {
     fn version() -> &'static str {
         "1.1.0"
     }
+
     /// Run the whole pipeline
     fn run(&self) -> Result<(), Error> {
         // let errors;
@@ -167,6 +169,7 @@ impl Pipeline<()> for OscarMetadata {
                 info!("processing shard {}: {:?}", idx, &shard);
 
                 let shard = Wet::from_path_gzip(&shard);
+
                 if shard.is_err() {
                     error!("Could not read/open shard {}", idx);
                     return shard.err();

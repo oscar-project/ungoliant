@@ -66,6 +66,23 @@ impl OscarDoc {
         Ok(results)
     }
 
+    fn get_shard_number(shard_path: &Path) -> Result<usize, Error> {
+        let shard_number = shard_path.file_stem();
+        let shard_number = shard_number
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.split('.').next())
+            .and_then(|s| Some(s.parse::<usize>()));
+
+        match shard_number {
+            Some(Ok(sn)) => Ok(sn),
+            Some(Err(e)) => Err(Error::Custom(format!("{:?}", e))),
+            None => Err(Error::Custom(format!(
+                "Couldn't extract shard number from {:?}",
+                shard_path
+            ))),
+        }
+    }
+
     /// Process a shard, returning a [Vec] of [Document].
     fn process_shard(
         shard_path: &Path,
@@ -73,18 +90,23 @@ impl OscarDoc {
         filter: Option<record::FilterKind>,
     ) -> Result<Vec<Document>, Error> {
         info!("working on shard: {:?}", shard_path);
+
+        // get shard number
+        let shard_number = Self::get_shard_number(shard_path)?;
+
+        println!("{:?}", shard_number);
         let shard = Wet::from_path_gzip(&shard_path)?;
-        let record_iter = shard.iter.par_bridge();
+        let record_iter = shard.iter.enumerate().par_bridge();
 
         // get specified filter or resort to default filter kind
         let f = filter.unwrap_or_else(record::FilterKind::default);
 
         // get iterator on filtered records.
         // only get records that are valid *and* pass the filter.
-        let record_iter = record_iter.filter_map(|record| match record {
+        let record_iter = record_iter.filter_map(|(idx, record)| match record {
             Ok(r) => {
                 if f.detect(&r) {
-                    Some(r)
+                    Some((idx, r))
                 } else {
                     None
                 }
@@ -97,9 +119,9 @@ impl OscarDoc {
 
         // identify
         let record_iter = record_iter
-            .map(|record| Self::process_record(record, identifier))
-            .filter_map(|res| match res {
-                Ok(Some(res)) => Some(res),
+            .map(|(idx, record)| (idx, Self::process_record(record, identifier)))
+            .filter_map(|(idx, res)| match res {
+                Ok(Some(res)) => Some((idx, res)),
                 Ok(None) => None,
                 Err(e) => {
                     error!("{:?}", e);
@@ -107,13 +129,13 @@ impl OscarDoc {
                 }
             });
 
-        // annotate
-        let adult_filter = transformers::ContentDetector::with_defaults()?;
-        let record_iter = record_iter.map(|r| adult_filter.transform_own(r));
-
         // remove short lines
         let length_filter = transformers::RemoveShortSentences::default();
-        let record_iter = record_iter.map(|r| length_filter.transform_own(r));
+        let record_iter = record_iter.map(|(idx, r)| (idx, length_filter.transform_own(r)));
+
+        // annotate
+        let adult_filter = transformers::ContentDetector::with_defaults()?;
+        let record_iter = record_iter.map(|(idx, r)| adult_filter.transform_own(r));
 
         Ok(record_iter.collect())
     }
@@ -220,6 +242,7 @@ impl Pipeline<()> for OscarDoc {
     fn version() -> &'static str {
         "2.0.0"
     }
+
     fn run(&self) -> Result<(), Error> {
         // let errors;
 

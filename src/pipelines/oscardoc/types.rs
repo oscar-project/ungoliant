@@ -5,6 +5,14 @@ use warc::{BufferedBody, Record, WarcHeader};
 use crate::{identifiers::Identification, lang::Lang};
 use serde::{Deserialize, Serialize};
 
+pub struct Location<'a> {
+    shard_id: usize,
+    record_id: &'a str,
+    line_start: usize,
+    line_end: usize,
+    loc_in_shard: usize,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 
 /// OSCAR-specific metadata
