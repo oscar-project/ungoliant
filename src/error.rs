@@ -1,6 +1,8 @@
 //! Error enum
 use std::string::FromUtf8Error;
 
+use crate::pipelines::oscardoc::types::IncompleteLocation;
+
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum Error {
@@ -14,6 +16,7 @@ pub enum Error {
     GlobPattern(glob::PatternError),
     Ut1(ut1_blocklist::Error),
     FastText(String),
+    IncompleteLocation(IncompleteLocation),
 }
 
 impl From<ut1_blocklist::Error> for Error {

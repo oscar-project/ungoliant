@@ -19,17 +19,18 @@
 use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 
-use super::types::{Document, Metadata};
+use super::types::{Document, Location, Metadata};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
 use crate::identifiers::FastText;
 use crate::identifiers::{self, Identification, Identifier};
 use crate::io::writer::WriterTrait;
 use crate::lang::Lang;
+use crate::pipelines::oscardoc::types::{IncompleteLocation, LocationBuilder};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Transform};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
@@ -88,13 +89,12 @@ impl OscarDoc {
         shard_path: &Path,
         identifier: &identifiers::FastText,
         filter: Option<record::FilterKind>,
-    ) -> Result<Vec<Document>, Error> {
+    ) -> Result<Vec<(Document, Location)>, Error> {
         info!("working on shard: {:?}", shard_path);
 
         // get shard number
-        let shard_number = Self::get_shard_number(shard_path)?;
+        let shard_id = Self::get_shard_number(shard_path)?;
 
-        println!("{:?}", shard_number);
         let shard = Wet::from_path_gzip(&shard_path)?;
         let record_iter = shard.iter.enumerate().par_bridge();
 
@@ -117,11 +117,22 @@ impl OscarDoc {
             }
         });
 
+        // begin creation of location
+        // We fill what we can fill now: shard_id, location_in_shard and record_id.
+        let record_iter = record_iter.map(|(idx, record)| {
+            let mut loc = LocationBuilder::default();
+            loc.set_shard_id(shard_id);
+            loc.set_loc_in_shard(idx);
+            loc.set_record_id(record.warc_id().to_string());
+
+            (loc, record)
+        });
+
         // identify
         let record_iter = record_iter
-            .map(|(idx, record)| (idx, Self::process_record(record, identifier)))
-            .filter_map(|(idx, res)| match res {
-                Ok(Some(res)) => Some((idx, res)),
+            .map(|(loc, record)| (loc, Self::process_record(record, identifier)))
+            .filter_map(|(loc, res)| match res {
+                Ok(Some(res)) => Some((loc, res)),
                 Ok(None) => None,
                 Err(e) => {
                     error!("{:?}", e);
@@ -131,11 +142,40 @@ impl OscarDoc {
 
         // remove short lines
         let length_filter = transformers::RemoveShortSentences::default();
-        let record_iter = record_iter.map(|(idx, r)| (idx, length_filter.transform_own(r)));
+        // let record_iter = record_iter.map(|(idx, r)| (idx, length_filter.transform_own(r)));
+
+        // We get bounds of the most significant part.
+        // transform_idx yields a vector of ranges, but we'll assume
+        // there's one and only one, discarding if there's none,
+        // and taking the first one + yielding an error if there's more.
+        let record_iter = record_iter.filter_map(|(mut loc, record)| {
+            let (record, bounds) = length_filter.transform_idx(record);
+            match bounds.len() {
+                0 => {
+                    error!("record {} has no sentences kept", record.warc_id());
+                    None
+                }
+                1 => {
+                    loc.set_line_start(*bounds[0].start());
+                    loc.set_line_end(*bounds[0].end());
+                    Some((loc, record))
+                }
+                _ => {
+                    warn!(
+                        "record {} has more than one chunk of sentences kept",
+                        record.warc_id()
+                    );
+                    loc.set_line_start(*bounds[0].start());
+                    loc.set_line_end(*bounds[0].end());
+                    Some((loc, record))
+                }
+            }
+        });
 
         // annotate
         let adult_filter = transformers::ContentDetector::with_defaults()?;
-        let record_iter = record_iter.map(|(idx, r)| adult_filter.transform_own(r));
+        let record_iter =
+            record_iter.map(|(loc, r)| (adult_filter.transform_own(r), loc.build().unwrap()));
 
         Ok(record_iter.collect())
     }
@@ -195,6 +235,7 @@ impl OscarDoc {
             let metadata = Metadata::new(&document_identification, &ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
+            //TODO: create location data
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
             Ok(Some(doc))
         } else {
@@ -210,13 +251,15 @@ impl OscarDoc {
     }
 
     /// Gets a vector of documents and outputs a hashmap listing the documents per language
-    fn sort_by_lang(documents: Vec<Document>) -> HashMap<Lang, Vec<Document>> {
+    fn sort_by_lang(
+        documents: Vec<(Document, Location)>,
+    ) -> HashMap<Lang, Vec<(Document, Location)>> {
         let mut ret = HashMap::new();
-        for document in documents {
+        for (document, location) in documents {
             let e = ret
                 .entry(*document.identification().label())
                 .or_insert_with(Vec::new);
-            e.push(document);
+            e.push((document, location));
         }
 
         ret
@@ -266,6 +309,12 @@ impl Pipeline<()> for OscarDoc {
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok(shard_result) = shard_result {
                 let hm = Self::sort_by_lang(shard_result);
+                println!("{:#?}", hm.get(&Lang::Fr));
+                // TODO write rebuild
+                let hm = hm
+                    .into_iter()
+                    .map(|(k, v)| (k, v.into_iter().map(|(doc, _)| doc).collect()))
+                    .collect();
                 Self::write_documents(&langfiles, hm).unwrap();
             } else {
                 error!("Error with shard idx {}:{:?}", idx, shard_result);

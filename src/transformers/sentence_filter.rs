@@ -25,6 +25,8 @@
 //! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 //! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 //! ```
+use std::ops::RangeInclusive;
+
 use itertools::Itertools;
 
 use crate::{
@@ -49,6 +51,37 @@ impl RemoveShortSentences {
     /// get filter detection threshold
     fn filter_min_length(&self) -> &usize {
         self.filter.min_size()
+    }
+
+    pub fn transform_idx(&self, mut doc: Document) -> (Document, Vec<RangeInclusive<usize>>) {
+        let lines = doc.content().lines();
+        let s: Vec<(usize, &str)> = lines
+            .enumerate()
+            .skip_while(|(_, sentence)| !self.filter.detect(sentence))
+            .collect();
+
+        // do the same thing while reversing the iterator
+        // this way, we skip the short sentences at the end
+        let s: Vec<(usize, &str)> = s
+            .into_iter()
+            .rev()
+            .skip_while(|(_, sentence)| !self.filter.detect(sentence))
+            //.map(|(idx, _)| idx)
+            .collect();
+
+        // if we did not get start or end, we return an empty vector
+        // meaning that we keed nothing. (analogous to transform_own)
+        match (s.first(), s.last()) {
+            (Some(end), Some(start)) => {
+                let ranges = vec![start.0..=end.0];
+                let sentences = s.into_iter().rev().map(|(_, sentence)| sentence).join("\n");
+
+                doc.set_content(sentences);
+
+                (doc, ranges)
+            }
+            _ => (doc, Vec::new()),
+        }
     }
 }
 
@@ -80,6 +113,7 @@ impl Transform for RemoveShortSentences {
         doc
     }
 }
+
 impl Default for RemoveShortSentences {
     fn default() -> Self {
         Self {
@@ -97,13 +131,7 @@ mod tests {
 
     use super::RemoveShortSentences;
 
-    #[test]
-    fn test_rss_default() {
-        let rss = RemoveShortSentences::default();
-        assert_eq!(rss.filter_min_length(), &100);
-    }
-    #[test]
-    fn test_rss() {
+    fn gen_valid() -> (Document, String) {
         let content = r"foo
 bar
 baz
@@ -127,6 +155,34 @@ xxxxxxxxxxx"
         let metadata = Metadata::default();
         let doc = Document::new(content, headers, metadata);
 
+        (doc, expected_content)
+    }
+
+    fn gen_invalid() -> Document {
+        let content = r"foo
+bar
+baz
+
+quux
+foo
+bar
+baz
+"
+        .to_string();
+        let headers = HashMap::new();
+        let metadata = Metadata::default();
+        let doc = Document::new(content, headers, metadata);
+
+        doc
+    }
+    #[test]
+    fn test_rss_default() {
+        let rss = RemoveShortSentences::default();
+        assert_eq!(rss.filter_min_length(), &100);
+    }
+    #[test]
+    fn test_rss() {
+        let (doc, expected_content) = gen_valid();
         let rss = RemoveShortSentences::new(10);
 
         let doc_transformed = rss.transform_own(doc);
@@ -160,5 +216,30 @@ baz
         println!("{:#?}", doc_transformed);
 
         assert_eq!(doc_transformed.content(), "");
+    }
+
+    #[test]
+    fn test_rss_idx() {
+        let (doc, _) = gen_valid();
+        let expected_range = vec![4..=7];
+        let rss = RemoveShortSentences::new(10);
+
+        let doc_transformed = rss.transform_idx(doc);
+
+        println!("{:#?}", doc_transformed);
+
+        assert_eq!(doc_transformed.1, expected_range);
+    }
+
+    #[test]
+    fn test_rss_idx_invalid() {
+        let doc = gen_invalid();
+        let expected_ranges = Vec::new();
+
+        let rss = RemoveShortSentences::new(10);
+
+        let ranges = rss.transform_idx(doc);
+
+        assert_eq!(ranges.1, expected_ranges);
     }
 }
