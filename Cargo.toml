@@ -2,7 +2,7 @@
 name = "ungoliant"
 version = "1.0.0"
 authors = ["Julien Abadji <julien.e.abadji@gmail.com>, Pedro J. Ortiz <pedro@pjortiz.com>"]
-edition = "2018"
+edition = "2021"
 description = "The pipeline for the OSCAR corpus."
 license = "Apache-2.0"
 

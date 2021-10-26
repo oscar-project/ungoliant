@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::error::Error;
 
-use super::Writer;
+
 
 pub trait WriterTrait {
     type Item;

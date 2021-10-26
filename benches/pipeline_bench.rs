@@ -23,7 +23,7 @@ use warc::{BufferedBody, Record, WarcHeader};
 // Full sequential
 pub fn pipeline_full_sequential_benchmark(c: &mut Criterion) {
     fn parse_headers() {
-        let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+        let _lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
         let cls = FastText::new_lid().unwrap();
         let results = std::fs::read_dir("results/")
             .unwrap()
@@ -56,7 +56,7 @@ pub fn pipeline_multithread_benchmark(c: &mut Criterion) {
             let c: Vec<Record<BufferedBody>> =
                 c.filter(Result::is_ok).map(Result::unwrap).collect();
 
-            let c = c
+            let _c = c
                 .par_iter()
                 .for_each(|record| match record.header(lang_tag.clone()) {
                     Some(lang) => {

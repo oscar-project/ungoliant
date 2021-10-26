@@ -1,9 +1,9 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use itertools::Itertools;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+
 use rayon::prelude::*;
 use ungoliant::identifiers::FastText;
 use ungoliant::sources::commoncrawl::Wet;
-use warc::{Record, WarcHeader};
+
 
 const NB_RECORDS: usize = 250;
 // bench protocol:

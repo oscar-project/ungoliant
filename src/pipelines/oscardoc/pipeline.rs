@@ -26,7 +26,7 @@ use crate::identifiers::FastText;
 use crate::identifiers::{self, Identification, Identifier};
 use crate::io::writer::WriterTrait;
 use crate::lang::Lang;
-use crate::pipelines::oscardoc::types::{IncompleteLocation, LocationBuilder};
+use crate::pipelines::oscardoc::types::{LocationBuilder};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Transform};
