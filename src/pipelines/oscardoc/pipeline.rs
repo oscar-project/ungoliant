@@ -16,17 +16,18 @@
 //! 1. We then write documents in files.
 //!
 //! [^1]: We should do this after step 1: better efficiency.
+use std::fs::File;
 use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 
-use super::types::{Document, Location, Metadata};
+use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
 use crate::identifiers::FastText;
 use crate::identifiers::{self, Identification, Identifier};
 use crate::io::writer::WriterTrait;
 use crate::lang::Lang;
-use crate::pipelines::oscardoc::types::{LocationBuilder};
+use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Transform};
@@ -89,7 +90,7 @@ impl OscarDoc {
         shard_path: &Path,
         identifier: &identifiers::FastText,
         filter: Option<record::FilterKind>,
-    ) -> Result<Vec<(Document, Location)>, Error> {
+    ) -> Result<(usize, Vec<(Document, Location)>), Error> {
         info!("working on shard: {:?}", shard_path);
 
         // get shard number
@@ -177,7 +178,7 @@ impl OscarDoc {
         let record_iter =
             record_iter.map(|(loc, r)| (adult_filter.transform_own(r), loc.build().unwrap()));
 
-        Ok(record_iter.collect())
+        Ok((shard_id, record_iter.collect()))
     }
 
     /// process a record
@@ -265,16 +266,28 @@ impl OscarDoc {
         ret
     }
 
-    // concurrently write documets
-    fn write_documents(
+    /// concurrently write documets
+    fn write_documents<'a>(
         langfiles: &LangFilesDoc,
-        documents: HashMap<Lang, Vec<Document>>,
+        avrowriters: &'a RebuildWriters<'a, File>,
+        shard_id: usize,
+        documents: HashMap<Lang, Vec<(Document, Location)>>,
     ) -> Result<(), Error> {
         documents.into_par_iter().for_each(|(lang, docs)| {
             debug!("[{}]: {} documents", lang, docs.len());
+
             let writer = langfiles.writers().get(&lang).unwrap();
+            let avrowriter = avrowriters.get(&lang).unwrap();
             let mut writer_lock = writer.lock().unwrap();
+            let mut avrowriter_lock = avrowriter.lock().unwrap();
+
+            let (docs, locations): (Vec<_>, Vec<_>) =
+                docs.into_iter().map(|(doc, loc)| (doc, loc)).unzip();
+
+            let metadata_cloned = docs.iter().map(|doc| doc.metadata().clone()).collect();
+            let sr = ShardResult::new(shard_id as i64, locations, metadata_cloned);
             writer_lock.write(docs).unwrap();
+            debug!("{:?}", avrowriter_lock.append_ser(sr));
         });
 
         Ok(())
@@ -300,6 +313,10 @@ impl Pipeline<()> for OscarDoc {
         let results = results.enumerate().par_bridge();
 
         let langfiles = LangFilesDoc::new(&self.dst, None)?;
+        let mut dst_rebuild = self.dst.clone();
+        dst_rebuild.push("rebuild");
+
+        let rebuild_files = RebuildWriters::with_dst(&dst_rebuild)?;
 
         //iterate over shards
         let shards_results =
@@ -307,15 +324,15 @@ impl Pipeline<()> for OscarDoc {
 
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {
-            if let Ok(shard_result) = shard_result {
+            if let Ok((shard_id, shard_result)) = shard_result {
                 let hm = Self::sort_by_lang(shard_result);
-                println!("{:#?}", hm.get(&Lang::Fr));
-                // TODO write rebuild
-                let hm = hm
-                    .into_iter()
-                    .map(|(k, v)| (k, v.into_iter().map(|(doc, _)| doc).collect()))
-                    .collect();
-                Self::write_documents(&langfiles, hm).unwrap();
+                // println!("{:#?}", hm.get(&Lang::Fr));
+                // // TODO write rebuild
+                // let hm = hm
+                //     .into_iter()
+                //     .map(|(k, v)| (k, v.into_iter().map(|(doc, _)| doc).collect()))
+                //     .collect();
+                Self::write_documents(&langfiles, &rebuild_files, shard_id, hm).unwrap();
             } else {
                 error!("Error with shard idx {}:{:?}", idx, shard_result);
             }

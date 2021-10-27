@@ -1,149 +1,21 @@
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-};
+use std::borrow::Cow;
+use std::collections::HashMap;
 
-use warc::{BufferedBody, Record, WarcHeader};
+use serde::Deserialize;
+use serde::Serialize;
+use warc::BufferedBody;
+use warc::Record;
+use warc::WarcHeader;
 
-use crate::{identifiers::Identification, lang::Lang};
-use serde::{Deserialize, Serialize};
-
-/// Incomplete location error type.
-///
-/// uses [LocationKind] to inform which field is missing.
-#[derive(Debug, Clone)]
-pub struct IncompleteLocation {
-    missing: LocationKind,
-}
-
-/// enum of the mandatory [Location] fields.
-///
-// Not very elegant but works for now.
-#[derive(Debug, Clone)]
-pub enum LocationKind {
-    ShardId,
-    RecordID,
-    LineStart,
-    LineEnd,
-    LocInShard,
-}
-
-/// A partial, still being filled location.
-/// Each field shouldn't be filled more than once to
-/// guarantee some integrity.
-// TODO: Add methods to ensure that we add only once?
-#[derive(Clone, Debug, PartialEq)]
-pub struct LocationBuilder {
-    shard_id: Option<usize>,
-    record_id: Option<String>,
-    line_start: Option<usize>,
-    line_end: Option<usize>,
-    loc_in_shard: Option<usize>,
-}
-
-impl<'a> LocationBuilder {
-    /// Set the partial location's shard id.
-    pub fn set_shard_id(&mut self, shard_id: usize) {
-        self.shard_id = Some(shard_id);
-    }
-
-    /// Set the partial location's record id.
-    pub fn set_record_id(&mut self, record_id: String) {
-        self.record_id = Some(record_id);
-    }
-
-    /// Set the partial location's line start.
-    pub fn set_line_start(&mut self, line_start: usize) {
-        self.line_start = Some(line_start);
-    }
-
-    /// Set the partial location's line end.
-    pub fn set_line_end(&mut self, line_end: usize) {
-        self.line_end = Some(line_end);
-    }
-
-    /// Set the partial location's loc in shard.
-    pub fn set_loc_in_shard(&mut self, loc_in_shard: usize) {
-        self.loc_in_shard = Some(loc_in_shard);
-    }
-
-    /// Builds the location.
-    ///
-    /// Errors if a field is missing
-    pub fn build(self) -> Result<Location, IncompleteLocation> {
-        self.try_into()
-    }
-}
-
-impl<'a> Default for LocationBuilder {
-    fn default() -> Self {
-        Self {
-            shard_id: None,
-            record_id: None,
-            line_start: None,
-            line_end: None,
-            loc_in_shard: None,
-        }
-    }
-}
-
-impl<'a> TryFrom<LocationBuilder> for Location {
-    type Error = IncompleteLocation;
-
-    fn try_from(value: LocationBuilder) -> Result<Self, Self::Error> {
-        let shard_id = value.shard_id.ok_or(IncompleteLocation {
-            missing: LocationKind::ShardId,
-        })?;
-
-        let record_id = value.record_id.ok_or(IncompleteLocation {
-            missing: LocationKind::RecordID,
-        })?;
-
-        let line_start = value.line_start.ok_or(IncompleteLocation {
-            missing: LocationKind::LineStart,
-        })?;
-        let line_end = value.line_end.ok_or(IncompleteLocation {
-            missing: LocationKind::LineEnd,
-        })?;
-        let loc_in_shard = value.loc_in_shard.ok_or(IncompleteLocation {
-            missing: LocationKind::LocInShard,
-        })?;
-
-        Ok(Location {
-            shard_id,
-            record_id,
-            line_start,
-            line_end,
-            loc_in_shard,
-        })
-    }
-}
-/// Links a record id to a set location in a shard:
-/// - shard_id is the shard number (ex. 12345.txt.gz)
-/// - record_id is the record id :)
-/// - line_start/line_end are the boundaries of kept text (inclusive)
-/// - loc_in_shard is the record index _in_ shard.
-///
-/// # Example
-/// If we're working on the 10th record of a shard that is shard 100,
-/// that the record has 10 lines and we only keep the first 5,
-/// We'd get `line_start=0, line_end=4, loc_in_shard=99`.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct Location {
-    shard_id: usize,
-    record_id: String,
-    line_start: usize,
-    line_end: usize,
-    loc_in_shard: usize,
-}
-
+use crate::identifiers::Identification;
+use crate::lang::Lang;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 
 /// OSCAR-specific metadata
 /// TODO: make it a HashMap
 pub struct Metadata {
     identification: Identification,
+    // #[serde(skip_serializing_if = "Option::is_none")]
     annotation: Option<String>,
     sentence_identifications: Vec<Option<Identification>>,
 }
@@ -339,5 +211,18 @@ mod tests {
             String::from_utf8_lossy(&headers.headers.get(&WarcHeader::RecordID).unwrap())
                 .into_owned()
         );
+    }
+
+    #[test]
+    fn test_serialize() {
+        let m = Metadata::default();
+
+        let serialized = serde_json::to_string_pretty(&m).unwrap();
+
+        println!("{}", serialized);
+
+        let m2: Metadata = serde_json::from_str(&serialized).unwrap();
+
+        println!("{:?}", m2);
     }
 }
