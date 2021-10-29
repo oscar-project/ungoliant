@@ -23,13 +23,15 @@ use super::{Location, Metadata};
 
 lazy_static! {
     static ref SCHEMA: Schema = {
+
+      // schema of Identification struct
         let identification_schema = r#"
       {"name":"identification", "type":"record", "fields": [
         {"name": "label", "type":"string"},
         {"name": "prob", "type":"float"}
       ]}
 "#;
-
+      // schema of Metadata struct
         let metadata_schema = r#"
 {
   "type":"record",
@@ -44,7 +46,7 @@ lazy_static! {
   ]
 }
 "#;
-
+  // schema of RebuildInformation struct
         let rebuild_schema = r#"
 {
   "type":"record",
@@ -59,7 +61,7 @@ lazy_static! {
   ]
 }
 "#;
-
+  // schema of ShardResult struct
         let schema = r#"
 {
   "type":"record",
@@ -71,7 +73,7 @@ lazy_static! {
 }
 "#;
 
-        Schema::parse_list(&vec![
+        Schema::parse_list(&[
             identification_schema,
             metadata_schema,
             rebuild_schema,
@@ -82,6 +84,9 @@ lazy_static! {
     };
 }
 
+/// Holds the same fields as [Location], adding [Metadata].
+///
+/// Should be transformed into a struct that holds two attributes rather than copying some.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct RebuildInformation {
     shard_id: usize,
@@ -106,6 +111,7 @@ impl RebuildInformation {
     }
 }
 
+/// Holds multiple [RebuildInformation] for a single shard.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ShardResult {
     shard_id: i64,
@@ -113,6 +119,7 @@ pub struct ShardResult {
 }
 
 impl ShardResult {
+    /// Merges `locations` and `metadata` into [RebuildInformation].
     pub fn new(shard_id: i64, locations: Vec<Location>, metadata: Vec<Metadata>) -> Self {
         let rebuild_info = locations
             .into_iter()
@@ -141,11 +148,17 @@ impl<'a, T: std::io::Write> RebuildWriter<'a, T> {
     }
 
     /// Append a single serializable value (`value` must implement [Serialize]).
+    ///
+    /// This function is not guaranteed to perform a write operation
+    /// See documentation of [avro_rs::Writer] for more information.
     pub fn append_ser<S: Serialize>(&mut self, value: S) -> AvroResult<usize> {
         self.writer.append_ser(value)
     }
 
     /// Append from an interator of values, each implementing [Serialize].
+    ///
+    /// This function is not guaranteed to perform a write operation
+    /// See documentation of [avro_rs::Writer] for more information.
     pub fn extend_ser<I, U: Serialize>(&mut self, values: I) -> AvroResult<usize>
     where
         I: IntoIterator<Item = U>,
@@ -153,6 +166,9 @@ impl<'a, T: std::io::Write> RebuildWriter<'a, T> {
         self.writer.extend_ser(values)
     }
 
+    /// Flush the underlying buffer.
+    ///
+    /// See [avro_rs::Writer] for more information.
     pub fn flush(&mut self) -> AvroResult<usize> {
         self.writer.flush()
     }
@@ -168,16 +184,14 @@ impl<'a> RebuildWriter<'a, File> {
     }
 }
 
+/// Holds mutex-protected [RebuildWriter] for each [Lang].
 pub struct RebuildWriters<'a, T>(HashMap<Lang, Arc<Mutex<RebuildWriter<'a, T>>>>);
 
 impl<'a, T> RebuildWriters<'a, T> {
+    /// Maps to [HashMap::get].
     pub fn get(&'a self, k: &Lang) -> Option<&Arc<Mutex<RebuildWriter<T>>>> {
         self.0.get(k)
     }
-
-    // pub fn get_or_create(&'a self, k: &Lang) -> &Arc<Mutex<RebuildWriter<T>>> {
-    //   self.0.entry(k).or_insert_with(|| Self::new0)
-    // }
 }
 
 impl<'a> RebuildWriters<'a, File> {
@@ -190,6 +204,7 @@ impl<'a> RebuildWriters<'a, File> {
     }
 
     #[inline]
+    /// Convinience function that creates a new ([Lang], `Arc<Mutex<RebuildWriter>>`]) pair.
     fn new_writer_mutex(
         dst: &Path,
         lang: &str,
@@ -201,6 +216,9 @@ impl<'a> RebuildWriters<'a, File> {
         Ok((lang, rw_mutex))
     }
 
+    /// Use `dst` as a root path for avro files storage.
+    ///
+    /// Each language will have a possibly empty avro file, at `<dst>/<lang>.avro`.
     pub fn with_dst(dst: &Path) -> Result<Self, Error> {
         if dst.is_file() {
             error!("rebuild destination must be an empty folder!");
@@ -221,14 +239,8 @@ impl<'a> RebuildWriters<'a, File> {
 
 #[cfg(test)]
 mod tests {
-    
 
-    
-    
-    
     use crate::pipelines::oscardoc::types::{Location, Metadata};
-    
-    
 
     use super::{RebuildWriter, ShardResult};
 
