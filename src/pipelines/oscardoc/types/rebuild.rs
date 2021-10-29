@@ -5,7 +5,6 @@ Each (avro) record is an  `(shard_id, array of (shard) records)`.
 use std::{
     collections::HashMap,
     fs::File,
-    hash::Hash,
     path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, Mutex},
@@ -24,90 +23,66 @@ use super::{Location, Metadata};
 
 lazy_static! {
     static ref SCHEMA: Schema = {
+        let identification_schema = r#"
+      {"name":"identification", "type":"record", "fields": [
+        {"name": "label", "type":"string"},
+        {"name": "prob", "type":"float"}
+      ]}
+"#;
+
+        let metadata_schema = r#"
+{
+  "type":"record",
+  "name":"metadata_record",
+  "fields":[
+    {"name":"identification", "type":"identification"},
+    {"name":"annotation", "type":["string", "null"]},
+    {"name": "sentence_identifications", "type":"array", "items":[
+      "null",
+      "identification"
+    ]}
+  ]
+}
+"#;
+
+        let rebuild_schema = r#"
+{
+  "type":"record",
+  "name":"rebuild_information",
+  "fields":[
+    {"name": "shard_id", "type":"long"},
+    {"name": "record_id", "type":"string"},
+    {"name": "line_start", "type":"long"},
+    {"name": "line_end", "type":"long"},
+    {"name": "loc_in_shard", "type":"long"},
+    {"name":"metadata", "type":"metadata_record"}
+  ]
+}
+"#;
+
         let schema = r#"
-        {
-            "type":"record",
-            "name":"shard_index",
-            "fields":[
-              {
-                "name":"shard_id",
-                "type":"long"
-              },
-              {
-                "name":"locations",
-                "type":{
-                  "type":"array",
-                  "items":{
-                    "type":"record",
-                    "name":"record_entry",
-                    "fields":[
-                      {
-                        "name":"shard_id",
-                        "type":"long"
-                      },
-                      {
-                        "name":"record_id",
-                        "type":"string"
-                      },
-                      {
-                        "name":"line_start",
-                        "type":"long"
-                      },
-                      {
-                        "name":"line_end",
-                        "type":"long"
-                      },
-                      {
-                        "name":"loc_in_shard",
-                        "type":"long"
-                      },
-                      {
-                        "name":"metadata",
-                        "type":"record",
-                        "fields":[
-                          {
-                            "name":"identification",
-                            "type":"record",
-                            "fields":[
-                              {
-                                "name":"label",
-                                "type":"string"
-                              },
-                              {
-                                "name":"prob",
-                                "type":"double"
-                              }
-                            ]
-                          },
-                          {"name": "annotation", "type":"string"},
-                          {
-                            "name":"sentence_identifications",
-                            "type":"array",
-                            "items":[
-                              {
-                                "name":"label",
-                                "type":"string"
-                              },
-                              {
-                                "name":"prob",
-                                "type":"double"
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                }
-              }
-            ]
-          }
-     "#;
-        Schema::parse_str(schema).unwrap()
+{
+  "type":"record",
+  "name":"shard_result",
+  "fields":[
+    {"name": "shard_id", "type":"long"},
+    {"name": "rebuild_info", "type":"array", "items":"rebuild_information"}
+  ]
+}
+"#;
+
+        Schema::parse_list(&vec![
+            identification_schema,
+            metadata_schema,
+            rebuild_schema,
+            schema,
+        ])
+        .unwrap()[3]
+            .clone()
     };
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct RebuildInformation {
     shard_id: usize,
     record_id: String,
@@ -131,7 +106,7 @@ impl RebuildInformation {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ShardResult {
     shard_id: i64,
     rebuild_info: Vec<RebuildInformation>,
@@ -177,6 +152,10 @@ impl<'a, T: std::io::Write> RebuildWriter<'a, T> {
     {
         self.writer.extend_ser(values)
     }
+
+    pub fn flush(&mut self) -> AvroResult<usize> {
+        self.writer.flush()
+    }
 }
 
 impl<'a> RebuildWriter<'a, File> {
@@ -195,6 +174,10 @@ impl<'a, T> RebuildWriters<'a, T> {
     pub fn get(&'a self, k: &Lang) -> Option<&Arc<Mutex<RebuildWriter<T>>>> {
         self.0.get(k)
     }
+
+    // pub fn get_or_create(&'a self, k: &Lang) -> &Arc<Mutex<RebuildWriter<T>>> {
+    //   self.0.entry(k).or_insert_with(|| Self::new0)
+    // }
 }
 
 impl<'a> RebuildWriters<'a, File> {
@@ -204,6 +187,18 @@ impl<'a> RebuildWriters<'a, File> {
         p.push(format!("{}.avro", lang));
 
         p
+    }
+
+    #[inline]
+    fn new_writer_mutex(
+        dst: &Path,
+        lang: &str,
+    ) -> Result<(Lang, Arc<Mutex<RebuildWriter<'a, File>>>), Error> {
+        let lang = Lang::from_str(lang).unwrap();
+        let path = Self::forge_dst(dst, &lang);
+        let rw = RebuildWriter::from_path(&path)?;
+        let rw_mutex = Arc::new(Mutex::new(rw));
+        Ok((lang, rw_mutex))
     }
 
     pub fn with_dst(dst: &Path) -> Result<Self, Error> {
@@ -217,15 +212,54 @@ impl<'a> RebuildWriters<'a, File> {
 
         let ret: Result<HashMap<Lang, Arc<Mutex<RebuildWriter<'_, File>>>>, Error> = LANG
             .iter()
-            .map(|lang| {
-                let lang = Lang::from_str(lang).unwrap();
-                let path = Self::forge_dst(dst, &lang);
-                let rw = RebuildWriter::from_path(&path)?;
-                let rw_mutex = Arc::new(Mutex::new(rw));
-                Ok((lang, rw_mutex))
-            })
+            .map(|lang| Self::new_writer_mutex(dst, lang))
             .collect();
 
         Ok(RebuildWriters(ret?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    
+
+    
+    
+    
+    use crate::pipelines::oscardoc::types::{Location, Metadata};
+    
+    
+
+    use super::{RebuildWriter, ShardResult};
+
+    #[test]
+    fn test_ser_empty() {
+        let sr = ShardResult::new(0, Vec::new(), Vec::new());
+        println!("{:#?}", sr);
+        let buf = Vec::new();
+        let mut rw = RebuildWriter::new(&super::SCHEMA, buf);
+
+        rw.append_ser(sr).unwrap();
+    }
+
+    #[test]
+    fn test_ser() {
+        let meta = vec![Metadata::default()];
+        let loc = vec![Location::default()];
+        let sr = ShardResult::new(0, loc, meta);
+        println!("{:#?}", sr);
+        println!("{:#?}", *super::SCHEMA);
+        let mut buf = Vec::new();
+        let mut rw = RebuildWriter::new(&super::SCHEMA, &mut buf);
+
+        rw.append_ser(&sr).unwrap();
+        rw.flush().unwrap();
+
+        let ar = avro_rs::Reader::with_schema(&super::SCHEMA, &buf[..]).unwrap();
+        let result: Vec<ShardResult> = ar
+            .map(|r| avro_rs::from_value::<ShardResult>(&r.unwrap()).unwrap())
+            .collect();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], sr);
     }
 }

@@ -130,6 +130,7 @@ pub struct Location {
     line_end: usize,
     loc_in_shard: usize,
 }
+
 impl Location {
     /// Get a reference to the location's shard id.
     pub fn shard_id(&self) -> usize {
@@ -154,5 +155,17 @@ impl Location {
     /// Get a reference to the location's loc in shard.
     pub fn loc_in_shard(&self) -> usize {
         self.loc_in_shard
+    }
+}
+
+impl Default for Location {
+    fn default() -> Self {
+        Self {
+            shard_id: Default::default(),
+            record_id: Default::default(),
+            line_start: Default::default(),
+            line_end: Default::default(),
+            loc_in_shard: Default::default(),
+        }
     }
 }
