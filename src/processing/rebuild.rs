@@ -1,3 +1,13 @@
+/*! Corpus rebuilding.
+
+ Corpus rebuilding is the action of taking `rebuild files` and `shards` and "merge" them to recreate the corpus.
+
+ This module contains mainly iterators that make rebuilding easier to do and parallelize.
+
+ * [RecordIterator] iteratively returns [Document]s from a **single** avro record (which corresponds to a **single** shard).
+ * [SRIterator] iteratively returns [RecordIterator]s from a **single** avro file (which corresponds to several shards).
+ * [todo] calls [Iterator::next] on [SRIterator] and uses `n` threads to retrieve [Document]s and do IO to recreate the corpus.
+* !*/
 use crate::pipelines::oscardoc::types::Document;
 use crate::pipelines::oscardoc::types::RebuildInformation;
 use crate::pipelines::oscardoc::types::ShardResult;
