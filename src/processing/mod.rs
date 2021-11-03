@@ -7,4 +7,5 @@ This module is for now only compatible with CommonCrawl extracted content, but w
 pub mod compress;
 pub mod dedup;
 pub mod package;
+pub mod rebuild;
 pub mod split;

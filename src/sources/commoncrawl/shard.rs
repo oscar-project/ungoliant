@@ -39,7 +39,7 @@ impl Wet<BufReader<MultiGzDecoder<File>>> {
         // manage multipart gzipped content.
         let bufreader = BufReader::new(gzip_stream);
 
-        let reader = WarcReader::new(bufreader);
+        let mut reader = WarcReader::new(bufreader);
 
         let x = reader.iter_records();
         Ok(Self { iter: x })

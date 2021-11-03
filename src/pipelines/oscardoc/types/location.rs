@@ -132,6 +132,25 @@ pub struct Location {
 }
 
 impl Location {
+    /// Create a new [Location].
+    ///
+    /// Depending on usage, [LocationBuilder] can be more convinient.
+    pub fn new(
+        shard_id: usize,
+        record_id: String,
+        line_start: usize,
+        line_end: usize,
+        loc_in_shard: usize,
+    ) -> Self {
+        Self {
+            shard_id,
+            record_id,
+            line_start,
+            line_end,
+            loc_in_shard,
+        }
+    }
+
     /// Get a reference to the location's shard id.
     pub fn shard_id(&self) -> usize {
         self.shard_id

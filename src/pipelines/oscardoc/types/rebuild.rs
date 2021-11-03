@@ -88,7 +88,7 @@ lazy_static! {
 ///
 /// Should be transformed into a struct that holds two attributes rather than copying some.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct RebuildInformation {
+pub struct RebuildInformation {
     shard_id: usize,
     record_id: String,
     line_start: usize,
@@ -108,6 +108,49 @@ impl RebuildInformation {
             loc_in_shard: location.loc_in_shard(),
             metadata,
         }
+    }
+
+    /// Convert into a ([Location], [Metadata]) tuple.
+    pub fn into_raw_parts(self) -> (Location, Metadata) {
+        (
+            Location::new(
+                self.shard_id,
+                self.record_id,
+                self.line_start,
+                self.line_end,
+                self.loc_in_shard,
+            ),
+            self.metadata,
+        )
+    }
+    /// Get a reference to the rebuild information's loc in shard.
+    pub fn loc_in_shard(&self) -> usize {
+        self.loc_in_shard
+    }
+
+    /// Get a reference to the rebuild information's record id.
+    pub fn record_id(&self) -> &str {
+        self.record_id.as_ref()
+    }
+
+    /// Get a reference to the rebuild information's line start.
+    pub fn line_start(&self) -> usize {
+        self.line_start
+    }
+
+    /// Get a reference to the rebuild information's line end.
+    pub fn line_end(&self) -> usize {
+        self.line_end
+    }
+
+    /// Get a reference to the rebuild information's metadata.
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    /// Get a reference to the rebuild information's shard id.
+    pub fn shard_id(&self) -> usize {
+        self.shard_id
     }
 }
 
@@ -130,6 +173,20 @@ impl ShardResult {
             shard_id,
             rebuild_info,
         }
+    }
+
+    /// extract owned parts of struct: (`shard_id`, `Vec<RebuildInformation>`)
+    pub fn into_raw_parts(self) -> (i64, Vec<RebuildInformation>) {
+        (self.shard_id, self.rebuild_info)
+    }
+    /// Get a reference to the shard result's shard id.
+    pub fn shard_id(&self) -> i64 {
+        self.shard_id
+    }
+
+    /// Get a reference to the shard result's rebuild info.
+    pub fn rebuild_info(&self) -> &[RebuildInformation] {
+        self.rebuild_info.as_ref()
     }
 }
 /// Holds an Avro writer.
