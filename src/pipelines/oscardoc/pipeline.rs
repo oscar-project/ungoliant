@@ -273,22 +273,44 @@ impl OscarDoc {
         shard_id: usize,
         documents: HashMap<Lang, Vec<(Document, Location)>>,
     ) -> Result<(), Error> {
-        documents.into_par_iter().for_each(|(lang, docs)| {
-            debug!("[{}]: {} documents", lang, docs.len());
+        let errors: Vec<Error> = documents
+            .into_par_iter()
+            .map(|(lang, docs)| {
+                debug!("[{}]: {} documents", lang, docs.len());
 
-            let writer = langfiles.writers().get(&lang).unwrap();
-            let avrowriter = avrowriters.get(&lang).unwrap();
-            let mut writer_lock = writer.lock().unwrap();
-            let mut avrowriter_lock = avrowriter.lock().unwrap();
+                // get mutexes on writers
+                let writer = langfiles.writers().get(&lang).unwrap();
+                let avrowriter = avrowriters.get(&lang).unwrap();
+                let mut writer_lock = writer.lock().unwrap();
+                let mut avrowriter_lock = avrowriter.lock().unwrap();
 
-            let (docs, locations): (Vec<_>, Vec<_>) =
-                docs.into_iter().map(|(doc, loc)| (doc, loc)).unzip();
+                // divide the documents iterator into two iterators
+                let (docs, locations): (Vec<_>, Vec<_>) =
+                    docs.into_iter().map(|(doc, loc)| (doc, loc)).unzip();
 
-            let metadata_cloned = docs.iter().map(|doc| doc.metadata().clone()).collect();
-            let sr = ShardResult::new(shard_id as i64, locations, metadata_cloned);
-            writer_lock.write(docs).unwrap();
-            debug!("{:?}", avrowriter_lock.append_ser(sr));
-        });
+                // clone metadata
+                let metadata_cloned = docs.iter().map(|doc| doc.metadata().clone()).collect();
+                let sr = ShardResult::new(shard_id as i64, locations, metadata_cloned);
+
+                // write docs and rebuild files
+                writer_lock.write(docs)?;
+                avrowriter_lock.append_ser(sr)?;
+
+                //TODO: not sure that we need the flush
+                avrowriter_lock.flush()?;
+
+                Ok(())
+            })
+            // only collect errors
+            .filter_map(|x| match x {
+                Ok(_) => None,
+                Err(e) => Some(e),
+            })
+            .collect();
+
+        for error in errors {
+            error!("{:?}", error);
+        }
 
         Ok(())
     }
