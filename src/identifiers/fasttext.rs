@@ -99,7 +99,7 @@ impl identifier::Identifier for FastText {
         let prediction = self
             .predictor
             .predict(sentence, 1, self.threshold)
-            .map_err(|e| Error::FastText(e))?;
+            .map_err(Error::FastText)?;
         // let prediction = prediction.sort_by(|a, b| a.prob.partial_cmp(&b.prob)).iter().take(1);
 
         if !prediction.is_empty() {

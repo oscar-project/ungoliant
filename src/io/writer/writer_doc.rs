@@ -15,8 +15,6 @@ use super::WriterTrait;
 
 pub struct WriterDoc {
     handle: MetaWriter,
-    lang: &'static str,
-    offset: usize,
 }
 
 impl WriterTrait for WriterDoc {
@@ -28,8 +26,6 @@ impl WriterTrait for WriterDoc {
     fn new(dst: &Path, lang: &'static str, _size_limit: Option<u64>) -> Result<Self, error::Error> {
         Ok(Self {
             handle: MetaWriter::new(dst, lang),
-            lang,
-            offset: 0,
         })
     }
     /// writes the provided [MergedPiece], checking language identification.
@@ -115,63 +111,6 @@ Ecoutez ça va plutôt bien.";
 
         assert_eq!(sentences, &from_merged_pieces);
 
-        // succintly check if metadata are the same
-        // let f = File::open("dst_test_write/fr_meta.jsonl").unwrap();
-        // let b = std::io::BufReader::new(f).lines();
-        // let metadata: Vec<Metadata> = b
-        //     .inspect(|x| println!("{:?}", x))
-        //     .map(|m| serde_json::from_str(&m.unwrap()).unwrap())
-        //     .collect();
-        // assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
         std::fs::remove_dir_all(dst).unwrap();
     }
-
-    // #[test]
-    // fn write_multiple() {
-    //     let dst = Path::new("dst_test_write_multiple");
-    //     std::fs::create_dir(dst).unwrap();
-    //     let mut wr = WriterDoc::new(dst, "fr", Some(10_000)).unwrap();
-
-    //     let mut merged_pieces = Vec::new();
-    //     for i in 1..10 {
-    //         let headers: WarcHeaders = vec![(
-    //             WarcHeader::Filename,
-    //             Vec::from(format!("filenametest{}", i).as_bytes()),
-    //         )]
-    //         .into_iter()
-    //         .collect();
-
-    //         let sentences = vec!["lorem ipsum".to_string(); i].join("\n");
-    //         let nb_sentences = i;
-    //         let identification = "fr";
-
-    //         merged_pieces.push(MergedPiece {
-    //             sentences,
-    //             headers,
-    //             nb_sentences,
-    //             identification,
-    //         });
-    //     }
-
-    //     wr.write(merged_pieces.to_vec()).unwrap();
-    //     // wr.close_meta().unwrap();
-
-    //     // check if content is the same
-    //     let mut sentences = String::new();
-    //     let mut f = File::open("dst_test_write_multiple/fr.txt").unwrap();
-    //     f.read_to_string(&mut sentences).unwrap();
-    //     let sentences: Vec<&str> = sentences.split("\n\n").collect();
-    //     for i in 0..merged_pieces.len() {
-    //         assert_eq!(sentences[i], merged_pieces[i].sentences);
-    //     }
-
-    //     // succintly check if metadata are the same
-    //     let f = File::open("dst_test_write_multiple/fr_meta.jsonl").unwrap();
-    //     let b = std::io::BufReader::new(f).lines();
-    //     let metadata: Vec<Metadata> = b
-    //         .map(|m| serde_json::from_str(&m.unwrap()).unwrap())
-    //         .collect();
-    //     assert_eq!(metadata[0].nb_sentences, merged_pieces[0].nb_sentences);
-    //     std::fs::remove_dir_all(dst).unwrap();
-    // }
 }

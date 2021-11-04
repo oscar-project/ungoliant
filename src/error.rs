@@ -1,8 +1,6 @@
 //! Error enum
 use std::string::FromUtf8Error;
 
-use avro_rs::AvroResult;
-
 use crate::pipelines::oscardoc::types::IncompleteLocation;
 
 #[derive(Debug)]
@@ -19,12 +17,12 @@ pub enum Error {
     Ut1(ut1_blocklist::Error),
     FastText(String),
     IncompleteLocation(IncompleteLocation),
-    AvroError(avro_rs::Error),
+    Avro(avro_rs::Error),
 }
 
 impl From<avro_rs::Error> for Error {
     fn from(v: avro_rs::Error) -> Self {
-        Self::AvroError(v)
+        Self::Avro(v)
     }
 }
 

@@ -8,6 +8,8 @@
  * [SRIterator] iteratively returns [RecordIterator]s from a **single** avro file (which corresponds to several shards).
  * [todo] calls [Iterator::next] on [SRIterator] and uses `n` threads to retrieve [Document]s and do IO to recreate the corpus.
 * !*/
+use crate::io::writer::WriterDoc;
+use crate::io::writer::WriterTrait;
 use crate::pipelines::oscardoc::types::Document;
 use crate::pipelines::oscardoc::types::RebuildInformation;
 use crate::pipelines::oscardoc::types::ShardResult;
@@ -17,13 +19,16 @@ use std::io::BufRead;
 use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
-use std::slice::Iter;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::vec::IntoIter;
 
-use avro_rs::Reader;
 use flate2::read::MultiGzDecoder;
 use itertools::Itertools;
+use log::debug;
 use log::error;
+use rayon::iter::ParallelBridge;
+use rayon::iter::ParallelIterator;
 use warc::RecordIter;
 
 use crate::error::Error;
@@ -39,6 +44,7 @@ where
 {
     rebuild_iter: I,
     shard_iter: RecordIter<T>,
+    shard_id: usize,
 
     prev_loc: usize,
 }
@@ -48,12 +54,19 @@ where
     T: BufRead,
     I: Iterator<Item = RebuildInformation>,
 {
-    fn new(rebuild_iter: I, shard_iter: RecordIter<T>) -> Self {
+    fn new(rebuild_iter: I, shard_iter: RecordIter<T>, shard_id: usize) -> Self {
+        debug!("opening iterator on shard {}", shard_id);
         Self {
             rebuild_iter,
             shard_iter,
+            shard_id,
             prev_loc: 0,
         }
+    }
+
+    /// Get a reference to the record iterator's shard id.
+    pub fn shard_id(&self) -> usize {
+        self.shard_id
     }
 }
 
@@ -102,6 +115,7 @@ where
                 .take(nb_take)
                 .join("\n");
 
+            // create document and update prev_loc
             let document = Document::new(body, headers.headers, rb_info.metadata().clone());
             self.prev_loc = loc + 1;
 
@@ -142,6 +156,7 @@ impl<'a> SRIterator<'a> {
             )));
         }
 
+        // open avro reader
         let f = File::open(src_rebuild)?;
         let f = BufReader::new(f);
         let rebuild_reader = avro_rs::Reader::new(f)?;
@@ -160,47 +175,115 @@ impl<'a> Iterator for SRIterator<'a> {
         // get next entry in avro file
         let next_rebuild = match self.rebuild_reader.next() {
             Some(Ok(nr)) => nr,
-            None | Some(Err(_)) => return None,
+            None => return None,
+            Some(Err(e)) => {
+                error!("{}", e);
+                return None;
+            }
         };
 
         // deserialize entry into a shard result
         let shard_result: ShardResult = match avro_rs::from_value(&next_rebuild) {
             Ok(sr) => sr,
-            Err(e) => return None,
+            Err(e) => {
+                error!("{}", e);
+                return None;
+            }
         };
 
-        let shard_id = shard_result.shard_id();
-        //open shard
+        debug!(
+            "shard {}: {} records to rebuild",
+            shard_result.shard_id(),
+            shard_result.rebuild_info().len()
+        );
+
+        //TODO remove as keyword
+        let shard_id = shard_result.shard_id() as usize;
+
+        // forge shard path
+        let mut shard_path = PathBuf::from(self.src_shards);
+        shard_path.push(format!("{}.txt.gz", shard_id));
+
+        //open shard, get iterator and build RecordIterator
         //TODO: yield Results
-        let shard_iter = Wet::from_path_gzip(self.src_shards).unwrap().iter;
+        let shard_iter = Wet::from_path_gzip(shard_path).unwrap().iter;
         let (_, rebuild_info) = shard_result.into_raw_parts();
         let rebuild_iter = rebuild_info.into_iter();
-
-        Some(RecordIterator::new(rebuild_iter, shard_iter))
+        Some(RecordIterator::new(rebuild_iter, shard_iter, shard_id))
     }
 }
 
+/// Corpus rebuilder for a single language.
+pub struct Rebuilder<'a> {
+    src_rebuild: &'a Path,
+    src_shards: &'a Path,
+    dst: &'a Path,
+    lang: Lang,
+}
+
+impl<'a> Rebuilder<'a> {
+    pub fn new(src_rebuild: &'a Path, src_shards: &'a Path, dst: &'a Path, lang: Lang) -> Self {
+        Self {
+            src_rebuild,
+            src_shards,
+            dst,
+            lang,
+        }
+    }
+
+    /// Reads the rebuild file, then opens each specified shard and extracts relevant records.
+    pub fn run(self) -> Result<(), Error> {
+        // Get iterator over rebuild
+        // in parallel
+        let sr = SRIterator::new(self.src_rebuild, self.src_shards)?;
+        let sr = sr.par_bridge();
+
+        // create mutex
+        let wr = Arc::new(Mutex::new(WriterDoc::new(
+            self.dst,
+            self.lang.to_static(),
+            None,
+        )?));
+
+        // iterate over shard results
+        let errors: Vec<Result<(), Error>> = sr
+            .map(|shard| {
+                let shard_id = shard.shard_id();
+                // get records of a given shard
+                let records: Vec<_> = shard.collect::<Result<Vec<Document>, Error>>()?;
+
+                // attempt to write
+                let mut wr_locked = wr.lock().unwrap();
+                debug!("[{}] writing {} results to disk", shard_id, records.len());
+                wr_locked.write(records)?;
+                debug!("[{}] done", shard_id);
+                Ok(())
+            })
+            .collect();
+
+        // print out eventual errors
+        for error in errors.iter().filter(|x| x.is_err()) {
+            error!("{:?}", error);
+        }
+
+        Ok(())
+    }
+}
 #[cfg(test)]
 mod tests {
     use std::{
         collections::HashMap,
-        fs::File,
         io::{BufReader, Cursor},
-        path::Path,
     };
 
-    use itertools::Itertools;
     use warc::WarcReader;
 
     use crate::{
-        filtering::record,
         identifiers::Identification,
         lang::Lang,
-        pipelines::oscardoc::types::{Document, Metadata, ShardResult},
-        sources::commoncrawl::Wet,
+        pipelines::oscardoc::types::{Document, Metadata},
     };
 
-    #[test]
     fn test_from_loc_meta() {
         let raw = b"\
             WARC/1.0\r\n\
@@ -238,82 +321,6 @@ mod tests {
             &vec![Some(Identification::new(Lang::En, 1.0)).clone(); 4],
         );
 
-        let doc = Document::new(content, warc_headers, metadata);
+        let _ = Document::new(content, warc_headers, metadata);
     }
-
-    #[test]
-    fn test_deser() {
-        let src = Path::new("../cc/processed/rebuild/fr.avro");
-        let f = File::open(src).unwrap();
-
-        let ar = avro_rs::Reader::new(f).unwrap();
-
-        // get first shard result
-        let avro_val = ar.into_iter().next().unwrap().unwrap();
-        let sr: ShardResult = avro_rs::from_value(&avro_val).unwrap();
-
-        let mut sr_iter = sr.rebuild_info().into_iter();
-
-        println!("{:#?}", sr.shard_id());
-
-        //open shard
-        let shard_path = Path::new("../cc/shards/6.txt.gz");
-        let shard = Wet::from_path_gzip(shard_path).unwrap();
-
-        //TODO: use streaming_iter to improve performance
-        let mut shard_iter = shard.iter;
-
-        // location of previous record in rebuild
-        let mut prev_loc = 0;
-        //iterate on rebuild
-        while let Some(rb_info) = sr_iter.next() {
-            // get loc of current rebuild
-            let loc = rb_info.loc_in_shard();
-            let rid = rb_info.record_id();
-            // We skip loc-prev_loc records (since we have absolute loc counts, we need to compute the delta)
-            let mut record = shard_iter.nth(loc - prev_loc).unwrap().unwrap();
-
-            // ensure that we got the right record
-            assert_eq!(record.warc_id(), rid);
-
-            // separate raw parts
-            let (headers, body) = record.into_raw_parts();
-
-            // compute line bounds and get them
-            let nb_skip = rb_info.line_start();
-            let nb_take = rb_info.line_end() - rb_info.line_start();
-            let body = String::from_utf8_lossy(&body)
-                .lines()
-                .skip(nb_skip)
-                .take(nb_take)
-                .join("\n");
-
-            let document = Document::new(body, headers.headers, rb_info.metadata().clone());
-            prev_loc = loc + 1;
-        }
-
-        for rb_info in sr.rebuild_info() {
-            println!("{:#?}", rb_info.loc_in_shard());
-        }
-    }
-
-    // fn test_ser() {
-    //     let meta = vec![Metadata::default()];
-    //     let loc = vec![Location::default()];
-    //     let sr = ShardResult::new(0, loc, meta);
-    //     println!("{:#?}", sr);
-    //     println!("{:#?}", *super::SCHEMA);
-    //     let mut buf = Vec::new();
-    //     let mut rw = RebuildWriter::new(&super::SCHEMA, &mut buf);
-
-    //     rw.append_ser(&sr).unwrap();
-    //     rw.flush().unwrap();
-
-    //     let ar = avro_rs::Reader::with_schema(&super::SCHEMA, &buf[..]).unwrap();
-    //     let result: Vec<ShardResult> = ar
-    //         .map(|r| avro_rs::from_value::<ShardResult>(&r.unwrap()).unwrap())
-    //         .collect();
-    //     assert_eq!(result.len(), 1);
-    //     assert_eq!(result[0], sr);
-    // }
 }

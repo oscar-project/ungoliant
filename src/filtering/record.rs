@@ -72,13 +72,13 @@ impl Filter<&Record<BufferedBody>> for PFilter {
         // if the number of bytes in lower bucket exceeds the threshold's one,
         // the document is rejected.
         //
-        // long form:
-        // if f64::from(bucket_upper) < threshold {
-        //     false
-        // } else {
-        //     true
-        // }
-        !(f64::from(bucket_upper) < threshold)
+        // clippy lint to avoid having to use a match pattern due to PartialOrd
+        #[allow(clippy::needless_bool)]
+        if f64::from(bucket_upper) < threshold {
+            false
+        } else {
+            true
+        }
     }
 }
 

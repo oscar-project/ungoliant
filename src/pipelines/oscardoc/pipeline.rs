@@ -73,7 +73,7 @@ impl OscarDoc {
         let shard_number = shard_number
             .and_then(|s| s.to_str())
             .and_then(|s| s.split('.').next())
-            .and_then(|s| Some(s.parse::<usize>()));
+            .map(|s| s.parse::<usize>());
 
         match shard_number {
             Some(Ok(sn)) => Ok(sn),
@@ -100,7 +100,7 @@ impl OscarDoc {
         let record_iter = shard.iter.enumerate().par_bridge();
 
         // get specified filter or resort to default filter kind
-        let f = filter.unwrap_or_else(record::FilterKind::default);
+        let f = filter.unwrap_or_default();
 
         // get iterator on filtered records.
         // only get records that are valid *and* pass the filter.

@@ -80,6 +80,11 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::Package(p) => {
             processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
         }
+        cli::Ungoliant::Rebuild(r) => {
+            let l = r.lang.parse().expect("unexpected language");
+            let rb = processing::rebuild::Rebuilder::new(&r.src_rebuild, &r.src_shards, &r.dst, l);
+            rb.run()?;
+        }
     };
     Ok(())
 }
