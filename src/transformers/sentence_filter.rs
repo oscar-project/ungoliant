@@ -36,6 +36,89 @@ use crate::{
 
 use super::Transform;
 
+/// The idea is to take surrounding sentence length into account.
+/// With a dumb filter, the following length sentence: `1 1 1 100 1 1 1 1 1 100 100 100 100 100 1 1 1 1`
+/// would keep `100 1 1 1 1 1 100 100 100 100 100`, but we'd like to only get `100 100 100 100 100`.
+/// The first idea is to iterate over windows, and to sum then divide by window size, keeping the same indices
+/// and then filter out.
+/// Basically, we convolve with a [... 1/3 1/3 1/3 ...] filter.
+/// We could try having filters that are more sensible at the start?
+pub struct Conv {
+    conv_size: usize,
+    rss: RemoveShortSentences,
+}
+
+impl Conv {
+    pub fn new(conv_size: usize, rss: RemoveShortSentences) -> Self {
+        Self { conv_size, rss }
+    }
+
+    pub fn transform_idx(&self, mut doc: Document) -> (Document, Vec<RangeInclusive<usize>>) {
+        let lines: Vec<&str> = doc.content().lines().collect();
+        let line_lengths: Vec<f32> = lines.iter().map(|line| line.len() as f32).collect();
+        //add padding
+        let padding_size = self.conv_size.div_euclid(2);
+        let padding_val_start = line_lengths.first().unwrap().clone();
+        let padding_val_end = line_lengths.last().unwrap().clone();
+
+        let mut line_lengths = [
+            vec![padding_val_start; padding_size],
+            line_lengths,
+            vec![padding_val_end; padding_size],
+        ]
+        .concat();
+        //end add padding
+        let convolved_lengths: Vec<f32> = line_lengths
+            .windows(self.conv_size)
+            .map(|lengths| lengths.iter().sum::<f32>() / self.conv_size as f32)
+            .collect();
+
+        // filter/remove lines
+        // this iterator contains (line_index, (line, convolved_length)).
+        // let i: Vec<(usize, (&&str, &f32))> = lines
+        let i = lines.iter().zip(convolved_lengths.iter()).enumerate();
+
+        let min_length = *self.rss.filter_min_length() as f32;
+
+        // skip beginning sentences
+        let i: Vec<_> = i
+            .skip_while(|(_, (_, convolved_length))| convolved_length < &&min_length)
+            .collect();
+
+        // skip ending sentences
+        let i: Vec<_> = i
+            .into_iter()
+            .rev()
+            .skip_while(|(_, (_, convolved_length))| convolved_length < &&min_length)
+            .collect();
+
+        match (i.first(), i.last()) {
+            (Some(end), Some(start)) => {
+                let ranges = vec![start.0..=end.0];
+                let sentences = i
+                    .into_iter()
+                    .rev()
+                    .map(|(_, (sentence, _))| sentence)
+                    .join("\n");
+
+                doc.set_content(sentences);
+                (doc, ranges)
+            }
+            _ => (doc, Vec::new()),
+        }
+        // println!("{:?}", line_lengths);
+        // (doc, Vec::new())
+    }
+}
+
+impl Default for Conv {
+    fn default() -> Self {
+        Self {
+            conv_size: 5,
+            rss: Default::default(),
+        }
+    }
+}
 pub struct RemoveShortSentences {
     filter: Length,
 }
@@ -129,7 +212,7 @@ mod tests {
     use crate::pipelines::oscardoc::types::{Document, Metadata};
     use crate::transformers::Transform;
 
-    use super::RemoveShortSentences;
+    use super::{Conv, RemoveShortSentences};
 
     fn gen_valid() -> (Document, String) {
         let content = r"foo
@@ -150,6 +233,81 @@ baz
 quux
 xxxxxxxxxxx
 xxxxxxxxxxx"
+            .to_string();
+        let headers = HashMap::new();
+        let metadata = Metadata::default();
+        let doc = Document::new(content, headers, metadata);
+
+        (doc, expected_content)
+    }
+
+    fn gen_valid_long() -> (Document, String) {
+        let content = r"foo
+bar
+baz
+very long sentence about cookies, privacy and blah blah blah blah blah blah blah blah
+xx
+xx
+xx
+xx
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+tiny sentence in main content
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+again
+hehe
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+xx
+xx
+xx
+xx
+xx
+xx
+very long sentence about cookies, privacy and blah blah blah blah blah blah blah blah
+xx
+xx
+"
+        .to_string();
+
+        let expected_content = r"MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+tiny sentence in main content
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+again
+hehe
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT 
+MAIN CONTENT  MAIN CONTENT MAIN CONTENT MAIN CONTENT MAIN CONTENT"
             .to_string();
         let headers = HashMap::new();
         let metadata = Metadata::default();
@@ -241,5 +399,19 @@ baz
         let ranges = rss.transform_idx(doc);
 
         assert_eq!(ranges.1, expected_ranges);
+    }
+
+    #[test]
+    fn test_conv() {
+        let (doc, expected) = gen_valid_long();
+        let c = Conv::new(5, RemoveShortSentences::new(60));
+        println!(
+            "{:?}",
+            doc.content()
+                .lines()
+                .map(|line| line.len())
+                .collect::<Vec<usize>>()
+        );
+        println!("{:#?}", c.transform_idx(doc));
     }
 }

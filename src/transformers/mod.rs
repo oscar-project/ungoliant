@@ -9,5 +9,6 @@ mod sentence_filter;
 mod transform;
 
 pub use content_detector::ContentDetector;
+pub use sentence_filter::Conv;
 pub use sentence_filter::RemoveShortSentences;
 pub use transform::Transform;

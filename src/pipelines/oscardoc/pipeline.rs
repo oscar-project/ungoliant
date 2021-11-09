@@ -142,7 +142,7 @@ impl OscarDoc {
             });
 
         // remove short lines
-        let length_filter = transformers::RemoveShortSentences::default();
+        let length_filter = transformers::Conv::default();
         // let record_iter = record_iter.map(|(idx, r)| (idx, length_filter.transform_own(r)));
 
         // We get bounds of the most significant part.
