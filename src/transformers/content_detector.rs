@@ -11,17 +11,19 @@ use ut1_blocklist::{self, Blocklist};
 use crate::{error::Error, pipelines::oscardoc::types::Document};
 use url::Url;
 
-use super::transform::Transform;
+use super::Annotate;
 
 pub struct ContentDetector<'a> {
     bl: Blocklist<'a>,
 }
 
 impl<'a> ContentDetector<'a> {
+    /// Create a new [ContentDetector] based on a specified [Blocklist].
     pub fn new(bl: Blocklist<'a>) -> Self {
         Self { bl }
     }
 
+    /// Use the default blocklist (see [ut1_blocklist::Blocklist::with_defaults])
     pub fn with_defaults() -> Result<Self, Error> {
         let bl = Blocklist::with_defaults()?;
         Ok(Self { bl })
@@ -37,8 +39,10 @@ impl<'a> ContentDetector<'a> {
     }
 }
 
-impl<'a> Transform for ContentDetector<'a> {
-    fn transform_own(&self, mut doc: Document) -> Document {
+impl<'a> Annotate for ContentDetector<'a> {
+    /// Checks if domain/url is present in provided blocklist, and adds a tag
+    /// corresponding to blocklist kind if true.
+    fn annotate(&self, doc: &mut Document) {
         // attempt to get a valid url
         let url = Self::parse_url(&doc);
 
@@ -49,8 +53,6 @@ impl<'a> Transform for ContentDetector<'a> {
                     .set_annotation(self.bl.kind().to_string());
             }
         }
-
-        doc
     }
 }
 
@@ -66,7 +68,7 @@ mod tests {
 
     use crate::{
         pipelines::oscardoc::types::{Document, Metadata},
-        transformers::Transform,
+        transformers::Annotate,
     };
 
     use super::ContentDetector;
@@ -94,7 +96,7 @@ mod tests {
     }
     #[test]
     fn test_annotation() {
-        let doc = gen_document("https://foo.bar");
+        let mut doc = gen_document("https://foo.bar");
 
         let mut domains = HashSet::new();
         domains.insert("foo.bar".to_string());
@@ -102,7 +104,7 @@ mod tests {
         let bl = Blocklist::new("adult", domains, HashSet::new());
         let cd = ContentDetector::new(bl);
 
-        let doc = cd.transform_own(doc);
+        cd.annotate(&mut doc);
 
         assert_eq!(
             doc.metadata().annotation(),
@@ -112,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_annotation_false() {
-        let doc = gen_document("https://foo.bar");
+        let mut doc = gen_document("https://foo.bar");
 
         let mut domains = HashSet::new();
         domains.insert("baz.quux".to_string());
@@ -120,7 +122,7 @@ mod tests {
         let bl = Blocklist::new("adult", domains, HashSet::new());
         let cd = ContentDetector::new(bl);
 
-        let doc = cd.transform_own(doc);
+        cd.annotate(&mut doc);
 
         assert!(doc.metadata().annotation().is_none());
     }

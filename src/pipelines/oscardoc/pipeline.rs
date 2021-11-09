@@ -30,7 +30,7 @@ use crate::lang::Lang;
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
-use crate::transformers::{self, Transform};
+use crate::transformers::{self, Annotate, Transform};
 use log::{debug, error, info, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
@@ -142,18 +142,18 @@ impl OscarDoc {
             });
 
         // remove short lines
-        let length_filter = transformers::Conv::default();
+        let length_filter = transformers::RemoveShortSentences::default();
         // let record_iter = record_iter.map(|(idx, r)| (idx, length_filter.transform_own(r)));
 
         // We get bounds of the most significant part.
         // transform_idx yields a vector of ranges, but we'll assume
         // there's one and only one, discarding if there's none,
         // and taking the first one + yielding an error if there's more.
-        let record_iter = record_iter.filter_map(|(mut loc, record)| {
-            let (record, bounds) = length_filter.transform_idx(record);
+        let record_iter = record_iter.filter_map(|(mut loc, mut record)| {
+            let bounds = length_filter.transform(&mut record);
             match bounds.len() {
                 0 => {
-                    error!("record {} has no sentences kept", record.warc_id());
+                    debug!("record {} has no sentences kept", record.warc_id());
                     None
                 }
                 1 => {
@@ -175,8 +175,12 @@ impl OscarDoc {
 
         // annotate
         let adult_filter = transformers::ContentDetector::with_defaults()?;
-        let record_iter =
-            record_iter.map(|(loc, r)| (adult_filter.transform_own(r), loc.build().unwrap()));
+        let short_sentence_annotator = transformers::ShortSentences::default();
+        let record_iter = record_iter.map(|(loc, mut r)| {
+            adult_filter.annotate(&mut r);
+            short_sentence_annotator.annotate(&mut r);
+            (r, loc.build().unwrap())
+        });
 
         Ok((shard_id, record_iter.collect()))
     }

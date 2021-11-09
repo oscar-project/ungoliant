@@ -1,47 +1,70 @@
-//! Removes short sentences that are before/after a contiguous chunk of the file.
+//! Sentence transformers
 //!
-//! The idea is to remove contiguous short sentences that are located before and after a main body.
-//!
-//! By default the short sentence threshold is at 100
-//! Example:
-//! ```text
-//! foo
-//! bar
-//! baz
-//! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//! quux
-//! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//! baz
-//! bar
-//! foo
-//! ```
-//!
-//! will be transformed into
-//!
-//! ```text
-//! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//! quux
-//! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//! xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//! ```
 use std::ops::RangeInclusive;
 
 use itertools::Itertools;
+use log::debug;
+use log::error;
 
 use crate::{
     filtering::{sentence::Length, Filter},
     pipelines::oscardoc::types::Document,
 };
 
-use super::Transform;
+use super::{Annotate, Transform};
 
+pub struct ShortSentences {
+    filter: Length,
+    threshold: f32,
+}
+
+impl ShortSentences {
+    pub fn new(filter: Length, threshold: f32) -> Self {
+        Self { filter, threshold }
+    }
+}
+
+impl Annotate for ShortSentences {
+    fn annotate(&self, doc: &mut Document) {
+        let filter_results: Vec<bool> = doc
+            .content()
+            .lines()
+            .map(|line| self.filter.detect(line))
+            .collect();
+
+        let nb_lines = filter_results.len();
+        // TODO: replace as by some try_into
+        let threshold = (self.threshold * nb_lines as f32) as usize;
+        // count falses
+        let nb_short_lines = filter_results.iter().filter(|result| !**result).count();
+
+        if nb_short_lines > threshold {
+            debug!("record {} flagged for short sentences", doc.warc_id());
+            doc.metadata_mut()
+                .set_annotation("short_sentences".to_string());
+        }
+    }
+}
+impl Default for ShortSentences {
+    fn default() -> Self {
+        Self {
+            filter: Default::default(),
+            threshold: 0.5,
+        }
+    }
+}
+/// Convolution-based head/foot sentence removeer
+///
 /// The idea is to take surrounding sentence length into account.
-/// With a dumb filter, the following length sentence: `1 1 1 100 1 1 1 1 1 100 100 100 100 100 1 1 1 1`
-/// would keep `100 1 1 1 1 1 100 100 100 100 100`, but we'd like to only get `100 100 100 100 100`.
+/// With a dumb filter, the following length sentence:
+///  ```1 1 1 100 1 1 1 1 1 100 100 100 100 100 1 1 1 1```
+/// would keep
+/// ```100 1 1 1 1 1 100 100 100 100 100```
+///  but we'd like to only get
+/// ```100 100 100 100 100```
 /// The first idea is to iterate over windows, and to sum then divide by window size, keeping the same indices
 /// and then filter out.
-/// Basically, we convolve with a [... 1/3 1/3 1/3 ...] filter.
+/// Basically, we convolve with a `[... 1/3 1/3 1/3 ...]` filter.
 /// We could try having filters that are more sensible at the start?
 pub struct Conv {
     conv_size: usize,
@@ -53,6 +76,7 @@ impl Conv {
         Self { conv_size, rss }
     }
 
+    /// transform document and return it, along with a vector containing the indices of kept sentences.
     pub fn transform_idx(&self, mut doc: Document) -> (Document, Vec<RangeInclusive<usize>>) {
         let lines: Vec<&str> = doc.content().lines().collect();
         let line_lengths: Vec<f32> = lines.iter().map(|line| line.len() as f32).collect();
@@ -60,14 +84,15 @@ impl Conv {
         let padding_size = self.conv_size.div_euclid(2);
         let padding_val_start = line_lengths.first().unwrap().clone();
         let padding_val_end = line_lengths.last().unwrap().clone();
-
-        let mut line_lengths = [
+        let line_lengths = [
             vec![padding_val_start; padding_size],
             line_lengths,
             vec![padding_val_end; padding_size],
         ]
         .concat();
         //end add padding
+
+        // convolve
         let convolved_lengths: Vec<f32> = line_lengths
             .windows(self.conv_size)
             .map(|lengths| lengths.iter().sum::<f32>() / self.conv_size as f32)
@@ -92,6 +117,9 @@ impl Conv {
             .skip_while(|(_, (_, convolved_length))| convolved_length < &&min_length)
             .collect();
 
+        // ensure that there's enough to keep
+        // if not, return the intact document and empty ranges.
+        // TODO: ensure that it can't be processed further down?
         match (i.first(), i.last()) {
             (Some(end), Some(start)) => {
                 let ranges = vec![start.0..=end.0];
@@ -106,12 +134,11 @@ impl Conv {
             }
             _ => (doc, Vec::new()),
         }
-        // println!("{:?}", line_lengths);
-        // (doc, Vec::new())
     }
 }
 
 impl Default for Conv {
+    /// Convolution window size is `5`, minimum length of sentences is `100`.
     fn default() -> Self {
         Self {
             conv_size: 5,
@@ -119,6 +146,34 @@ impl Default for Conv {
         }
     }
 }
+
+/// Removes short sentences that are before/after a contiguous chunk of the file.
+///
+/// The idea is to remove contiguous short sentences that are located before and after a main body.
+///
+/// By default the short sentence threshold is at 100
+/// Example:
+/// ```text
+/// foo
+/// bar
+/// baz
+/// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+/// quux
+/// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+/// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+/// baz
+/// bar
+/// foo
+/// ```
+///
+/// will be transformed into
+///
+/// ```text
+/// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+/// quux
+/// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+/// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+/// ```
 pub struct RemoveShortSentences {
     filter: Length,
 }
@@ -136,7 +191,40 @@ impl RemoveShortSentences {
         self.filter.min_size()
     }
 
-    pub fn transform_idx(&self, mut doc: Document) -> (Document, Vec<RangeInclusive<usize>>) {
+    // pub fn transform_idx(&self, mut doc: Document) -> (Document, Vec<RangeInclusive<usize>>) {
+    //     let lines = doc.content().lines();
+    //     let s: Vec<(usize, &str)> = lines
+    //         .enumerate()
+    //         .skip_while(|(_, sentence)| !self.filter.detect(sentence))
+    //         .collect();
+
+    //     // do the same thing while reversing the iterator
+    //     // this way, we skip the short sentences at the end
+    //     let s: Vec<(usize, &str)> = s
+    //         .into_iter()
+    //         .rev()
+    //         .skip_while(|(_, sentence)| !self.filter.detect(sentence))
+    //         //.map(|(idx, _)| idx)
+    //         .collect();
+
+    //     // if we did not get start or end, we return an empty vector
+    //     // meaning that we keed nothing. (analogous to transform_own)
+    //     match (s.first(), s.last()) {
+    //         (Some(end), Some(start)) => {
+    //             let ranges = vec![start.0..=end.0];
+    //             let sentences = s.into_iter().rev().map(|(_, sentence)| sentence).join("\n");
+
+    //             doc.set_content(sentences);
+
+    //             (doc, ranges)
+    //         }
+    //         _ => (doc, Vec::new()),
+    //     }
+    // }
+}
+
+impl Transform for RemoveShortSentences {
+    fn transform(&self, doc: &mut Document) -> Vec<RangeInclusive<usize>> {
         let lines = doc.content().lines();
         let s: Vec<(usize, &str)> = lines
             .enumerate()
@@ -161,39 +249,18 @@ impl RemoveShortSentences {
 
                 doc.set_content(sentences);
 
-                (doc, ranges)
+                ranges
             }
-            _ => (doc, Vec::new()),
+            _ => {
+                error!(
+                    "Record {} only had short sentences at transform step! This shouldn't happen!",
+                    doc.warc_id()
+                );
+                // set content to empty string
+                doc.set_content(String::new());
+                Vec::new()
+            }
         }
-    }
-}
-
-impl Transform for RemoveShortSentences {
-    fn transform_own(&self, mut doc: Document) -> Document {
-        let sentences = doc.content().lines();
-
-        // TODO: find a better way to do this
-
-        // skip while sentences are not long enough at start
-        // we collect into Vec because skip_while does not return a DoubleEndedIterator.
-        // We should be able to get a DoubleEndedIterator to avoid collecting here.
-        let s: Vec<&str> = sentences
-            .skip_while(|sentence| !self.filter.detect(sentence))
-            .collect();
-
-        // do the same thing while reversing the iterator
-        // this way, we skip the short sentences at the end
-        let s: Vec<&str> = s
-            .into_iter()
-            .rev()
-            .skip_while(|sentence| !self.filter.detect(sentence))
-            .collect();
-
-        let sentences = s.into_iter().rev().join("\n");
-
-        doc.set_content(sentences);
-
-        doc
     }
 }
 
@@ -340,14 +407,14 @@ baz
     }
     #[test]
     fn test_rss() {
-        let (doc, expected_content) = gen_valid();
+        let (mut doc, expected_content) = gen_valid();
         let rss = RemoveShortSentences::new(10);
 
-        let doc_transformed = rss.transform_own(doc);
+        rss.transform(&mut doc);
 
-        println!("{:#?}", doc_transformed);
+        println!("{:#?}", doc);
 
-        assert_eq!(doc_transformed.content(), &expected_content);
+        assert_eq!(doc.content(), &expected_content);
     }
 
     #[test]
@@ -365,40 +432,40 @@ baz
 
         let headers = HashMap::new();
         let metadata = Metadata::default();
-        let doc = Document::new(content, headers, metadata);
+        let mut doc = Document::new(content, headers, metadata);
 
         let rss = RemoveShortSentences::new(10);
 
-        let doc_transformed = rss.transform_own(doc);
+        rss.transform(&mut doc);
 
-        println!("{:#?}", doc_transformed);
+        println!("{:#?}", doc);
 
-        assert_eq!(doc_transformed.content(), "");
+        assert_eq!(doc.content(), "");
     }
 
     #[test]
     fn test_rss_idx() {
-        let (doc, _) = gen_valid();
+        let (mut doc, _) = gen_valid();
         let expected_range = vec![4..=7];
         let rss = RemoveShortSentences::new(10);
 
-        let doc_transformed = rss.transform_idx(doc);
+        let range_transformed = rss.transform(&mut doc);
 
-        println!("{:#?}", doc_transformed);
+        println!("{:#?}", range_transformed);
 
-        assert_eq!(doc_transformed.1, expected_range);
+        assert_eq!(range_transformed, expected_range);
     }
 
     #[test]
     fn test_rss_idx_invalid() {
-        let doc = gen_invalid();
+        let mut doc = gen_invalid();
         let expected_ranges = Vec::new();
 
         let rss = RemoveShortSentences::new(10);
 
-        let ranges = rss.transform_idx(doc);
+        let range_transformed = rss.transform(&mut doc);
 
-        assert_eq!(ranges.1, expected_ranges);
+        assert_eq!(range_transformed, expected_ranges);
     }
 
     #[test]
