@@ -38,7 +38,7 @@ lazy_static! {
   "name":"metadata_record",
   "fields":[
     {"name":"identification", "type":"identification"},
-    {"name":"annotation", "type":["string", "null"]},
+    {"name":"annotation", "type":["null", {"type": "array", "items":"string"}]},
     {"name": "sentence_identifications", "type":"array", "items":[
       "null",
       "identification"

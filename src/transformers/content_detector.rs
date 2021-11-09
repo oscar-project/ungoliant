@@ -46,7 +46,7 @@ impl<'a> Transform for ContentDetector<'a> {
         if let Some(valid_url) = url {
             if self.bl.detect_domain(&valid_url) || self.bl.detect_url(&valid_url) {
                 doc.metadata_mut()
-                    .set_annotation(Some(self.bl.kind().to_string()));
+                    .set_annotation(self.bl.kind().to_string());
             }
         }
 
@@ -104,7 +104,10 @@ mod tests {
 
         let doc = cd.transform_own(doc);
 
-        assert_eq!(doc.metadata().annotation(), Some(&"adult".to_string()));
+        assert_eq!(
+            doc.metadata().annotation(),
+            Some(&vec!["adult".to_string()])
+        );
     }
 
     #[test]

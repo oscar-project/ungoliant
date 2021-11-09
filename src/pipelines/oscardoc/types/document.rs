@@ -15,8 +15,7 @@ use crate::lang::Lang;
 /// TODO: make it a HashMap
 pub struct Metadata {
     identification: Identification,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    annotation: Option<String>,
+    annotation: Option<Vec<String>>,
     sentence_identifications: Vec<Option<Identification>>,
 }
 
@@ -33,12 +32,15 @@ impl Metadata {
     }
 
     /// Set the metadata's annotation.
-    pub fn set_annotation(&mut self, annotation: Option<String>) {
-        self.annotation = annotation;
+    pub fn set_annotation(&mut self, annotation: String) {
+        match &mut self.annotation {
+            Some(anno) => anno.push(annotation),
+            None => self.annotation = Some(vec![annotation]),
+        }
     }
 
     /// Get a reference to the metadata's annotation.
-    pub fn annotation(&self) -> Option<&String> {
+    pub fn annotation(&self) -> Option<&Vec<String>> {
         self.annotation.as_ref()
     }
 }
