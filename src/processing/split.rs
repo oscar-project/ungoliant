@@ -7,9 +7,10 @@ Offline corpus splitting.
 use crate::{
     io::{
         reader::{reader::Reader, Corpus},
+        writer::WriterTrait,
         Writer,
     },
-    processing::MergedPiece,
+    pipelines::oscarmeta::types::MergedPiece,
 };
 use log::info;
 use rayon::prelude::*;

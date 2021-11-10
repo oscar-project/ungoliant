@@ -5,8 +5,9 @@ This currently only uses [runiq](https://github.com/whitfin/runiq) to check for 
 use crate::error::Error;
 use crate::io::reader::reader::{PieceMeta, Reader};
 use crate::io::reader::Corpus;
+use crate::io::writer::WriterTrait;
 use crate::io::Writer;
-use crate::processing::MergedPiece;
+use crate::pipelines::oscarmeta::types::MergedPiece;
 use log::info;
 use rayon::prelude::*;
 use runiq::filters::Filter;
@@ -107,7 +108,7 @@ mod tests {
 
     use runiq::filters::Filter;
 
-    use crate::{io::reader::reader::PieceMeta, processing::Metadata};
+    use crate::{io::reader::reader::PieceMeta, pipelines::oscarmeta::types::Metadata};
 
     use super::*;
     #[test]

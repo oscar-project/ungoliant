@@ -8,15 +8,18 @@ use std::convert::TryFrom;
 use std::io::Write;
 use std::path::Path;
 
-use crate::processing::Metadata;
+// use crate::processing::Metadata;
 use itertools::Itertools;
 use log::{debug, error};
 
-use crate::processing::{MergedPiece, PartChunk};
+use crate::pipelines::oscarmeta::types::{MergedPiece, Metadata, PartChunk};
+// use crate::processing::{MergedPiece, PartChunk};
 use crate::{
     error,
     io::writer::{MetaWriter, TextWriter},
 };
+
+use super::WriterTrait;
 
 pub struct Writer {
     handle_text: TextWriter,
@@ -25,16 +28,13 @@ pub struct Writer {
     offset: usize,
 }
 
-impl Writer {
+impl WriterTrait for Writer {
+    type Item = MergedPiece;
     /// Create a new Writer for provided language.
     /// Files will be written at the root of the `dst` file, and shouldn't exceed `size_limit`.
     ///
     /// _See [TextWriter] to have an explanation about the *shouldn't*._
-    pub fn new(
-        dst: &Path,
-        lang: &'static str,
-        size_limit: Option<u64>,
-    ) -> Result<Self, error::Error> {
+    fn new(dst: &Path, lang: &'static str, size_limit: Option<u64>) -> Result<Self, error::Error> {
         Ok(Self {
             handle_text: TextWriter::new(dst, lang, size_limit),
             handle_meta: MetaWriter::new(dst, lang),
@@ -42,9 +42,8 @@ impl Writer {
             offset: 0,
         })
     }
-
     /// writes the provided [MergedPiece], checking language identification.
-    pub fn write(&mut self, pieces: Vec<MergedPiece>) -> Result<(), error::Error> {
+    fn write(&mut self, pieces: Vec<MergedPiece>) -> Result<(), error::Error> {
         // get size of whole pieces.
         // If all the pieces fit, we bulk insert.
         let whole_size =
@@ -81,7 +80,7 @@ impl Writer {
         Ok(())
     }
 
-    pub fn write_single(&mut self, piece: &MergedPiece) -> Result<(), error::Error> {
+    fn write_single(&mut self, piece: &MergedPiece) -> Result<(), error::Error> {
         if piece.identification() != self.lang {
             return Err(error::Error::Custom(format!(
                 "Wrong language. Tried to add a {} piece into a {} file.",
@@ -117,12 +116,14 @@ impl Writer {
         self.handle_meta.write_all(metadata_str.as_bytes())?;
         Ok(())
     }
+
     /// Binds to [MetaWriter::close_file].
     /// Closes current metadata file.
-    pub fn close_meta(&mut self) -> Result<(), error::Error> {
+    fn close_meta(&mut self) -> Result<(), error::Error> {
         self.handle_meta.close_file()
     }
 }
+
 #[cfg(test)]
 mod tests {
 

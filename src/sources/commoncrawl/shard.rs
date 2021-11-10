@@ -32,6 +32,7 @@ pub struct Wet<T> {
 impl Wet<BufReader<MultiGzDecoder<File>>> {
     /// Create a new reader from a gzipped WET file.
     pub fn from_path_gzip<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        // TODO: ensure that path is dir.
         let gzip_file = File::open(path)?;
         let gzip_stream = MultiGzDecoder::new(gzip_file);
 
@@ -65,11 +66,15 @@ mod tests {
     use super::Wet;
 
     #[test]
+    fn test_folder() {
+        let x = Wet::from_path_gzip("/dev/").unwrap();
+    }
+
+    #[test]
     #[ignore]
     fn test_init() {
         let _ = Wet::from_path_gzip("results/0.txt.gz").unwrap();
     }
-
     #[test]
     #[ignore]
     fn test_metadata() {
@@ -81,7 +86,7 @@ mod tests {
         // for a better explanation of fields
         let shard = Wet::from_path_gzip("results/0.txt.gz").unwrap();
 
-        for (idx, record) in shard.iter.enumerate().skip(1).take(4) {
+        for (_, record) in shard.iter.enumerate().skip(1).take(4) {
             let record = record.unwrap();
             println!("{:#?}", record);
             // let headers: HashMap<WarcHeader, String> = record

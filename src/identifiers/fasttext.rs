@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::error::Error;
 use fasttext::{FastText as FastTextLib, Prediction};
 
-use super::identifier;
+use super::{identifier, Identification};
 
 /// Clean the prediction label field from `__label__xx` into `xx`.
 ///
@@ -95,8 +95,20 @@ impl FastText {
 }
 
 impl identifier::Identifier for FastText {
-    fn identify(&self, _sentence: &str) -> Result<Option<&'static str>, Error> {
-        todo!();
+    fn identify(&self, sentence: &str) -> Result<Option<Identification>, Error> {
+        let prediction = self
+            .predictor
+            .predict(sentence, 1, self.threshold)
+            .map_err(Error::FastText)?;
+        // let prediction = prediction.sort_by(|a, b| a.prob.partial_cmp(&b.prob)).iter().take(1);
+
+        if !prediction.is_empty() {
+            // TODO: There should be a solution without resorting to clone()
+            let prediction = prediction[0].clone();
+            Ok(Some(prediction.into()))
+        } else {
+            Ok(None)
+        }
     }
 }
 #[cfg(test)]
@@ -160,4 +172,9 @@ mod tests {
         assert!(cls1.is_err());
         assert!(cls2.is_err());
     }
+
+    // #[test]
+    // fn test_clean_prediction_invalid() -> {
+
+    // }
 }

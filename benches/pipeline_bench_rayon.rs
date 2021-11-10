@@ -1,9 +1,9 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use itertools::Itertools;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+
 use rayon::prelude::*;
 use ungoliant::identifiers::FastText;
 use ungoliant::sources::commoncrawl::Wet;
-use warc::{header::WarcHeader, RawRecord};
+
 
 const NB_RECORDS: usize = 250;
 // bench protocol:
@@ -25,9 +25,9 @@ fn sequential(nb_shards: usize) {
         .take(nb_shards);
 
     for wetfile in results {
-        for record in wetfile.take(NB_RECORDS) {
+        for record in wetfile.iter.take(NB_RECORDS) {
             let record = record.unwrap();
-            let body = String::from_utf8(record.body).ok();
+            let body = String::from_utf8(record.body().to_vec()).ok();
             if let Some(sentences) = body {
                 let sentences = sentences.lines().filter(|line| line.chars().count() > 100);
                 for sentence in sentences {
@@ -47,9 +47,9 @@ fn parallel_on_sentences(nb_shards: usize) {
         .take(nb_shards);
 
     for wetfile in results {
-        for record in wetfile.take(NB_RECORDS) {
+        for record in wetfile.iter.take(NB_RECORDS) {
             let record = record.unwrap();
-            let body = String::from_utf8(record.body).ok();
+            let body = String::from_utf8(record.body().to_vec()).ok();
             if let Some(sentences) = body {
                 let sentences: Vec<&str> = sentences
                     .lines()
@@ -71,10 +71,10 @@ fn parallel_on_records(nb_shards: usize) {
         .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap())
         .take(nb_shards);
     for wetfile in results {
-        let records = wetfile.into_iter().take(NB_RECORDS).par_bridge();
+        let records = wetfile.iter.into_iter().take(NB_RECORDS).par_bridge();
         records.for_each(|record| {
             let record = record.unwrap();
-            let body = String::from_utf8(record.body).ok();
+            let body = String::from_utf8(record.body().to_vec()).ok();
             if let Some(sentences) = body {
                 let sentences: Vec<&str> = sentences
                     .lines()
@@ -97,10 +97,10 @@ fn parallel_on_shards(nb_shards: usize) {
         .take(nb_shards);
     let results = results.par_bridge();
     results.for_each(|wetfile| {
-        let records = wetfile.take(NB_RECORDS);
+        let records = wetfile.iter.take(NB_RECORDS);
         for record in records {
             let record = record.unwrap();
-            let body = String::from_utf8(record.body).ok();
+            let body = String::from_utf8(record.body().to_vec()).ok();
             if let Some(sentences) = body {
                 for sentence in sentences.lines().filter(|line| line.chars().count() > 100) {
                     cls.predict(sentence);
@@ -120,10 +120,10 @@ fn parallel_on_shards_and_sentences(nb_shards: usize) {
 
     let results = results.par_bridge();
     results.for_each(|wetfile| {
-        let records = wetfile.take(NB_RECORDS);
+        let records = wetfile.iter.take(NB_RECORDS);
         for record in records {
             let record = record.unwrap();
-            let body = String::from_utf8(record.body).ok();
+            let body = String::from_utf8(record.body().to_vec()).ok();
             if let Some(sentences) = body {
                 let sentences = sentences
                     .lines()
@@ -146,10 +146,10 @@ fn parallel_all(nb_shards: usize) {
 
     let results = results.par_bridge();
     results.for_each(|wetfile| {
-        let records = wetfile.take(NB_RECORDS).par_bridge();
+        let records = wetfile.iter.take(NB_RECORDS).par_bridge();
         records.for_each(|record| {
             let record = record.unwrap();
-            let body = String::from_utf8(record.body).ok();
+            let body = String::from_utf8(record.body().to_vec()).ok();
             if let Some(sentences) = body {
                 let sentences = sentences
                     .lines()

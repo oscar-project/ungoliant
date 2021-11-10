@@ -12,6 +12,41 @@ This leads the [TextWriter]/[MetaWriter] couple to be cumbersome to use outside 
 mod metawriter;
 mod textwriter;
 pub mod writer;
+mod writer_doc;
+mod writertrait;
 use metawriter::MetaWriter;
 use textwriter::TextWriter;
 pub use writer::Writer;
+pub use writer_doc::WriterDoc;
+pub use writertrait::WriterTrait;
+
+// pub enum WriterKind {
+//     Line(Writer),
+//     Document(WriterDoc),
+// }
+
+// impl WriterTrait for WriterKind {
+//     type Item = u32;
+//     fn new(
+//         dst: &std::path::Path,
+//         lang: &'static str,
+//         max_file_size: Option<u64>,
+//     ) -> Result<Self, crate::error::Error>
+//     where
+//         Self: Sized,
+//     {
+//         todo!()
+//     }
+
+//     fn write(&mut self, vals: Vec<T>) -> Result<(), crate::error::Error> {
+//         todo!()
+//     }
+
+//     fn write_single(&mut self, val: &T) -> Result<(), crate::error::Error> {
+//         todo!()
+//     }
+
+//     fn close_meta(&mut self) -> Result<(), crate::error::Error> {
+//         todo!()
+//     }
+// }

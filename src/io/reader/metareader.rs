@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use crate::error::Error;
-use crate::processing::Metadata;
+use crate::pipelines::oscarmeta::types::Metadata;
 
 /// Same implementation of Reader, same new, different iter implementation.
 /// This should be doable by defining a trait that implements Iterator.
@@ -68,16 +68,9 @@ where
 }
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs::File,
-        io::{BufRead, BufReader},
-        path::PathBuf,
-    };
+    use std::io::{BufRead, BufReader};
 
-    use itertools::Itertools;
     use std::io::Cursor;
-
-    use crate::processing::Metadata;
 
     use super::*;
 
@@ -108,7 +101,7 @@ mod tests {
         let c = Cursor::new(d);
         let b = BufReader::new(c);
         let l = b.lines();
-        let mut mr = Reader {
+        let mr = Reader {
             lines: l,
             lang: "en",
         };
@@ -122,7 +115,7 @@ mod tests {
         let c = Cursor::new(d);
         let b = BufReader::new(c);
         let l = b.lines();
-        let mut mr = Reader {
+        let mr = Reader {
             lines: l,
             lang: "en",
         };
