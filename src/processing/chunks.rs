@@ -90,6 +90,7 @@ pub fn group_by<T: Eq + std::hash::Hash + Copy>(
 mod tests {
 
     use super::*;
+    use warc::WarcHeader;
 
     #[test]
     fn group_by_simple() {
@@ -156,5 +157,53 @@ mod tests {
         expected.insert("it", vec![10..=10]);
         println!("{:?}", r);
         assert_eq!(r, expected);
+    }
+
+    fn gen_fr_chunk() -> (
+        Vec<String>,
+        &'static str,
+        Vec<RangeInclusive<usize>>,
+        HashMap<WarcHeader, Vec<u8>>,
+    ) {
+        let lang = "fr";
+        let mut header = HashMap::new();
+
+        // set a dummy warcheader
+        header.insert(WarcHeader::ContentType, Vec::from("text/plain".as_bytes()));
+
+        let sentences: Vec<String> = [
+            "Bonjour et bienvenue",
+            "Je suis une phrase de test",
+            "Moi également",
+        ]
+        .iter()
+        .map(|sentence| sentence.to_string())
+        .collect();
+
+        let ranges = vec![0..=sentences.len() - 1];
+
+        (sentences, lang, ranges, header)
+    }
+
+    fn gen_en_chunk() -> (
+        Vec<String>,
+        &'static str,
+        Vec<RangeInclusive<usize>>,
+        HashMap<WarcHeader, Vec<u8>>,
+    ) {
+        let lang = "en";
+        let mut header = HashMap::new();
+
+        // set a dummy warcheader
+        header.insert(WarcHeader::ContentType, Vec::from("text/plain".as_bytes()));
+
+        let sentences: Vec<String> = ["Hello and welcome", "I'm a test sentence", "Hey, me too"]
+            .iter()
+            .map(|sentence| sentence.to_string())
+            .collect();
+
+        let ranges = vec![0..=sentences.len() - 1];
+
+        (sentences, lang, ranges, header)
     }
 }

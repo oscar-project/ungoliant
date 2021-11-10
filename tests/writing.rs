@@ -2,9 +2,8 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use ungoliant::io::writer::WriterTrait;
 use ungoliant::io::LangFiles;
-use ungoliant::pipelines::oscarmeta::types::MergedPiece;
+use ungoliant::processing::MergedPiece;
 use warc::WarcHeader;
 
 fn english_sentences(nb: i32) -> Vec<String> {

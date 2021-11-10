@@ -9,5 +9,4 @@ use crate::error::Error;
 /// TODO wiki/page about creating a new pipeline
 pub trait Pipeline<T> {
     fn run(&self) -> Result<T, Error>;
-    fn version() -> &'static str;
 }

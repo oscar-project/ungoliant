@@ -68,5 +68,9 @@ fn compress_file(path: &Path, dst: &Path) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
+    use super::compress_corpus;
+
     //TODO
 }

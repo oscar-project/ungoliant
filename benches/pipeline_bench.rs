@@ -3,7 +3,7 @@ use itertools::Itertools;
 use rayon::prelude::*;
 use ungoliant::identifiers::FastText;
 use ungoliant::sources::commoncrawl::Wet;
-use warc::{BufferedBody, Record, WarcHeader};
+use warc::{header::WarcHeader, RawRecord};
 
 // bench protocol:
 //
@@ -23,16 +23,16 @@ use warc::{BufferedBody, Record, WarcHeader};
 // Full sequential
 pub fn pipeline_full_sequential_benchmark(c: &mut Criterion) {
     fn parse_headers() {
-        let _lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
+        let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
         let cls = FastText::new_lid().unwrap();
         let results = std::fs::read_dir("results/")
             .unwrap()
             .map(|d| Wet::from_path_gzip(d.unwrap().path()).unwrap());
 
         for wetfile in results {
-            for record in wetfile.iter.take(1000) {
+            for record in wetfile.take(1000) {
                 let record = record.unwrap();
-                let body = String::from_utf8(record.body().to_vec()).ok();
+                let body = String::from_utf8(record.body).ok();
                 if let Some(sentences) = body {
                     let sentences = sentences.lines().filter(|line| line.chars().count() > 100);
                     for sentence in sentences {
@@ -52,15 +52,14 @@ pub fn pipeline_multithread_benchmark(c: &mut Criterion) {
         let records = Wet::from_path_gzip("results/0.txt.gz").unwrap();
 
         let lang_tag = WarcHeader::Unknown("warc-identified-content-language".to_string());
-        for c in records.iter.take(100).chunks(4).into_iter() {
-            let c: Vec<Record<BufferedBody>> =
-                c.filter(Result::is_ok).map(Result::unwrap).collect();
+        for c in records.take(100).chunks(4).into_iter() {
+            let c: Vec<RawRecord> = c.filter(Result::is_ok).map(Result::unwrap).collect();
 
-            let _c = c
+            let c = c
                 .par_iter()
-                .for_each(|record| match record.header(lang_tag.clone()) {
+                .for_each(|record| match record.headers.get(&lang_tag) {
                     Some(lang) => {
-                        String::from_utf8_lossy(lang.as_bytes());
+                        String::from_utf8_lossy(lang);
                     }
                     None => (),
                 });

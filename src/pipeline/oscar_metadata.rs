@@ -1,23 +1,16 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use super::types::Document;
-use super::types::MergedPiece;
-use crate::error::Error;
-use crate::identifiers::FastText;
-use crate::io::writer::WriterTrait;
 use crate::lang::LANG;
 use crate::sources::commoncrawl::Wet;
+use crate::{error::Error, processing::document::Document};
+use crate::{identifiers::FastText, processing::document::MergedPiece};
 use log::Level::Debug;
 use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
-use warc::Record;
+use warc::{Record, WarcHeader};
 
 use crate::io::LangFiles;
-
-use crate::pipelines::pipeline::Pipeline;
-
-use super::types::WarcHeaders;
 /// OSCAR v1.5 generation pipeline
 ///
 /// OSCAR v1.5 is a retrocompatible corpus
@@ -42,6 +35,9 @@ pub struct OscarMetadata {
     dst: PathBuf,
     lid_path: PathBuf,
 }
+
+/// convinience type alias for [warc::Record] headers.
+type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
 impl OscarMetadata {
     pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf) -> Self {
@@ -115,15 +111,9 @@ impl OscarMetadata {
             None
         }
     }
-}
-
-impl Pipeline<()> for OscarMetadata {
-    fn version() -> &'static str {
-        "1.1.0"
-    }
 
     /// Run the whole pipeline
-    fn run(&self) -> Result<(), Error> {
+    pub fn run(&self) -> Result<(), Error> {
         // let errors;
 
         let cls = FastText::new(&self.lid_path, 1, 0.8)?;
@@ -169,7 +159,6 @@ impl Pipeline<()> for OscarMetadata {
                 info!("processing shard {}: {:?}", idx, &shard);
 
                 let shard = Wet::from_path_gzip(&shard);
-
                 if shard.is_err() {
                     error!("Could not read/open shard {}", idx);
                     return shard.err();
@@ -252,6 +241,7 @@ impl Pipeline<()> for OscarMetadata {
 
 #[cfg(test)]
 mod tests {
+    use std::{env::temp_dir, path::PathBuf};
 
     use warc::{EmptyBody, Record};
 
@@ -261,16 +251,17 @@ mod tests {
     #[test]
     fn test_process_record() {
         let cls = FastText::new_lid().unwrap();
+        let record = ();
 
         // let oscar_metadata =
         //     OscarMetadata::new(temp_dir(), temp_dir(), PathBuf::from("lid.176.bin"));
 
-        let record: Record<EmptyBody> = Record::default();
+        let mut record: Record<EmptyBody> = Record::default();
         let body = "english test that is longer than one hundred characters. english test that is longer than one hundred characters.
 phrase française de plus de cent caractères. Ceci est une phrase française de plus de cent caractères.";
         println!("{}", body.len());
         let record = record.add_body(body);
-        let (identifications, _) = OscarMetadata::process_record(record, &cls).unwrap();
+        let (identifications, headers) = OscarMetadata::process_record(record, &cls).unwrap();
 
         for (sentence, id) in identifications {
             if id == "en" {

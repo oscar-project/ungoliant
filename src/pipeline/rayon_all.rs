@@ -4,7 +4,7 @@
 use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use crate::lang::LANG;
-use crate::pipelines::pipeline::Pipeline;
+use crate::pipeline::pipeline::Pipeline;
 use crate::{error::Error, lang::LangFiles};
 use crate::{identifiers::FastText, sources::commoncrawl::Wet};
 use itertools::Itertools;
@@ -123,9 +123,6 @@ impl RayonAll {
 }
 
 impl Pipeline<()> for RayonAll {
-    fn version() -> &'static str {
-        "1.0"
-    }
     /// run the [RayonAll] pipeline.
     fn run(&self) -> Result<(), Error> {
         let cls = FastText::new_lid()?;

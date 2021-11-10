@@ -59,6 +59,6 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let _ = Corpus::new(Path::new("dst/"));
+        let c = Corpus::new(Path::new("dst/"));
     }
 }

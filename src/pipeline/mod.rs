@@ -2,15 +2,10 @@
 //!
 //! Various pipelines are implemented here, and the module
 //! provides a light [pipeline::Pipeline] trait that enables easy and flexible pipeline creation.
-pub mod oscardoc;
-pub mod oscarmeta;
-pub mod oscartext;
+pub mod oscar_metadata;
 #[allow(clippy::module_inception)]
 pub mod pipeline;
+mod rayon_all;
 
-// pub use oscardoc::Document;
-// pub use oscardoc::Metadata;
-pub use oscardoc::OscarDoc;
-pub use oscarmeta::OscarMetadata;
-pub use pipeline::Pipeline;
+pub use oscar_metadata::OscarMetadata;
 // pub use rayon_all::RayonAll;

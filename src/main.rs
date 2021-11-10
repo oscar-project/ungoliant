@@ -5,8 +5,7 @@ use std::fs::File;
 use std::io::Write;
 use structopt::StructOpt;
 
-use crate::pipelines::oscarmeta::types::Metadata;
-use crate::pipelines::Pipeline;
+use crate::processing::Metadata;
 
 #[macro_use]
 extern crate log;
@@ -14,14 +13,12 @@ extern crate log;
 mod cli;
 mod download;
 mod error;
-mod filtering;
 mod identifiers;
 mod io;
 mod lang;
-mod pipelines;
+mod pipeline;
 mod processing;
 mod sources;
-mod transformers;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
@@ -59,8 +56,7 @@ async fn main() -> Result<(), error::Error> {
 
         cli::Ungoliant::Pipeline(p) => {
             let mut schema_filepath = p.dst.clone();
-            // let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
-            let p = pipelines::OscarDoc::new(p.src, p.dst, p.lid_path);
+            let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
             p.run()?;
 
             schema_filepath.push("metadata_schema.json");
@@ -79,11 +75,6 @@ async fn main() -> Result<(), error::Error> {
         }
         cli::Ungoliant::Package(p) => {
             processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
-        }
-        cli::Ungoliant::Rebuild(r) => {
-            let l = r.lang.parse().expect("unexpected language");
-            let rb = processing::rebuild::Rebuilder::new(&r.src_rebuild, &r.src_shards, &r.dst, l);
-            rb.run()?;
         }
     };
     Ok(())

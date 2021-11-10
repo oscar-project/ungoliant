@@ -19,21 +19,8 @@ pub enum Ungoliant {
     Compress(Compress),
     #[structopt(about = "package")]
     Package(Package),
-    #[structopt(about = "rebuild the corpus for a given language")]
-    Rebuild(Rebuild),
 }
 
-#[derive(Debug, StructOpt)]
-pub struct Rebuild {
-    #[structopt(parse(from_os_str), help = "source rebuild file (not directory)")]
-    pub src_rebuild: PathBuf,
-    #[structopt(parse(from_os_str), help = "source shards directory")]
-    pub src_shards: PathBuf,
-    #[structopt(parse(from_os_str), help = "rebuild directory")]
-    pub dst: PathBuf,
-    #[structopt(help = "target language")]
-    pub lang: String,
-}
 #[derive(Debug, StructOpt)]
 /// Dedup command and parameters.
 pub struct Dedup {
