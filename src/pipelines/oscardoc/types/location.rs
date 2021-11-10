@@ -188,3 +188,33 @@ impl Default for Location {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Location;
+    use super::LocationBuilder;
+
+    #[test]
+    fn location_build_incomplete() {
+        let lb = LocationBuilder::default();
+        assert!(lb.build().is_err());
+    }
+
+    #[test]
+    fn location_build_complete() {
+        let mut lb = LocationBuilder::default();
+        let (rid, ls, le, lis, si) = ("record_id", 0, 10, 1, 4);
+        lb.set_record_id(rid.to_string());
+        lb.set_line_start(ls);
+        lb.set_line_end(le);
+        lb.set_loc_in_shard(lis);
+        lb.set_shard_id(si);
+        let loc_built = lb.build();
+        assert!(loc_built.is_ok());
+        let loc_built = loc_built.unwrap();
+
+        let location = Location::new(si, rid.to_string(), ls, le, lis);
+
+        assert_eq!(location, loc_built);
+    }
+}

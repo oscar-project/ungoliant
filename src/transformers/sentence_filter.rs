@@ -82,8 +82,8 @@ impl Conv {
         let line_lengths: Vec<f32> = lines.iter().map(|line| line.len() as f32).collect();
         //add padding
         let padding_size = self.conv_size.div_euclid(2);
-        let padding_val_start = line_lengths.first().unwrap().clone();
-        let padding_val_end = line_lengths.last().unwrap().clone();
+        let padding_val_start = *line_lengths.first().unwrap();
+        let padding_val_end = *line_lengths.last().unwrap();
         let line_lengths = [
             vec![padding_val_start; padding_size],
             line_lengths,
@@ -276,10 +276,11 @@ impl Default for RemoveShortSentences {
 mod tests {
     use std::collections::HashMap;
 
+    use crate::filtering::sentence::Length;
     use crate::pipelines::oscardoc::types::{Document, Metadata};
-    use crate::transformers::Transform;
+    use crate::transformers::{Annotate, Transform};
 
-    use super::{Conv, RemoveShortSentences};
+    use super::{Conv, RemoveShortSentences, ShortSentences};
 
     fn gen_valid() -> (Document, String) {
         let content = r"foo
@@ -468,17 +469,55 @@ baz
         assert_eq!(range_transformed, expected_ranges);
     }
 
+    // #[test]
+    // fn test_conv() {
+    //     let (doc, expected) = gen_valid_long();
+    //     let c = Conv::new(3, RemoveShortSentences::new(60));
+    //     println!(
+    //         "{:?}",
+    //         doc.content()
+    //             .lines()
+    //             .map(|line| line.len())
+    //             .collect::<Vec<usize>>()
+    //     );
+    //     println!("{:#?}", c.transform_idx(doc));
+    // }
+
     #[test]
-    fn test_conv() {
-        let (doc, expected) = gen_valid_long();
-        let c = Conv::new(5, RemoveShortSentences::new(60));
-        println!(
-            "{:?}",
-            doc.content()
-                .lines()
-                .map(|line| line.len())
-                .collect::<Vec<usize>>()
-        );
-        println!("{:#?}", c.transform_idx(doc));
+    fn test_annotate_short() {
+        let (mut doc, _) = gen_valid_long();
+        let content = r#"Long enough sentence here :)
+tiny one
+tiny one
+tiny one
+Long enough sentence here :)"#;
+        doc.set_content(content.to_string());
+        let a = ShortSentences::new(Length::with_min_size(10), 0.5);
+        let annotation = "short_sentences";
+        a.annotate(&mut doc);
+        assert!(doc
+            .metadata()
+            .annotation()
+            .unwrap()
+            .contains(&String::from(annotation)))
+    }
+
+    #[test]
+    fn test_no_annotation() {
+        let (mut doc, _) = gen_valid_long();
+        let content = r#"Long enough sentence here :)
+tiny one
+Long enough sentence here :)
+Long enough sentence here :)
+Long enough sentence here :)
+tiny one
+tiny one
+Long enough sentence here :)"#;
+        doc.set_content(content.to_string());
+        let a = ShortSentences::new(Length::with_min_size(10), 0.5);
+        let annotation = "short_sentences";
+        a.annotate(&mut doc);
+        // this fails if doc is annotated with something else
+        assert!(doc.metadata().annotation().is_none())
     }
 }

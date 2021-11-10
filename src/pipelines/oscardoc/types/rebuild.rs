@@ -299,8 +299,18 @@ mod tests {
 
     use crate::pipelines::oscardoc::types::{Location, Metadata};
 
-    use super::{RebuildWriter, ShardResult};
+    use super::{RebuildInformation, RebuildWriter, ShardResult};
 
+    #[test]
+    fn rebuild_information_into_raw_parts() {
+        let loc = Location::default();
+        let m = Metadata::default();
+        let ri = RebuildInformation::new(loc.clone(), m.clone());
+        let (loc2, m2) = ri.into_raw_parts();
+
+        assert_eq!(loc, loc2);
+        assert_eq!(m, m2);
+    }
     #[test]
     fn test_ser_empty() {
         let sr = ShardResult::new(0, Vec::new(), Vec::new());

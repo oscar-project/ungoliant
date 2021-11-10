@@ -44,7 +44,7 @@ impl<'a> Annotate for ContentDetector<'a> {
     /// corresponding to blocklist kind if true.
     fn annotate(&self, doc: &mut Document) {
         // attempt to get a valid url
-        let url = Self::parse_url(&doc);
+        let url = Self::parse_url(doc);
 
         // if we were successful, detect domain and url
         if let Some(valid_url) = url {
