@@ -4,6 +4,7 @@ Code is organized in the same manner as the [crate::io::writer] mod, with {text/
 
 !*/
 pub mod corpus;
+pub mod docreader;
 mod metareader;
 pub mod reader;
 mod textreader;

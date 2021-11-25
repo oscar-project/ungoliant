@@ -21,8 +21,17 @@ pub enum Ungoliant {
     Package(Package),
     #[structopt(about = "rebuild the corpus for a given language")]
     Rebuild(Rebuild),
+    #[structopt(about = "check for corpus validity")]
+    Check(Check),
 }
 
+#[derive(Debug, StructOpt)]
+pub struct Check {
+    #[structopt(parse(from_os_str), help = "Corpus file")]
+    pub src: PathBuf,
+    #[structopt(parse(from_os_str), help = "csv file destination")]
+    pub dst: PathBuf,
+}
 #[derive(Debug, StructOpt)]
 pub struct Rebuild {
     #[structopt(parse(from_os_str), help = "source rebuild file (not directory)")]
