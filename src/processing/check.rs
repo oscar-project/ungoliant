@@ -32,16 +32,19 @@ pub struct Zipf {
 pub struct ZipfEntry {
     rank: u64,
     count: u64,
-    freq: f64,
+    prob: f64,
     constant: f64,
 }
 
 impl ZipfEntry {
-    pub fn new(rank: u64, count: u64, freq: f64, constant: f64) -> Self {
+    /// nb_words = total number of words (not unique)
+    pub fn new(rank: u64, count: u64, nb_words: u64) -> Self {
+        let prob = count as f64 / nb_words as f64;
+        let constant = prob * rank as f64;
         Self {
             rank,
             count,
-            freq,
+            prob,
             constant,
         }
     }
@@ -86,11 +89,38 @@ impl Zipf {
             .enumerate()
             .map(|(rank, (_, count))| {
                 let rank = rank + 1; // rank starts at 1
-                let freq = *count as f64 / self.nb_words as f64;
-                let constant = freq * rank as f64;
-                ZipfEntry::new(rank.try_into().unwrap(), *count, freq, constant)
+                ZipfEntry::new(rank.try_into().unwrap(), *count, self.nb_words)
             })
             .collect()
+    }
+
+    pub fn constants(&self) -> Vec<f64> {
+        self.counts
+            .iter()
+            .sorted_by(|a, b| b.1.cmp(&a.1))
+            .enumerate()
+            .map(|(rank, (_, count))| {
+                let rank = (rank + 1) as f64; // rank starts at 1
+                let prob = *count as f64 / self.nb_words as f64;
+
+                rank * prob
+            })
+            .collect()
+    }
+
+    fn mean_constants(&self) -> f64 {
+        self.constants().iter().sum::<f64>() / self.constants().len() as f64
+    }
+    pub fn sig_constants(&self) -> f64 {
+        let mean = self.mean_constants();
+
+        // get sum of (x_i - x_mean)^2
+        let devs = self
+            .constants()
+            .iter()
+            .fold(0.0, |acc: f64, x| acc + (x - mean).powf(2.0));
+
+        (devs * (1.0 / self.counts.len() as f64)).sqrt()
     }
 }
 
@@ -114,6 +144,8 @@ pub fn check(src: PathBuf, dst: PathBuf) -> Result<(), Error> {
     }
     out.flush()?;
 
+    println!("zipf mean: {}", zipf.mean_constants());
+    println!("zipf sig: {}", zipf.sig_constants());
     Ok(())
 }
 #[cfg(test)]
