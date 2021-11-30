@@ -9,7 +9,7 @@ use super::Annotate;
 /// Header/Footer annotator.
 ///
 /// Checks for short sentences in the beginnning/end of documents, and flags if there's too much.
-struct Header {
+pub struct Header {
     header_pctg: f64,
     threshold_pctg: f64,
     min_length: usize,
