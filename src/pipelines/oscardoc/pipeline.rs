@@ -30,7 +30,7 @@ use crate::lang::Lang;
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
-use crate::transformers::{self, Annotate, Transform};
+use crate::transformers::{self, Annotate, Annotator, Transform};
 use log::{debug, error, info, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
@@ -174,11 +174,9 @@ impl OscarDoc {
         });
 
         // annotate
-        let adult_filter = transformers::ContentDetector::with_defaults()?;
-        let short_sentence_annotator = transformers::ShortSentences::default();
+        let annotator = Annotator::default();
         let record_iter = record_iter.map(|(loc, mut r)| {
-            adult_filter.annotate(&mut r);
-            short_sentence_annotator.annotate(&mut r);
+            annotator.annotate(&mut r);
             (r, loc.build().unwrap())
         });
 
