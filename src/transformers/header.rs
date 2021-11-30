@@ -1,3 +1,7 @@
+/*! Header/Footer annotators
+
+Annotator that watches for short lines at the beginning/end of documents, adding `footer` and/or `header` annotations.
+!*/
 use crate::pipelines::oscardoc::types::Document;
 
 use super::Annotate;
@@ -12,7 +16,10 @@ struct Header {
 }
 
 impl Default for Header {
-    /// Default values are 20% of the document for the header/footer, flagging if >50% of the sentences are short, and < 100 lines = short sentence.
+    /// Default values are:
+    /// - 20% of the document for the header/footer
+    /// - flagging if >50% of the sentences are short
+    /// - and < 100 lines = short sentence.
     fn default() -> Self {
         Self {
             header_pctg: 0.2,
@@ -23,6 +30,7 @@ impl Default for Header {
 }
 
 impl Annotate for Header {
+    /// checks lines and adds annotations if applicable.
     fn annotate(&self, doc: &mut Document) {
         let nb_lines = doc.content().lines().count();
 
@@ -34,11 +42,11 @@ impl Annotate for Header {
         // iterate over the header, counting short lines
         let short_lines_count = self.count_short_lines(doc.content().lines().take(nb_lines_header));
 
-        // moving the if in the for loop may increase/decrease performance?
         if short_lines_count >= treshold_lines {
             doc.metadata_mut().set_annotation("header".to_string());
         }
 
+        // do the same in reverse order (to get footer)
         let short_lines_count =
             self.count_short_lines(doc.content().lines().rev().take(nb_lines_header));
 
@@ -49,6 +57,13 @@ impl Annotate for Header {
 }
 
 impl Header {
+    /// New [Header] with custom values.
+    ///
+    /// * `header_pctg` is the percentage of the document that is considered a header (on lines, not bytes).
+    ///    A 100 line document with a `header_pctg` at 0.20 will consider the header is lines 0..20.
+    /// * `threshold_pctg`: percentage of short lines required to be annotated.
+    ///    A 100 line document with 20 header lines will get annotated if there's 10 or more short lines, if we're using 0.50 as a threshold.
+    /// * `min_length` is the minimum length of a sentence. If a sentence is shorter than this, it is considered a short one.
     fn new(header_pctg: f64, threshold_pctg: f64, min_length: usize) -> Self {
         Self {
             header_pctg,
@@ -57,6 +72,7 @@ impl Header {
         }
     }
 
+    /// counts the number of short lines at the beginning of a string iterator.
     #[inline]
     fn count_short_lines<'a>(&self, lines: impl Iterator<Item = &'a str>) -> u64 {
         // reset counter
@@ -200,5 +216,32 @@ This is a lengthy enough sentence! Or at least I hope :)";
             doc.metadata().annotation(),
             Some(&vec!["header".to_string(), "footer".to_string()])
         );
+    }
+
+    #[test]
+    fn count_lines() {
+        let text = r"This is a lengthy enough sentence! Or at least I hope :)
+short one but it's ok
+short one but it's ok
+short one but it's ok
+short one but it's ok
+short one but it's ok
+This is a lengthy enough sentence! Or at least I hope :)
+This is a lengthy enough sentence! Or at least I hope :)
+This is a lengthy enough sentence! Or at least I hope :)
+This is a lengthy enough sentence! Or at least I hope :)
+This is a lengthy enough sentence! Or at least I hope :)
+This is a lengthy enough sentence! Or at least I hope :)
+This is a lengthy enough sentence! Or at least I hope :)
+This is a lengthy enough sentence! Or at least I hope :)
+This is a lengthy enough sentence! Or at least I hope :)
+short one but it's ok
+short one but it's ok
+short one but it's ok
+This is a lengthy enough sentence! Or at least I hope :)";
+
+        let h = Header::new(0.10, 0.50, 30);
+        let short_count = h.count_short_lines(text.lines().take(10));
+        assert_eq!(short_count, 5);
     }
 }

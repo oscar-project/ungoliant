@@ -9,6 +9,7 @@ Transformers can either (or both) [Annotate] content or [Transform] it:
 
 mod annotate;
 mod content_detector;
+mod header;
 mod sentence_filter;
 mod transform;
 
