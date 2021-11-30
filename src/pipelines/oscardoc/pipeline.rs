@@ -31,6 +31,7 @@ use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Annotate, Annotator, Transform};
+use futures::TryStreamExt;
 use log::{debug, error, info, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
@@ -183,6 +184,76 @@ impl OscarDoc {
         Ok((shard_id, record_iter.collect()))
     }
 
+    fn try_multilingual(ids: &[Option<Identification>]) -> bool {
+        let nb_lines = ids.len();
+        // check if the document has less than 10 lines
+        if ids.len() < 10 {
+            return false;
+        }
+
+        // get the number of lines that are confident enough
+        let nb_confident = ids
+            .iter()
+            .filter(|id| {
+                if let Some(id) = id {
+                    if id.prob() >= &0.9 {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            })
+            .count();
+
+        // check if 90% of the lines are confident enough
+        if (nb_confident as f64 / nb_lines as f64) <= 0.9 {
+            return false;
+        }
+
+        let mut sentences_per_lang = HashMap::new();
+        // count lines for each language AND for no-identification
+        for id in ids {
+            // key is None for no identification
+            let key = if let Some(id) = id {
+                Some(*id.label())
+            } else {
+                None
+            };
+
+            let mut count = sentences_per_lang.entry(key).or_insert(0);
+            *count += 1;
+        }
+
+        let nb_langs = sentences_per_lang.keys().filter(|x| x.is_none()).count();
+
+        // check if document is monolingual
+        if nb_langs < 2 {
+            return false;
+        }
+        // threshold is 1/nb_langs, with nb_langs including "unknown"
+        let count_threshold = 1 / sentences_per_lang.keys().count();
+
+        for (lang, count) in sentences_per_lang {
+            match lang {
+                Some(lang) => {
+                    // if a provided language does not have enough sentences, return false
+                    if count < count_threshold {
+                        return false;
+                    }
+                }
+                None => {
+                    // if we got no-indentification sentences, ensure that we did not get too much of them
+                    if count > count_threshold {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }
     /// process a record
     /// identify each line of the document
     /// then compute the most present identification
@@ -226,6 +297,8 @@ impl OscarDoc {
             })
             .collect::<Result<_, Error>>()?;
 
+        // see if the record meets multilingual criteria
+        let multilingual = Self::try_multilingual(&ids);
         // figure out document language
         // count bytes per language, get language that got most bytes
         let document_language = lang_count.iter().max_by_key(|(_, v)| *v);
@@ -240,6 +313,10 @@ impl OscarDoc {
 
             //TODO: create location data
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
+            if multilingual {
+                info!("multilingual!");
+                info!("{:#?}", doc.content());
+            }
             Ok(Some(doc))
         } else {
             debug!(
