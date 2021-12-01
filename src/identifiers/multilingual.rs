@@ -1,0 +1,243 @@
+use std::{collections::HashMap, ops::Mul};
+
+use itertools::Itertools;
+use log::{debug, info};
+
+use crate::filtering::Filter;
+
+use super::Identification;
+
+pub struct StrictMultilingual {
+    min_sentences: usize,
+    threshold_confidence: f32,
+    max_langs: Option<usize>,
+    min_confident_pctg: f64,
+}
+
+impl Filter<&[Option<Identification>]> for StrictMultilingual {
+    fn detect(&self, item: &[Option<Identification>]) -> bool {
+        let nb_lines = item.len();
+        // check if the document has less than 10 lines
+        if item.len() < self.min_sentences {
+            return false;
+        }
+
+        // get the number of lines that are confident enough
+        let nb_confident = item
+            .iter()
+            .filter(|id| {
+                if let Some(id) = id {
+                    if id.prob() >= &self.threshold_confidence {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            })
+            .count();
+
+        // check if 90% of the lines are confident enough
+        if (nb_confident as f64 / nb_lines as f64) <= self.min_confident_pctg {
+            return false;
+        }
+
+        let mut sentences_per_lang = HashMap::new();
+        // count lines for each language AND for no-identification
+        for id in item {
+            // key is None for no identification
+            let key = if let Some(id) = id {
+                Some(*id.label())
+            } else {
+                None
+            };
+
+            let count = sentences_per_lang.entry(key).or_insert(0);
+            *count += 1;
+        }
+
+        debug!("sentences per lang: {:?}", sentences_per_lang);
+        let nb_langs = sentences_per_lang.keys().filter(|x| x.is_some()).count();
+
+        // check if document is monolingual
+        if nb_langs < 2 || nb_langs > self.max_langs.unwrap_or(usize::MAX) {
+            return false;
+        }
+
+        debug!("candidate");
+        // threshold is 1/nb_langs, with nb_langs including "unknown"
+        let count_threshold =
+            (nb_lines as f32 / sentences_per_lang.keys().count() as f32).floor() as i32;
+
+        debug!("count_threshold is {}", count_threshold);
+        for (lang, count) in sentences_per_lang {
+            match lang {
+                Some(lang) => {
+                    // if a provided language does not have enough sentences, return false
+                    if count < count_threshold {
+                        debug!(
+                            "{} has not enough sentences (has {}, must have {}",
+                            lang, count, count_threshold
+                        );
+                        return false;
+                    }
+                }
+                None => {
+                    // if we got no-indentification sentences, ensure that we did not get too much of them
+                    if count > count_threshold {
+                        debug!(
+                            "doc has too much unknown sentences (has {}, must have {})",
+                            count, count_threshold
+                        );
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }
+}
+
+impl Default for StrictMultilingual {
+    fn default() -> Self {
+        Self {
+            min_sentences: 10,
+            threshold_confidence: 0.8,
+            min_confident_pctg: 0.8,
+            max_langs: Some(5),
+        }
+    }
+}
+
+/// Less restrictive conditions for multilinguality.
+///
+/// * minimum of `10` sentences
+/// * minimum of `2` languages
+/// * When sorted, the number of sentences from the C_(n+1) >= C_(n) / Q (Q=4 by default)
+///
+/// # Example
+///
+/// If we have a 100 sentence document with 60 english lines, we'd need at least 60/4 = 15 lines in another language.
+pub struct Multilingual {
+    min_sentences: usize,
+    limit: usize,
+    q: f32,
+}
+
+impl Filter<&[Option<Identification>]> for Multilingual {
+    fn detect(&self, item: &[Option<Identification>]) -> bool {
+        if item.len() < self.min_sentences {
+            return false;
+        }
+        // 2 langs minimum, the second one has at least 1/4 lines compared to the first one
+
+        let mut sentences_per_lang = HashMap::new();
+        // count lines for each language AND for no-identification
+        for id in item {
+            // key is None for no identification
+            let key = if let Some(id) = id {
+                Some(*id.label())
+            } else {
+                None
+            };
+
+            let count = sentences_per_lang.entry(key).or_insert(0);
+            *count += 1;
+        }
+
+        debug!("sentences per lang: {:?}", sentences_per_lang);
+        let nb_langs = sentences_per_lang.keys().filter(|x| x.is_some()).count();
+
+        // check if document is monolingual
+        if nb_langs < 2 {
+            debug!("not enough languages");
+            return false;
+        }
+
+        // order by count
+        let counts_ordered: Vec<_> = sentences_per_lang
+            .into_iter()
+            .sorted_unstable_by(|a, b| b.1.cmp(&a.1))
+            .collect();
+
+        // check that highest count is not None
+        if let Some((None, _)) = counts_ordered.first() {
+            debug!("first language is none");
+            return false;
+        }
+
+        // take the n first (relevant) languages
+        let mut l = counts_ordered.into_iter().take(self.limit);
+
+        // first threshold is count for first language, divided by q
+        let (first_lang, first_count) = l.next().unwrap();
+        debug!("{:?} is first with {} lines", first_lang, first_count);
+        let mut threshold = first_count as f32 / self.q;
+
+        debug!("threshold is {}", threshold);
+        // check that subsequent languages meet the criteria (C_n >= C_n-1 / q)
+        // if that's the case, compute new threshold and continue
+        for lang in l.filter(|(lang, _)| lang.is_some()) {
+            debug!("testing {:?} for threshold", lang.0);
+            if (lang.1 as f32) <= threshold {
+                debug!(
+                    "{:?}({}) does not meet the threshold {}",
+                    lang.0, lang.1, threshold
+                );
+                return false;
+            }
+
+            debug!(
+                "{:?}({}) does meet the threshold {}",
+                lang.0, lang.1, threshold
+            );
+            threshold = lang.1 as f32 / self.q;
+        }
+
+        true
+    }
+}
+
+impl Default for Multilingual {
+    fn default() -> Self {
+        Self {
+            min_sentences: 10,
+            limit: 2,
+            q: 6.0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        filtering::Filter,
+        identifiers::{multilingual::Multilingual, Identification},
+        lang::Lang,
+    };
+
+    #[test]
+    fn test_multilingual() {
+        let id = Some(Identification::new(Lang::En, 1.0));
+        let ids = vec![id.clone(); 10];
+        let m = Multilingual::default();
+        assert_eq!(m.detect(&ids), false);
+    }
+
+    #[test]
+    fn test_multilingual2() {
+        let mut id = [
+            Some(Identification::new(Lang::En, 1.0)),
+            Some(Identification::new(Lang::En, 1.0)),
+            Some(Identification::new(Lang::Fr, 1.0)),
+            Some(Identification::new(Lang::Fr, 1.0)),
+        ]
+        .into_iter()
+        .cycle();
+        let ids: Vec<_> = id.take(20).collect();
+        let m = Multilingual::default();
+        assert_eq!(m.detect(&ids), true);
+    }
+}

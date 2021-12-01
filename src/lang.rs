@@ -195,6 +195,7 @@ pub enum Lang {
     Yo,
     Yue,
     Zh,
+    Multi,
 }
 
 impl Lang {
@@ -376,6 +377,7 @@ impl Lang {
             Self::Yo => "yo",
             Self::Yue => "yue",
             Self::Zh => "zh",
+            Self::Multi => "multi",
         };
 
         lang_str
@@ -562,6 +564,7 @@ impl FromStr for Lang {
             "yo" => Ok(Self::Yo),
             "yue" => Ok(Self::Yue),
             "zh" => Ok(Self::Zh),
+            "multi" => Ok(Self::Multi),
             other => Err(Error::UnknownLang(other.to_string())),
         }
     }
@@ -758,6 +761,7 @@ lazy_static! {
         m.insert("yo");
         m.insert("yue");
         m.insert("zh");
+        m.insert("multi");
 
         m
     };
