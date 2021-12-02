@@ -228,7 +228,7 @@ impl OscarDoc {
             .collect::<Result<_, Error>>()?;
 
         // see if the record meets multilingual criteria
-        let multilingual = StrictMultilingual::default().detect(&ids);
+        let multilingual = StrictMultilingual::default().detect(&ids[..]);
         // let multilingual = Multilingual::default().detect(&ids);
 
         if multilingual {
