@@ -253,11 +253,6 @@ impl OscarDoc {
 
             //TODO: create location data
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
-            if multilingual {
-                info!("multilingual!");
-                info!("{:#?}", doc.content());
-                info!("{:#?}", doc.metadata());
-            }
             Ok(Some(doc))
         } else {
             debug!(
