@@ -169,7 +169,10 @@ impl Filter<&[Option<Identification>]> for Multilingual {
         }
 
         // take the n first (relevant) languages
-        let mut l = counts_ordered.into_iter().take(self.limit);
+        let mut l = counts_ordered
+            .into_iter()
+            .filter(|(lang, _)| lang.is_some())
+            .take(self.limit);
 
         // first threshold is count for first language, divided by q
         let (first_lang, first_count) = l.next().unwrap();
@@ -179,7 +182,7 @@ impl Filter<&[Option<Identification>]> for Multilingual {
         debug!("threshold is {}", threshold);
         // check that subsequent languages meet the criteria (C_n >= C_n-1 / q)
         // if that's the case, compute new threshold and continue
-        for lang in l.filter(|(lang, _)| lang.is_some()) {
+        for lang in l {
             debug!("testing {:?} for threshold", lang.0);
             if (lang.1 as f32) <= threshold {
                 debug!(
@@ -205,7 +208,7 @@ impl Default for Multilingual {
         Self {
             min_sentences: 10,
             limit: 2,
-            q: 6.0,
+            q: 4.0,
         }
     }
 }
