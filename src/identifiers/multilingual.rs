@@ -360,4 +360,71 @@ mod tests {
         let m = StrictMultilingual::default();
         assert_eq!(m.detect(&ids[..]), true);
     }
+
+    #[test]
+    fn test_too_short() {
+        let id = [(Some(Identification::new(Lang::En, 1.0)), 100)]
+            .into_iter()
+            .cycle();
+
+        let ids: Vec<(_, usize)> = id.take(2).collect();
+        let m = StrictMultilingual::default();
+        assert_eq!(m.detect(&ids[..]), false);
+    }
+
+    #[test]
+    fn test_not_confident_enough() {
+        let id = [(Some(Identification::new(Lang::En, 0.1)), 100)]
+            .into_iter()
+            .cycle();
+
+        let ids: Vec<(_, usize)> = id.take(2).collect();
+        let m = StrictMultilingual::default();
+        assert_eq!(m.detect(&ids[..]), false);
+    }
+
+    #[test]
+    fn test_too_much_none() {
+        let id = [
+            (Some(Identification::new(Lang::En, 0.1)), 100),
+            (None, 100),
+            (None, 100),
+            (None, 100),
+        ]
+        .into_iter()
+        .cycle();
+
+        let ids: Vec<(_, usize)> = id.take(2).collect();
+        let m = StrictMultilingual::default();
+        assert_eq!(m.detect(&ids[..]), false);
+    }
+
+    #[test]
+    fn test_too_much_languages() {
+        let id = [
+            (Some(Identification::new(Lang::En, 0.1)), 100),
+            (Some(Identification::new(Lang::Fr, 0.1)), 100),
+            (Some(Identification::new(Lang::Uk, 0.1)), 100),
+            (Some(Identification::new(Lang::Fi, 0.1)), 100),
+            (Some(Identification::new(Lang::Uz, 0.1)), 100),
+            (Some(Identification::new(Lang::Pa, 0.1)), 100),
+            (Some(Identification::new(Lang::Zh, 0.1)), 100),
+        ]
+        .into_iter()
+        .cycle();
+
+        let ids: Vec<(_, usize)> = id.take(10).collect();
+        let m = StrictMultilingual::default();
+        assert_eq!(m.detect(&ids[..]), false);
+    }
+    #[test]
+    fn test_too_little_languages() {
+        let id = [(Some(Identification::new(Lang::En, 0.1)), 100)]
+            .into_iter()
+            .cycle();
+
+        let ids: Vec<(_, usize)> = id.take(2).collect();
+        let m = StrictMultilingual::default();
+        assert_eq!(m.detect(&ids[..]), false);
+    }
 }
