@@ -23,14 +23,15 @@ use std::{collections::HashMap, path::PathBuf};
 use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
-use crate::identifiers::FastText;
-use crate::identifiers::{self, Identification, Identifier};
+use crate::identifiers::{self, Identification, Identifier, Multilingual};
+use crate::identifiers::{FastText, StrictMultilingual};
 use crate::io::writer::WriterTrait;
 use crate::lang::Lang;
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Annotate, Annotator, Transform};
+use futures::TryStreamExt;
 use log::{debug, error, info, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
@@ -143,7 +144,6 @@ impl OscarDoc {
 
         // remove short lines
         let length_filter = transformers::RemoveShortSentences::default();
-        // let record_iter = record_iter.map(|(idx, r)| (idx, length_filter.transform_own(r)));
 
         // We get bounds of the most significant part.
         // transform_idx yields a vector of ranges, but we'll assume
@@ -212,25 +212,45 @@ impl OscarDoc {
                 let id = identifier.identify(&line);
 
                 // add to byte count for document-level identification
-                if let Ok(Some(ref ide)) = id {
+                if let Ok(ref ide) = id {
+                    // map Identification to its lang, or keep None to store the "None" language identification
+                    let ide_label = match ide {
+                        Some(i) => Some(i.label().clone()),
+                        None => None,
+                    };
+
+                    // get length of current line
                     let byte_count = line.bytes().count();
+
                     lang_count
-                        .entry(*ide.label())
+                        .entry(ide_label)
                         .and_modify(|count| *count += byte_count)
                         .or_insert(byte_count);
 
                     total_count += byte_count;
                 }
-
                 id
             })
             .collect::<Result<_, Error>>()?;
+
+        // see if the record meets multilingual criteria
+        let multilingual = StrictMultilingual::default().detect(&ids[..]);
+
+        if multilingual {
+            let document_identification = Identification::new(Lang::Multi, 1.0);
+
+            let metadata = Metadata::new(&document_identification, &ids);
+            let doc = Document::new(body.into_owned(), headers.headers, metadata);
+
+            return Ok(Some(doc));
+        }
 
         // figure out document language
         // count bytes per language, get language that got most bytes
         let document_language = lang_count.iter().max_by_key(|(_, v)| *v);
 
-        if let Some((id, lang_byte_count)) = document_language {
+        // build a document and return it if the document language is not the unknown one.
+        if let Some((Some(id), lang_byte_count)) = document_language {
             // build an Identification with prob = number of bytes from most identified language / total number of bytes
             let document_identification =
                 Identification::new(*id, *lang_byte_count as f32 / total_count as f32);
@@ -350,12 +370,6 @@ impl Pipeline<()> for OscarDoc {
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
                 let hm = Self::sort_by_lang(shard_result);
-                // println!("{:#?}", hm.get(&Lang::Fr));
-                // // TODO write rebuild
-                // let hm = hm
-                //     .into_iter()
-                //     .map(|(k, v)| (k, v.into_iter().map(|(doc, _)| doc).collect()))
-                //     .collect();
                 Self::write_documents(&langfiles, &rebuild_files, shard_id, hm).unwrap();
             } else {
                 error!("Error with shard idx {}:{:?}", idx, shard_result);
