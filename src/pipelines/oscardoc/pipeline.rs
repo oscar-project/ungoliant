@@ -144,7 +144,6 @@ impl OscarDoc {
 
         // remove short lines
         let length_filter = transformers::RemoveShortSentences::default();
-        // let record_iter = record_iter.map(|(idx, r)| (idx, length_filter.transform_own(r)));
 
         // We get bounds of the most significant part.
         // transform_idx yields a vector of ranges, but we'll assume
@@ -220,7 +219,9 @@ impl OscarDoc {
                         None => None,
                     };
 
+                    // get length of current line
                     let byte_count = line.bytes().count();
+
                     lang_count
                         .entry(ide_label)
                         .and_modify(|count| *count += byte_count)
@@ -234,7 +235,6 @@ impl OscarDoc {
 
         // see if the record meets multilingual criteria
         let multilingual = StrictMultilingual::default().detect(&ids[..]);
-        // let multilingual = Multilingual::default().detect(&ids);
 
         if multilingual {
             let document_identification = Identification::new(Lang::Multi, 1.0);
@@ -370,12 +370,6 @@ impl Pipeline<()> for OscarDoc {
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
                 let hm = Self::sort_by_lang(shard_result);
-                // println!("{:#?}", hm.get(&Lang::Fr));
-                // // TODO write rebuild
-                // let hm = hm
-                //     .into_iter()
-                //     .map(|(k, v)| (k, v.into_iter().map(|(doc, _)| doc).collect()))
-                //     .collect();
                 Self::write_documents(&langfiles, &rebuild_files, shard_id, hm).unwrap();
             } else {
                 error!("Error with shard idx {}:{:?}", idx, shard_result);
