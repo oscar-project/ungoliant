@@ -1,5 +1,6 @@
 //! Annotate trait
 use super::header::Header;
+use super::noisy::Noisy;
 use super::ContentDetector;
 use super::ShortSentences;
 use crate::pipelines::oscardoc::types::Document;
@@ -27,6 +28,7 @@ impl Default for Annotator {
             Box::new(ShortSentences::default()),
             Box::new(ContentDetector::with_defaults().unwrap()),
             Box::new(Header::default()),
+            Box::new(Noisy::default()),
         ])
     }
 }
