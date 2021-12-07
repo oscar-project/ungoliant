@@ -280,7 +280,7 @@ mod tests {
     use crate::pipelines::oscardoc::types::{Document, Metadata};
     use crate::transformers::{Annotate, Transform};
 
-    use super::{Conv, RemoveShortSentences, ShortSentences};
+    use super::{RemoveShortSentences, ShortSentences};
 
     fn gen_valid() -> (Document, String) {
         let content = r"foo
@@ -515,7 +515,6 @@ tiny one
 Long enough sentence here :)"#;
         doc.set_content(content.to_string());
         let a = ShortSentences::new(Length::with_min_size(10), 0.5);
-        let annotation = "short_sentences";
         a.annotate(&mut doc);
         // this fails if doc is annotated with something else
         assert!(doc.metadata().annotation().is_none())

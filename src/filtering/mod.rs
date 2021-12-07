@@ -8,7 +8,7 @@ Filters implement [filter::Filter], [filter::FilterMut] or both:
 
 Both can be implemented for a given filter,
 in order to provide a mutable detection that could be used to "train" the filter, then an immutable one to effectively filter content.
-! */
+!*/
 mod filter;
 pub mod record;
 pub mod sentence;

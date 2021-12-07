@@ -65,10 +65,10 @@ mod tests {
 
     use super::Wet;
 
-    #[test]
-    fn test_folder() {
-        let x = Wet::from_path_gzip("/dev/").unwrap();
-    }
+    // #[test]
+    // fn test_folder() {
+    //     let _ = Wet::from_path_gzip("/dev/").unwrap();
+    // }
 
     #[test]
     #[ignore]

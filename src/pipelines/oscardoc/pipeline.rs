@@ -23,7 +23,7 @@ use std::{collections::HashMap, path::PathBuf};
 use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
-use crate::identifiers::{self, Identification, Identifier, Multilingual};
+use crate::identifiers::{self, Identification, Identifier};
 use crate::identifiers::{FastText, StrictMultilingual};
 use crate::io::writer::WriterTrait;
 use crate::lang::Lang;
@@ -31,7 +31,6 @@ use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Annotate, Annotator, Transform};
-use futures::TryStreamExt;
 use log::{debug, error, info, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
@@ -214,10 +213,7 @@ impl OscarDoc {
                 // add to byte count for document-level identification
                 if let Ok(ref ide) = id {
                     // map Identification to its lang, or keep None to store the "None" language identification
-                    let ide_label = match ide {
-                        Some(i) => Some(i.label().clone()),
-                        None => None,
-                    };
+                    let ide_label = ide.as_ref().map(|i| *i.label());
 
                     // get length of current line
                     let byte_count = line.bytes().count();

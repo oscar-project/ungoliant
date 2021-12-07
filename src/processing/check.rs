@@ -2,19 +2,10 @@
 //!
 //! It counts occurrences of words and builds a frequency table in order to assert whether a provided corpus follows Zipf's law or not.
 
-use std::{
-    collections::HashMap,
-    io::{BufRead, Read},
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::io::reader::docreader::DocReader;
-use csv::Writer;
-use itertools::{Itertools, Zip};
-use rayon::{
-    iter::ParallelIterator,
-    str::{ParallelString, SplitWhitespace},
-};
+use itertools::Itertools;
 use serde::Serialize;
 
 use unicode_segmentation::UnicodeSegmentation;
@@ -55,14 +46,16 @@ impl ZipfEntry {
     }
 }
 
-impl Zipf {
-    pub fn new() -> Self {
+impl Default for Zipf {
+    fn default() -> Self {
         Self {
             counts: HashMap::default(),
             nb_words: 0,
         }
     }
+}
 
+impl Zipf {
     /// Convinience function to add 1 to a word count.
     /// Creates the entry if the word is not counted yet.
     #[inline]
@@ -85,7 +78,7 @@ impl Zipf {
     pub fn rank_freq_constant(&self) -> Vec<ZipfEntry> {
         self.counts
             .iter()
-            .sorted_by(|a, b| b.1.cmp(&a.1))
+            .sorted_by(|a, b| b.1.cmp(a.1))
             .enumerate()
             .map(|(rank, (_, count))| {
                 let rank = rank + 1; // rank starts at 1
@@ -97,7 +90,7 @@ impl Zipf {
     pub fn constants(&self) -> Vec<f64> {
         self.counts
             .iter()
-            .sorted_by(|a, b| b.1.cmp(&a.1))
+            .sorted_by(|a, b| b.1.cmp(a.1))
             .enumerate()
             .map(|(rank, (_, count))| {
                 let rank = (rank + 1) as f64; // rank starts at 1
@@ -126,7 +119,7 @@ impl Zipf {
 
 /// Run a word count on an Oscar Schema 2 corpus, outputting data in a csv located at `dst`.
 pub fn check(src: PathBuf, dst: PathBuf) -> Result<(), Error> {
-    let mut zipf = Zipf::new();
+    let mut zipf = Zipf::default();
 
     let r = DocReader::from_path(&src)?;
 
@@ -134,7 +127,7 @@ pub fn check(src: PathBuf, dst: PathBuf) -> Result<(), Error> {
 
     for document in r {
         let document = document?;
-        zipf.add_count(&document.content());
+        zipf.add_count(document.content());
     }
 
     let v = zipf.rank_freq_constant();
@@ -150,7 +143,7 @@ pub fn check(src: PathBuf, dst: PathBuf) -> Result<(), Error> {
 }
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, io::BufReader};
+    use std::collections::HashMap;
 
     use super::Zipf;
 
@@ -167,7 +160,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let mut z = Zipf::new();
+        let mut z = Zipf::default();
         z.add_count(text);
 
         for (word, count) in z.counts {
@@ -188,7 +181,7 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let mut z = Zipf::new();
+        let mut z = Zipf::default();
         z.add_count(text);
 
         for (k, v) in z.counts {
@@ -203,7 +196,7 @@ mod tests {
         let test: HashMap<&str, u64> = [("第", 1), ("一", 1), ("條", 1), ("人", 2)]
             .into_iter()
             .collect();
-        let mut z = Zipf::new();
+        let mut z = Zipf::default();
         z.add_count(text);
 
         for (k, v) in z.counts {

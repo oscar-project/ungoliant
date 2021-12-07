@@ -17,24 +17,6 @@ impl Default for Noisy {
     }
 }
 impl Annotate for Noisy {
-    // fn annotate(&self, doc: &mut Document) {
-    //     // TODO: use counters?
-    //     let (letters, nonletters): (Vec<bool>, Vec<bool>) = doc
-    //         .content()
-    //         .chars()
-    //         .map(|c| GeneralCategory::of(c).is_letter())
-    //         .partition(|x| *x);
-
-    //     let letters = letters.len();
-    //     let nonletters = nonletters.len();
-    //     let total_chars = (letters + nonletters) as f64;
-    //     let threshold = self.threshold * total_chars;
-
-    //     if nonletters > threshold.floor() as usize {
-    //         doc.metadata_mut().set_annotation("noisy".to_string());
-    //     }
-    // }
-
     fn annotate(&self, doc: &mut Document) {
         // TODO: use counters?
 
@@ -74,8 +56,6 @@ impl Annotate for Noisy {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-
-    use unic_ucd::GeneralCategory;
 
     use crate::{
         pipelines::{oscardoc::types::Document, oscardoc::types::Metadata},

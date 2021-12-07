@@ -92,7 +92,7 @@ mod tests {
         }
 "#.to_string();
 
-        let mut doc_no_newline: String = doc
+        let doc_no_newline: String = doc
             .lines()
             .into_iter()
             .map(|line| line.trim_matches(char::is_whitespace))

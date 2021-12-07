@@ -1,4 +1,6 @@
 //! Document-level filtering.
+//!
+//! Those filters take a WARC [warc::Record] as a parameter.
 use std::convert::TryFrom;
 
 use warc::{BufferedBody, Record};
@@ -27,14 +29,15 @@ impl Filter<&Record<BufferedBody>> for FilterKind {
 /// Filters out documents that doesn't have its content enough in long newline-separated strings.
 ///
 /// For each document, we compute the size (in bytes) of newline-separated strings, that we bucket in two bins
-/// depending on their size (<>min_length).
-/// If the >min_length bin makes for at least sentence_threshold of the document, we keep it.
+/// depending on their size. The threshold size is specified in the [PFilter::min_length].
+/// If the `>min_length` bin makes for at least sentence_threshold of the document, we keep it.
 pub struct PFilter {
     sentence_threshold: f64,
     sentence_filter: Length,
 }
 
 impl PFilter {
+    /// Create a new PFilter with specific parameters.
     pub fn new(sentence_threshold: f64, sentence_filter: Length) -> Self {
         PFilter {
             sentence_threshold,
@@ -83,8 +86,8 @@ impl Filter<&Record<BufferedBody>> for PFilter {
 }
 
 impl Default for PFilter {
-    /// inits PFilter with a threshold of 0.6 (that means, at least 60% of content is from long sentences)
-    /// sentence filter's default long sentence threshold (100 codepoints).
+    /// inits PFilter with a threshold of `0.6` (that means, at least 60% of content is from long sentences)
+    /// sentence filter's default long sentence threshold (`100 codepoints`).
     fn default() -> Self {
         PFilter {
             sentence_threshold: 0.6,
