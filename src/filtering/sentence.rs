@@ -1,4 +1,4 @@
-//! sentence-level filtering
+//! Sentence-level filtering
 use super::filter::FilterMut;
 use super::Filter;
 use std::convert::TryInto;

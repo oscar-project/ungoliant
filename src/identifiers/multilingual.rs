@@ -1,12 +1,34 @@
-use std::{collections::HashMap, ops::Mul};
+/*! Multilingual identification
+
+This module can be used to check if a [Document] is multilingual.
+
+In our case, multilingual documents are documents that have sentences in multiple languages in reasonable proportions, and of a reasonable quality.
+For example, a document with 30 English sentences, 30 Spanish sentences and 30 French sentences is multilingual,
+while a document having 99 English sentences and a unique French one is not.
+
+There are currently two multilinguality implementations:
+
+- [Multilingual] ranks language identifications and ensures that `C_n+1 >= (C_n)/Q`, with C_0 being the line or byte count for the most occurrent language, and Q a parameter.
+- [StrictMultilingual] ensures that each present language has at least `C_tot/(n+1)` bytes or lines, and that the unidentified lines/bytes do not make more that `C_tot/(n+1)` bytes or lines.
+
+There are other criteria that are specified in the structs docs.
+
+!*/
+use std::collections::HashMap;
 
 use itertools::Itertools;
-use log::{debug, info};
+use log::debug;
 
 use crate::filtering::Filter;
 
 use super::Identification;
 
+/// Strict Multilingual detector
+///
+/// * `min_sentences`: Minimal number of total sentences
+/// * `threshold_confidence`: Minimal prediction confidence for a given line
+/// * `max_langs`: Maximum number of languages present in a single Document
+/// * `min_confident_pctg`: Minimal percentage of lines having a `threshold_confidence` prediction confidence
 pub struct StrictMultilingual {
     min_sentences: usize,
     threshold_confidence: f32,
@@ -19,6 +41,7 @@ impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
         let nb_bytes: usize = item.iter().map(|(_, nb_bytes)| nb_bytes).sum();
         let nb_lines = item.len();
 
+        // If there's not enough sentences, return false
         if item.len() < self.min_sentences {
             return false;
         }
@@ -39,7 +62,7 @@ impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
             })
             .count();
 
-        // check if 90% of the lines are confident enough
+        // check if n% of the lines are confident enough
         if (nb_confident as f64 / nb_lines as f64) <= self.min_confident_pctg {
             return false;
         }
@@ -48,17 +71,12 @@ impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
         // count lines for each language AND for no-identification
         for (id, bytes) in item {
             // key is None for no identification
-            let key = if let Some(id) = id {
-                Some(*id.label())
-            } else {
-                None
-            };
+            let key = id.as_ref().map(|id| *id.label());
 
             let count = bytes_per_lang.entry(key).or_insert(*bytes);
             *count += *bytes;
         }
 
-        println!("bytes per lang: {:?}", bytes_per_lang);
         let nb_langs = bytes_per_lang.keys().filter(|x| x.is_some()).count();
         // check if document is monolingual
         if nb_langs < 2 || nb_langs > self.max_langs.unwrap_or(usize::MAX) {
@@ -68,26 +86,17 @@ impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
         let count_threshold =
             (nb_bytes as f32 / bytes_per_lang.keys().count() as f32).floor() as usize;
 
-        println!("count_threshold is {}", count_threshold);
         for (lang, count) in bytes_per_lang {
             match lang {
-                Some(lang) => {
+                Some(_) => {
                     // if a provided language does not have enough sentences, return false
                     if count < count_threshold {
-                        println!(
-                            "{} has not enough sentences (has {}, must have {}",
-                            lang, count, count_threshold
-                        );
                         return false;
                     }
                 }
                 None => {
                     // if we got no-indentification sentences, ensure that we did not get too much of them
                     if count > count_threshold {
-                        println!(
-                            "doc has too much unknown sentences (has {}, must have {})",
-                            count, count_threshold
-                        );
                         return false;
                     }
                 }
@@ -110,11 +119,7 @@ impl Filter<&[Option<Identification>]> for StrictMultilingual {
             .iter()
             .filter(|id| {
                 if let Some(id) = id {
-                    if id.prob() >= &self.threshold_confidence {
-                        true
-                    } else {
-                        false
-                    }
+                    id.prob() >= &self.threshold_confidence
                 } else {
                     false
                 }
@@ -130,11 +135,7 @@ impl Filter<&[Option<Identification>]> for StrictMultilingual {
         // count lines for each language AND for no-identification
         for id in item {
             // key is None for no identification
-            let key = if let Some(id) = id {
-                Some(*id.label())
-            } else {
-                None
-            };
+            let key = id.as_ref().map(|id| *id.label());
 
             let count = sentences_per_lang.entry(key).or_insert(0);
             *count += 1;
@@ -220,11 +221,7 @@ impl Filter<&[Option<Identification>]> for Multilingual {
         // count lines for each language AND for no-identification
         for id in item {
             // key is None for no identification
-            let key = if let Some(id) = id {
-                Some(*id.label())
-            } else {
-                None
-            };
+            let key = id.as_ref().map(|id| *id.label());
 
             let count = sentences_per_lang.entry(key).or_insert(0);
             *count += 1;
