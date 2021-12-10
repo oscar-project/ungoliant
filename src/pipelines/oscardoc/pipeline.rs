@@ -102,16 +102,9 @@ impl OscarDoc {
         // get specified filter or resort to default filter kind
         let f = filter.unwrap_or_default();
 
-        // get iterator on filtered records.
-        // only get records that are valid *and* pass the filter.
+        // only get valid records, print errors
         let record_iter = record_iter.filter_map(|(idx, record)| match record {
-            Ok(r) => {
-                if f.detect(&r) {
-                    Some((idx, r))
-                } else {
-                    None
-                }
-            }
+            Ok(r) => Some((idx, r)),
             Err(e) => {
                 error!("{:?}", e);
                 None
@@ -129,25 +122,8 @@ impl OscarDoc {
             (loc, record)
         });
 
-        // identify
-        let record_iter = record_iter
-            .map(|(loc, record)| (loc, Self::process_record(record, identifier)))
-            .filter_map(|(loc, res)| match res {
-                Ok(Some(res)) => Some((loc, res)),
-                Ok(None) => None,
-                Err(e) => {
-                    error!("{:?}", e);
-                    None
-                }
-            });
-
-        // remove short lines
+        // remove short sentences, discarding documents that only have short sentences
         let length_filter = transformers::RemoveShortSentences::default();
-
-        // We get bounds of the most significant part.
-        // transform_idx yields a vector of ranges, but we'll assume
-        // there's one and only one, discarding if there's none,
-        // and taking the first one + yielding an error if there's more.
         let record_iter = record_iter.filter_map(|(mut loc, mut record)| {
             let bounds = length_filter.transform(&mut record);
             match bounds.len() {
@@ -172,6 +148,28 @@ impl OscarDoc {
             }
         });
 
+        // get iterator on filtered records.
+        // only get records that are valid *and* pass the filter.
+        let record_iter = record_iter.filter_map(|(idx, record)| {
+            if f.detect(&record) {
+                Some((idx, record))
+            } else {
+                None
+            }
+        });
+
+        // identify
+        let record_iter = record_iter
+            .map(|(loc, record)| (loc, Self::process_record(record, identifier)))
+            .filter_map(|(loc, res)| match res {
+                Ok(Some(res)) => Some((loc, res)),
+                Ok(None) => None,
+                Err(e) => {
+                    error!("{:?}", e);
+                    None
+                }
+            });
+
         // annotate
         let annotator = Annotator::default();
         let record_iter = record_iter.map(|(loc, mut r)| {
@@ -179,7 +177,10 @@ impl OscarDoc {
             (r, loc.build().unwrap())
         });
 
-        Ok((shard_id, record_iter.collect()))
+        let records: Vec<(_, _)> = record_iter.collect();
+        info!("Shard {}: Got {} documents", shard_id, records.len());
+
+        Ok((shard_id, records))
     }
 
     /// process a record
