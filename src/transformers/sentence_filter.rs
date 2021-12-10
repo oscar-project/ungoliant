@@ -213,7 +213,6 @@ impl RemoveShortSentences {
                 (sentences, ranges)
             }
             _ => {
-                error!("Record only had short sentences at transform step! This shouldn't happen!",);
                 // set content to empty string
                 (String::new(), Vec::new())
             }
