@@ -99,9 +99,6 @@ impl OscarDoc {
         let shard = Wet::from_path_gzip(&shard_path)?;
         let record_iter = shard.iter.enumerate().par_bridge();
 
-        // get specified filter or resort to default filter kind
-        let f = filter.unwrap_or_default();
-
         // only get valid records, print errors
         let record_iter = record_iter.filter_map(|(idx, record)| match record {
             Ok(r) => Some((idx, r)),
@@ -147,6 +144,9 @@ impl OscarDoc {
                 }
             }
         });
+
+        // get specified filter or resort to default filter kind
+        let f = filter.unwrap_or_default();
 
         // get iterator on filtered records.
         // only get records that are valid *and* pass the filter.
