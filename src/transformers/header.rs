@@ -41,8 +41,7 @@ impl Annotate for Header {
 
         // iterate over the header, counting short lines
         let short_lines_count = self.count_short_lines(doc.content().lines().take(nb_lines_header));
-
-        if short_lines_count >= treshold_lines {
+        if short_lines_count > treshold_lines {
             doc.metadata_mut().set_annotation("header".to_string());
         }
 
@@ -50,7 +49,7 @@ impl Annotate for Header {
         let short_lines_count =
             self.count_short_lines(doc.content().lines().rev().take(nb_lines_header));
 
-        if short_lines_count >= treshold_lines {
+        if short_lines_count > treshold_lines {
             doc.metadata_mut().set_annotation("footer".to_string());
         }
     }
@@ -243,5 +242,36 @@ This is a lengthy enough sentence! Or at least I hope :)";
         let h = Header::new(0.10, 0.50, 30);
         let short_count = h.count_short_lines(text.lines().take(10));
         assert_eq!(short_count, 5);
+    }
+    #[test]
+    fn test_short_nblines_valid_doc() {
+        let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed a diam mollis, scelerisque arcu sed, bibendum ligula. Curabitur convallis urna auctor mi varius, 
+at sagittis arcu vehicula. Maecenas ante velit, bibendum vel ligula quis, dapibus eleifend nibh. Vivamus dapibus nibh non eros feugiat accumsan. In ut risus vitae risus aliquet dictum blandit sed velit. Fusce semper sagittis egestas. Cras orci diam, tristique vel dictum a, mollis in velit. 
+Suspendisse nisi tellus, fermentum eu cursus sit amet, dictum ornare nisi. Donec rhoncus nisi lacus, at malesuada nunc egestas nec. Nunc in elit nunc. Quisque id euismod lectus, id porttitor ante. Duis ac nibh tincidunt, vestibulum orci nec, sagittis tortor. 
+Sed non ipsum et lacus mattis eleifend. Donec ultricies efficitur enim, non consectetur lorem efficitur et. Pellentesque non malesuada magna, vitae congue arcu. 
+Aliquam tempus volutpat laoreet. Etiam facilisis nisl turpis, sed euismod justo euismod sit amet. Phasellus eget urna sodales, luctus dolor vel, malesuada arcu. Nullam tincidunt sem et nibh volutpat volutpat.
+Etiam ornare ligula sollicitudin scelerisque finibus. Suspendisse orci odio, laoreet sed sapien ut, dignissim venenatis risus.";
+        let h = Header::default();
+        let mut d = Document::new(text.to_string(), HashMap::new(), Metadata::default());
+        h.annotate(&mut d);
+        assert_eq!(d.metadata().annotation(), None);
+    }
+
+    #[test]
+    fn test_one_long_sentence() {
+        let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed a diam mollis, scelerisque arcu sed, bibendum ligula. Curabitur convallis urna auctor mi varius.";
+        let h = Header::default();
+        let mut d = Document::new(text.to_string(), HashMap::new(), Metadata::default());
+        h.annotate(&mut d);
+        assert_eq!(d.metadata().annotation(), None);
+    }
+
+    #[test]
+    fn test_one_short_sentence() {
+        let text = "Lorem ipsum dolor sit amet";
+        let h = Header::default();
+        let mut d = Document::new(text.to_string(), HashMap::new(), Metadata::default());
+        h.annotate(&mut d);
+        assert_eq!(d.metadata().annotation(), None);
     }
 }
