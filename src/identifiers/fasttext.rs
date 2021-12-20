@@ -1,7 +1,7 @@
 //! Fasttext identifier
-use std::path::Path;
+use std::{collections::HashMap, path::Path, str::Lines};
 
-use crate::error::Error;
+use crate::{error::Error, pipelines::oscardoc::types::Document};
 use fasttext::{FastText as FastTextLib, Prediction};
 
 use super::{identifier, Identification};
@@ -94,7 +94,7 @@ impl FastText {
     }
 }
 
-impl identifier::Identifier for FastText {
+impl identifier::Identifier<&str> for FastText {
     fn identify(&self, sentence: &str) -> Result<Option<Identification>, Error> {
         let prediction = self
             .predictor
@@ -111,6 +111,13 @@ impl identifier::Identifier for FastText {
         }
     }
 }
+
+impl identifier::Identifier<&Document> for FastText {
+    fn identify(&self, document: &Document) -> Result<Option<Identification>, Error> {
+        todo!();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

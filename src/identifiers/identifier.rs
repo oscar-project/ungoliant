@@ -62,9 +62,9 @@ impl From<Prediction> for Identification {
         }
     }
 }
-pub trait Identifier {
+pub trait Identifier<T> {
     /// returns a language identification token (from [crate::lang::LANG]).
-    fn identify(&self, sentence: &str) -> Result<Option<Identification>, Error>;
+    fn identify(&self, sentence: T) -> Result<Option<Identification>, Error>;
 }
 
 #[cfg(test)]

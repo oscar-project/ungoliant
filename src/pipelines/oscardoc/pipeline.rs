@@ -206,6 +206,7 @@ impl OscarDoc {
         let lines = body.lines();
 
         // per-lang and total byte counts
+        // lang_count maps Lang -> (lang_byte_count, sum(byte_count*prob))
         let mut lang_count = HashMap::new();
         let mut total_count = 0;
 
@@ -219,7 +220,7 @@ impl OscarDoc {
         let ids: Vec<Option<Identification>> = lines
             .map(|line| {
                 // identify
-                let id = identifier.identify(&line);
+                let id = identifier.identify(line.as_str());
 
                 // add to byte count for document-level identification
                 if let Ok(ref ide) = id {
@@ -231,8 +232,11 @@ impl OscarDoc {
 
                     lang_count
                         .entry(ide_label)
-                        .and_modify(|count| *count += byte_count)
-                        .or_insert((byte_count));
+                        .and_modify(|(count, count_times_prob)| {
+                            *count += byte_count;
+                            *count_times_prob += byte_count as f32 * ide_prob.unwrap_or(1.0f32);
+                        })
+                        .or_insert((byte_count, byte_count as f32 * ide_prob.unwrap_or(1.0f32)));
 
                     total_count += byte_count;
                 }
@@ -240,10 +244,16 @@ impl OscarDoc {
             })
             .collect::<Result<_, Error>>()?;
 
+        // divide each probability sum to get values between 0 and 1
+        for (_, count_times_prob) in lang_count.values_mut() {
+            *count_times_prob = *count_times_prob / total_count as f32;
+        }
+
         // see if the record meets multilingual criteria
         let multilingual = StrictMultilingual::default().detect(&ids[..]);
 
         if multilingual {
+            //TODO: fix prob on multilingual documents
             let document_identification = Identification::new(Lang::Multi, 1.0);
 
             let metadata = Metadata::new(&document_identification, &ids);
@@ -254,14 +264,20 @@ impl OscarDoc {
 
         // figure out document language
         // count bytes per language, get language that got most bytes
-        let document_language = lang_count.iter().max_by_key(|(_, v)| *v);
+        let document_language = lang_count.iter().max_by_key(|(_, (v, _))| *v);
 
         // build a document and return it if the document language is not the unknown one.
-        if let Some((Some(id), lang_byte_count)) = document_language {
+        if let Some((Some(id), (lang_byte_count, confidence))) = document_language {
             // build an Identification with prob = number of bytes from most identified language / total number of bytes
-            debug!("{:?}: {}/{}", id, lang_byte_count, total_count);
-            let document_identification =
-                Identification::new(*id, *lang_byte_count as f32 / total_count as f32);
+            debug!(
+                "{:?}: {}/{} (c:{})",
+                id, lang_byte_count, total_count, confidence
+            );
+
+            if confidence < &0.6f32 {
+                return Ok(None);
+            }
+            let document_identification = Identification::new(*id, *confidence);
 
             let metadata = Metadata::new(&document_identification, &ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
