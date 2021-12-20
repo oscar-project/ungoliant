@@ -246,7 +246,7 @@ impl OscarDoc {
 
         // divide each probability sum to get values between 0 and 1
         for (_, count_times_prob) in lang_count.values_mut() {
-            *count_times_prob = *count_times_prob / total_count as f32;
+            *count_times_prob /= total_count as f32;
         }
 
         // see if the record meets multilingual criteria
