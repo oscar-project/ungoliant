@@ -37,6 +37,7 @@ use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
 use crate::io::LangFilesDoc;
+
 pub struct OscarDoc {
     src: PathBuf,
     dst: PathBuf,
@@ -177,6 +178,15 @@ impl OscarDoc {
             (r, loc.build().unwrap())
         });
 
+        let record_iter = record_iter.filter_map(|(r, loc): (Document, Location)| {
+            if r.metadata().annotation() == Some(&vec!["noisy".to_string(), "tiny".to_string()]) {
+                debug!("removed document {:?} for noisy+tiny", r.warc_id());
+                None
+            } else {
+                Some((r, loc))
+            }
+        });
+
         let records: Vec<(_, _)> = record_iter.collect();
         info!("Shard {}: Got {} documents", shard_id, records.len());
 
@@ -215,14 +225,14 @@ impl OscarDoc {
                 if let Ok(ref ide) = id {
                     // map Identification to its lang, or keep None to store the "None" language identification
                     let ide_label = ide.as_ref().map(|i| *i.label());
-
+                    let ide_prob = ide.as_ref().map(|i| *i.prob());
                     // get length of current line
                     let byte_count = line.bytes().count();
 
                     lang_count
                         .entry(ide_label)
                         .and_modify(|count| *count += byte_count)
-                        .or_insert(byte_count);
+                        .or_insert((byte_count));
 
                     total_count += byte_count;
                 }
@@ -249,6 +259,7 @@ impl OscarDoc {
         // build a document and return it if the document language is not the unknown one.
         if let Some((Some(id), lang_byte_count)) = document_language {
             // build an Identification with prob = number of bytes from most identified language / total number of bytes
+            debug!("{:?}: {}/{}", id, lang_byte_count, total_count);
             let document_identification =
                 Identification::new(*id, *lang_byte_count as f32 / total_count as f32);
 
