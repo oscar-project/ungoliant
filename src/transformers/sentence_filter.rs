@@ -4,7 +4,6 @@ use std::ops::RangeInclusive;
 
 use itertools::Itertools;
 use log::debug;
-use log::error;
 use warc::BufferedBody;
 use warc::Record;
 

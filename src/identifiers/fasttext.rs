@@ -1,5 +1,5 @@
 //! Fasttext identifier
-use std::{collections::HashMap, path::Path, str::Lines};
+use std::path::Path;
 
 use crate::{error::Error, pipelines::oscardoc::types::Document};
 use fasttext::{FastText as FastTextLib, Prediction};
@@ -109,12 +109,6 @@ impl identifier::Identifier<&str> for FastText {
         } else {
             Ok(None)
         }
-    }
-}
-
-impl identifier::Identifier<&Document> for FastText {
-    fn identify(&self, document: &Document) -> Result<Option<Identification>, Error> {
-        todo!();
     }
 }
 
