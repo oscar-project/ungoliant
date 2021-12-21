@@ -18,6 +18,7 @@
 //! [^1]: We should do this after step 1: better efficiency.
 use std::fs::File;
 use std::path::Path;
+use std::str::Lines;
 use std::{collections::HashMap, path::PathBuf};
 
 use super::types::{Document, Location, Metadata, RebuildWriters};
@@ -31,13 +32,14 @@ use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Annotate, Annotator, Transform};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
 use crate::io::LangFilesDoc;
 
+const DOC_THRESHOLD: f32 = 0.6f32;
 pub struct OscarDoc {
     src: PathBuf,
     dst: PathBuf,
@@ -205,56 +207,15 @@ impl OscarDoc {
         let body = String::from_utf8_lossy(&body);
         let lines = body.lines();
 
-        // per-lang and total byte counts
-        // lang_count maps Lang -> (lang_byte_count, sum(byte_count*prob))
-        let mut lang_count = HashMap::new();
-        let mut total_count = 0;
-
-        // filter out unicode null chars
-        // this prevents fasttext errors and hopefully improves
-        // corpus quality
-        let lines = lines.map(|l| l.replace(char::from(0), ""));
-
-        // get identifications
-        // We use option because of sentences that can't be properly identified
-        let ids: Vec<Option<Identification>> = lines
-            .map(|line| {
-                // identify
-                let id = identifier.identify(line.as_str());
-
-                // add to byte count for document-level identification
-                if let Ok(ref ide) = id {
-                    // map Identification to its lang, or keep None to store the "None" language identification
-                    let ide_label = ide.as_ref().map(|i| *i.label());
-                    let ide_prob = ide.as_ref().map(|i| *i.prob());
-                    // get length of current line
-                    let byte_count = line.bytes().count();
-
-                    lang_count
-                        .entry(ide_label)
-                        .and_modify(|(count, count_times_prob)| {
-                            *count += byte_count;
-                            *count_times_prob += byte_count as f32 * ide_prob.unwrap_or(1.0f32);
-                        })
-                        .or_insert((byte_count, byte_count as f32 * ide_prob.unwrap_or(1.0f32)));
-
-                    total_count += byte_count;
-                }
-                id
-            })
-            .collect::<Result<_, Error>>()?;
-
-        // divide each probability sum to get values between 0 and 1
-        for (_, count_times_prob) in lang_count.values_mut() {
-            *count_times_prob /= total_count as f32;
-        }
+        // get the id for each line, the byte/prob count and the total byte count of the document
+        let (ids, lang_count, total_count) = identifier.get_weighted_ids(lines)?;
 
         // see if the record meets multilingual criteria
         let multilingual = StrictMultilingual::default().detect(&ids[..]);
 
         if multilingual {
             //TODO: fix prob on multilingual documents
-            let document_identification = Identification::new(Lang::Multi, 1.0);
+            let document_identification = Identification::new(Lang::Multi, 0.5);
 
             let metadata = Metadata::new(&document_identification, &ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
@@ -274,25 +235,31 @@ impl OscarDoc {
                 id, lang_byte_count, total_count, confidence
             );
 
-            if confidence < &0.6f32 {
+            if confidence < &DOC_THRESHOLD {
                 return Ok(None);
             }
+
+            // create id
             let document_identification = Identification::new(*id, *confidence);
 
+            // create doc and metadata
             let metadata = Metadata::new(&document_identification, &ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
-            //TODO: create location data
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
             Ok(Some(doc))
         } else {
-            debug!(
-                "{:?} : NONE",
-                headers
-                    .headers
-                    .get(&WarcHeader::RecordID)
-                    .map(|x| Some(String::from_utf8_lossy(x)))
-            );
+            if log_enabled!(log::Level::Debug) {
+                debug!(
+                    "{:?} : NONE",
+                    headers
+                        .headers
+                        .get(&WarcHeader::RecordID)
+                        .map(|x| Some(String::from_utf8_lossy(x)))
+                );
+                debug!("{:?}", &lang_count);
+                debug!("{}", &body);
+            }
             Ok(None)
         }
     }
