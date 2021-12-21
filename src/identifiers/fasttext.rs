@@ -1,10 +1,10 @@
 //! Fasttext identifier
-use std::path::Path;
+use std::{collections::HashMap, path::Path, str::Lines};
 
-use crate::{error::Error, pipelines::oscardoc::types::Document};
+use crate::{error::Error, lang::Lang};
 use fasttext::{FastText as FastTextLib, Prediction};
 
-use super::{identifier, Identification};
+use super::{identifier, Identification, Identifier};
 
 /// Clean the prediction label field from `__label__xx` into `xx`.
 ///
@@ -91,6 +91,63 @@ impl FastText {
                     .collect(),
             ))
         }
+    }
+
+    /// Identifies each line, then returns both identifications for each line _and_
+    /// a HashMap holding (byte_count, sum(byte_count*prob) / total count).
+    pub fn get_weighted_ids(
+        &self,
+        lines: Lines,
+    ) -> Result<
+        (
+            Vec<Option<Identification>>,
+            HashMap<Option<Lang>, (usize, f32)>,
+            usize,
+        ),
+        Error,
+    > {
+        // per-lang and total byte counts
+        // lang_count maps Lang -> (lang_byte_count, sum(byte_count*prob))
+        let mut lang_count = HashMap::new();
+        let mut total_count = 0;
+
+        // filter out unicode null chars
+        // this prevents fasttext errors and hopefully improves
+        // corpus quality
+        let lines = lines.map(|l| l.replace(char::from(0), ""));
+        let ids: Vec<Option<Identification>> = lines
+            .map(|line| {
+                // identify
+                let id = self.identify(line.as_str());
+
+                // add to byte count for document-level identification
+                if let Ok(ref ide) = id {
+                    // map Identification to its lang, or keep None to store the "None" language identification
+                    let ide_label = ide.as_ref().map(|i| *i.label());
+                    let ide_prob = ide.as_ref().map(|i| *i.prob());
+                    // get length of current line
+                    let byte_count = line.bytes().count();
+
+                    lang_count
+                        .entry(ide_label)
+                        .and_modify(|(count, count_times_prob)| {
+                            *count += byte_count;
+                            *count_times_prob += byte_count as f32 * ide_prob.unwrap_or(1.0f32);
+                        })
+                        .or_insert((byte_count, byte_count as f32 * ide_prob.unwrap_or(1.0f32)));
+
+                    total_count += byte_count;
+                }
+                id
+            })
+            .collect::<Result<_, Error>>()?;
+
+        // divide by total count to get probs between 0 and 1.
+        for (_, count_times_prob) in lang_count.values_mut() {
+            *count_times_prob /= total_count as f32;
+        }
+
+        Ok((ids, lang_count, total_count))
     }
 }
 
