@@ -231,6 +231,55 @@ mod tests {
         assert!(cls2.is_err());
     }
 
+    #[test]
+    fn test_weighted_ids() {
+        let classifier = FastText::new_lid().expect("could not instantiate a classifier");
+        let document = "This sentence is a long, long sentence that happens to be in english.
+        This one too, what a coincidence, whew. The quick brown fox jumps over the lazy dog. This one too, what a coincidence, whew. The quick brown fox jumps over the lazy dog.
+        Phrase courte en français
+        il y en a 3 mais moins de contenu que les anglaises
+        héhé c'est vrai que c'est petit
+        qdlskfjqmfdjlmkj";
+
+        let lines: Vec<&str> = document.lines().collect();
+        let en_count = lines[0].len() + lines[1].len();
+        let fr_count = lines[2].len() + lines[3].len() + lines[4].len();
+        let unk_count = lines[5].len();
+        let total_count = en_count + fr_count + unk_count;
+        let (ids, langs, total_size) = classifier.get_weighted_ids(document.lines()).unwrap();
+
+        println!("{:?}", ids);
+        println!("{:?}", langs);
+        println!("{:?}", total_size);
+        // assert correct byte counts
+        assert_eq!(langs.get(&Some(Lang::En)).unwrap().0, en_count);
+        assert_eq!(langs.get(&Some(Lang::Fr)).unwrap().0, fr_count);
+        assert_eq!(langs.get(&None).unwrap().0, unk_count);
+
+        // assert correct language ids
+        let expected_ids = [
+            Some(Lang::En),
+            Some(Lang::En),
+            Some(Lang::Fr),
+            Some(Lang::Fr),
+            Some(Lang::Fr),
+            None,
+        ];
+
+        assert_eq!(
+            ids.into_iter()
+                .map(|id| id.map(|x| *x.label()))
+                .collect::<Vec<Option<Lang>>>(),
+            expected_ids
+        );
+
+        // assert total count
+        assert_eq!(total_count, total_size);
+
+        //assert sum lengths
+        let (lengths, _): (Vec<usize>, Vec<f32>) = langs.values().map(|v| (v.0, v.1)).unzip();
+        assert_eq!(lengths.iter().sum::<usize>(), total_count);
+    }
     // #[test]
     // fn test_clean_prediction_invalid() -> {
 
