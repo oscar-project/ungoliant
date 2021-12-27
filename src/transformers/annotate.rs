@@ -3,6 +3,7 @@ use super::header::Header;
 use super::noisy::Noisy;
 use super::ContentDetector;
 use super::ShortSentences;
+use super::TinyDocument;
 use crate::pipelines::oscardoc::types::Document;
 
 /// Annotations provide contextual information about content.
@@ -25,6 +26,7 @@ impl Annotate for Annotator {
 impl Default for Annotator {
     fn default() -> Self {
         Self(vec![
+            Box::new(TinyDocument::default()),
             Box::new(ShortSentences::default()),
             Box::new(ContentDetector::with_defaults().unwrap()),
             Box::new(Header::default()),

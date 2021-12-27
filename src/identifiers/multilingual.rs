@@ -51,11 +51,7 @@ impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
             .iter()
             .filter(|(id, _)| {
                 if let Some(id) = id {
-                    if id.prob() >= &self.threshold_confidence {
-                        true
-                    } else {
-                        false
-                    }
+                    id.prob() >= &self.threshold_confidence
                 } else {
                     false
                 }

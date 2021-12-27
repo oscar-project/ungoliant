@@ -11,6 +11,7 @@ mod annotate;
 mod content_detector;
 mod header;
 mod sentence_filter;
+mod tiny;
 mod transform;
 
 mod noisy;
@@ -22,4 +23,5 @@ pub use noisy::Noisy;
 pub use sentence_filter::Conv;
 pub use sentence_filter::RemoveShortSentences;
 pub use sentence_filter::ShortSentences;
+pub use tiny::TinyDocument;
 pub use transform::Transform;

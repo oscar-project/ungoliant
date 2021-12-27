@@ -4,7 +4,8 @@ use std::ops::RangeInclusive;
 
 use itertools::Itertools;
 use log::debug;
-use log::error;
+use warc::BufferedBody;
+use warc::Record;
 
 use crate::{
     filtering::{sentence::Length, Filter},
@@ -186,81 +187,67 @@ impl RemoveShortSentences {
         }
     }
 
-    /// get filter detection threshold
-    fn filter_min_length(&self) -> &usize {
-        self.filter.min_size()
-    }
-
-    // pub fn transform_idx(&self, mut doc: Document) -> (Document, Vec<RangeInclusive<usize>>) {
-    //     let lines = doc.content().lines();
-    //     let s: Vec<(usize, &str)> = lines
-    //         .enumerate()
-    //         .skip_while(|(_, sentence)| !self.filter.detect(sentence))
-    //         .collect();
-
-    //     // do the same thing while reversing the iterator
-    //     // this way, we skip the short sentences at the end
-    //     let s: Vec<(usize, &str)> = s
-    //         .into_iter()
-    //         .rev()
-    //         .skip_while(|(_, sentence)| !self.filter.detect(sentence))
-    //         //.map(|(idx, _)| idx)
-    //         .collect();
-
-    //     // if we did not get start or end, we return an empty vector
-    //     // meaning that we keed nothing. (analogous to transform_own)
-    //     match (s.first(), s.last()) {
-    //         (Some(end), Some(start)) => {
-    //             let ranges = vec![start.0..=end.0];
-    //             let sentences = s.into_iter().rev().map(|(_, sentence)| sentence).join("\n");
-
-    //             doc.set_content(sentences);
-
-    //             (doc, ranges)
-    //         }
-    //         _ => (doc, Vec::new()),
-    //     }
-    // }
-}
-
-impl Transform for RemoveShortSentences {
-    fn transform(&self, doc: &mut Document) -> Vec<RangeInclusive<usize>> {
-        let lines = doc.content().lines();
+    /// extracts indices of the document content, ignoring short lines at start/end.
+    fn extract_indices<'a>(&self, lines: std::str::Lines<'a>) -> Vec<(usize, &'a str)> {
         let s: Vec<(usize, &str)> = lines
             .enumerate()
             .skip_while(|(_, sentence)| !self.filter.detect(sentence))
             .collect();
-
-        // do the same thing while reversing the iterator
-        // this way, we skip the short sentences at the end
         let s: Vec<(usize, &str)> = s
             .into_iter()
             .rev()
             .skip_while(|(_, sentence)| !self.filter.detect(sentence))
-            //.map(|(idx, _)| idx)
             .collect();
+        s
+    }
 
-        // if we did not get start or end, we return an empty vector
-        // meaning that we keed nothing. (analogous to transform_own)
+    /// build content from extracted indices, returning a unique String along with the indices
+    /// that can be used to rebuild the content.
+    fn build_content(s: Vec<(usize, &str)>) -> (String, Vec<RangeInclusive<usize>>) {
         match (s.first(), s.last()) {
             (Some(end), Some(start)) => {
                 let ranges = vec![start.0..=end.0];
                 let sentences = s.into_iter().rev().map(|(_, sentence)| sentence).join("\n");
 
-                doc.set_content(sentences);
-
-                ranges
+                (sentences, ranges)
             }
             _ => {
-                error!(
-                    "Record {} only had short sentences at transform step! This shouldn't happen!",
-                    doc.warc_id()
-                );
                 // set content to empty string
-                doc.set_content(String::new());
-                Vec::new()
+                (String::new(), Vec::new())
             }
         }
+    }
+    /// get filter detection threshold
+    fn filter_min_length(&self) -> &usize {
+        self.filter.min_size()
+    }
+}
+
+impl Transform<Document> for RemoveShortSentences {
+    fn transform(&self, doc: &mut Document) -> Vec<RangeInclusive<usize>> {
+        let lines = doc.content().lines();
+
+        // TODO: fuse those two methods?
+        let s = self.extract_indices(lines);
+        let (content, ranges) = Self::build_content(s);
+
+        doc.set_content(content);
+
+        ranges
+    }
+}
+
+impl Transform<Record<BufferedBody>> for RemoveShortSentences {
+    fn transform(&self, doc: &mut Record<BufferedBody>) -> Vec<RangeInclusive<usize>> {
+        let stringified = String::from_utf8_lossy(doc.body());
+        let lines = stringified.lines();
+        let s = self.extract_indices(lines);
+
+        // if we did not get start or end, we return an empty vector
+        // meaning that we keed nothing. (analogous to transform_own)
+        let (content, ranges) = Self::build_content(s);
+        doc.replace_body(content);
+        ranges
     }
 }
 

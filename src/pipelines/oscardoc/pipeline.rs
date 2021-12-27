@@ -18,6 +18,7 @@
 //! [^1]: We should do this after step 1: better efficiency.
 use std::fs::File;
 use std::path::Path;
+use std::str::Lines;
 use std::{collections::HashMap, path::PathBuf};
 
 use super::types::{Document, Location, Metadata, RebuildWriters};
@@ -31,12 +32,14 @@ use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{self, Annotate, Annotator, Transform};
-use log::{debug, error, info, warn};
+use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
 use crate::io::LangFilesDoc;
+
+const DOC_THRESHOLD: f32 = 0.6f32;
 pub struct OscarDoc {
     src: PathBuf,
     dst: PathBuf,
@@ -99,19 +102,9 @@ impl OscarDoc {
         let shard = Wet::from_path_gzip(&shard_path)?;
         let record_iter = shard.iter.enumerate().par_bridge();
 
-        // get specified filter or resort to default filter kind
-        let f = filter.unwrap_or_default();
-
-        // get iterator on filtered records.
-        // only get records that are valid *and* pass the filter.
+        // only get valid records, print errors
         let record_iter = record_iter.filter_map(|(idx, record)| match record {
-            Ok(r) => {
-                if f.detect(&r) {
-                    Some((idx, r))
-                } else {
-                    None
-                }
-            }
+            Ok(r) => Some((idx, r)),
             Err(e) => {
                 error!("{:?}", e);
                 None
@@ -129,25 +122,8 @@ impl OscarDoc {
             (loc, record)
         });
 
-        // identify
-        let record_iter = record_iter
-            .map(|(loc, record)| (loc, Self::process_record(record, identifier)))
-            .filter_map(|(loc, res)| match res {
-                Ok(Some(res)) => Some((loc, res)),
-                Ok(None) => None,
-                Err(e) => {
-                    error!("{:?}", e);
-                    None
-                }
-            });
-
-        // remove short lines
+        // remove short sentences, discarding documents that only have short sentences
         let length_filter = transformers::RemoveShortSentences::default();
-
-        // We get bounds of the most significant part.
-        // transform_idx yields a vector of ranges, but we'll assume
-        // there's one and only one, discarding if there's none,
-        // and taking the first one + yielding an error if there's more.
         let record_iter = record_iter.filter_map(|(mut loc, mut record)| {
             let bounds = length_filter.transform(&mut record);
             match bounds.len() {
@@ -172,6 +148,31 @@ impl OscarDoc {
             }
         });
 
+        // get specified filter or resort to default filter kind
+        let f = filter.unwrap_or_default();
+
+        // get iterator on filtered records.
+        // only get records that are valid *and* pass the filter.
+        let record_iter = record_iter.filter_map(|(idx, record)| {
+            if f.detect(&record) {
+                Some((idx, record))
+            } else {
+                None
+            }
+        });
+
+        // identify
+        let record_iter = record_iter
+            .map(|(loc, record)| (loc, Self::process_record(record, identifier)))
+            .filter_map(|(loc, res)| match res {
+                Ok(Some(res)) => Some((loc, res)),
+                Ok(None) => None,
+                Err(e) => {
+                    error!("{:?}", e);
+                    None
+                }
+            });
+
         // annotate
         let annotator = Annotator::default();
         let record_iter = record_iter.map(|(loc, mut r)| {
@@ -179,7 +180,19 @@ impl OscarDoc {
             (r, loc.build().unwrap())
         });
 
-        Ok((shard_id, record_iter.collect()))
+        let record_iter = record_iter.filter_map(|(r, loc): (Document, Location)| {
+            if r.metadata().annotation() == Some(&vec!["noisy".to_string(), "tiny".to_string()]) {
+                debug!("removed document {:?} for noisy+tiny", r.warc_id());
+                None
+            } else {
+                Some((r, loc))
+            }
+        });
+
+        let records: Vec<(_, _)> = record_iter.collect();
+        info!("Shard {}: Got {} documents", shard_id, records.len());
+
+        Ok((shard_id, records))
     }
 
     /// process a record
@@ -194,46 +207,15 @@ impl OscarDoc {
         let body = String::from_utf8_lossy(&body);
         let lines = body.lines();
 
-        // per-lang and total byte counts
-        let mut lang_count = HashMap::new();
-        let mut total_count = 0;
-
-        // filter out unicode null chars
-        // this prevents fasttext errors and hopefully improves
-        // corpus quality
-        let lines = lines.map(|l| l.replace(char::from(0), ""));
-
-        // get identifications
-        // We use option because of sentences that can't be properly identified
-        let ids: Vec<Option<Identification>> = lines
-            .map(|line| {
-                // identify
-                let id = identifier.identify(&line);
-
-                // add to byte count for document-level identification
-                if let Ok(ref ide) = id {
-                    // map Identification to its lang, or keep None to store the "None" language identification
-                    let ide_label = ide.as_ref().map(|i| *i.label());
-
-                    // get length of current line
-                    let byte_count = line.bytes().count();
-
-                    lang_count
-                        .entry(ide_label)
-                        .and_modify(|count| *count += byte_count)
-                        .or_insert(byte_count);
-
-                    total_count += byte_count;
-                }
-                id
-            })
-            .collect::<Result<_, Error>>()?;
+        // get the id for each line, the byte/prob count and the total byte count of the document
+        let (ids, lang_count, total_count) = identifier.get_weighted_ids(lines)?;
 
         // see if the record meets multilingual criteria
         let multilingual = StrictMultilingual::default().detect(&ids[..]);
 
         if multilingual {
-            let document_identification = Identification::new(Lang::Multi, 1.0);
+            //TODO: fix prob on multilingual documents
+            let document_identification = Identification::new(Lang::Multi, 0.5);
 
             let metadata = Metadata::new(&document_identification, &ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
@@ -243,28 +225,41 @@ impl OscarDoc {
 
         // figure out document language
         // count bytes per language, get language that got most bytes
-        let document_language = lang_count.iter().max_by_key(|(_, v)| *v);
+        let document_language = lang_count.iter().max_by_key(|(_, (v, _))| *v);
 
         // build a document and return it if the document language is not the unknown one.
-        if let Some((Some(id), lang_byte_count)) = document_language {
+        if let Some((Some(id), (lang_byte_count, confidence))) = document_language {
             // build an Identification with prob = number of bytes from most identified language / total number of bytes
-            let document_identification =
-                Identification::new(*id, *lang_byte_count as f32 / total_count as f32);
+            debug!(
+                "{:?}: {}/{} (c:{})",
+                id, lang_byte_count, total_count, confidence
+            );
 
+            if confidence < &DOC_THRESHOLD {
+                return Ok(None);
+            }
+
+            // create id
+            let document_identification = Identification::new(*id, *confidence);
+
+            // create doc and metadata
             let metadata = Metadata::new(&document_identification, &ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
-            //TODO: create location data
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
             Ok(Some(doc))
         } else {
-            debug!(
-                "{:?} : NONE",
-                headers
-                    .headers
-                    .get(&WarcHeader::RecordID)
-                    .map(|x| Some(String::from_utf8_lossy(x)))
-            );
+            if log_enabled!(log::Level::Debug) {
+                debug!(
+                    "{:?} : NONE",
+                    headers
+                        .headers
+                        .get(&WarcHeader::RecordID)
+                        .map(|x| Some(String::from_utf8_lossy(x)))
+                );
+                debug!("{:?}", &lang_count);
+                debug!("{}", &body);
+            }
             Ok(None)
         }
     }
