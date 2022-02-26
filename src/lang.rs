@@ -12,12 +12,13 @@ use std::{
 };
 
 use log::{debug, warn};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use structopt::lazy_static::lazy_static;
 
 use crate::error::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum Lang {
     Af,
     Als,

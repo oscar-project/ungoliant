@@ -5,11 +5,12 @@ All identifiers should implement [Identifier] to be useable in processing and pi
 use std::str::FromStr;
 
 use fasttext::Prediction;
+use schemars::JsonSchema;
 
 use crate::{error::Error, lang::Lang};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(from = "IdentificationSer", into = "IdentificationSer")]
 pub struct Identification {
     label: Lang,
