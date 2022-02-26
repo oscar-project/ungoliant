@@ -4,6 +4,7 @@ use log::LevelFilter;
 use std::fs::File;
 use std::io::Write;
 use structopt::StructOpt;
+use ungoliant::pipelines::oscardoc::types::Document;
 
 use crate::pipelines::oscarmeta::types::Metadata;
 use crate::pipelines::Pipeline;
@@ -66,7 +67,8 @@ async fn main() -> Result<(), error::Error> {
             schema_filepath.push("metadata_schema.json");
             info!("creating json schema file {:?}", schema_filepath);
             let mut f = File::create(schema_filepath)?;
-            f.write_all(Metadata::get_schema()?.as_bytes())?;
+            f.write_all(Document::get_schema().unwrap().as_bytes())?;
+            // f.write_all(Metadata::get_schema()?.as_bytes())?;
         }
         cli::Ungoliant::Dedup(d) => {
             processing::dedup::dedup(&d.src, &d.dst, Some(d.bufsize))?;

@@ -1,15 +1,17 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 use warc::BufferedBody;
 use warc::Record;
 use warc::WarcHeader;
 
+use crate::error::Error;
 use crate::identifiers::Identification;
 use crate::lang::Lang;
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 
 /// OSCAR-specific metadata
 /// TODO: make it a HashMap
@@ -70,7 +72,7 @@ pub struct Document {
     metadata: Metadata,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 /// Serializable version of [Document].
 struct DocumentSer {
     content: String,
@@ -78,6 +80,11 @@ struct DocumentSer {
     metadata: Metadata,
 }
 
+impl DocumentSer {
+    pub fn get_schema() -> Result<String, Error> {
+        serde_json::to_string_pretty(&schemars::schema_for!(Self)).map_err(Error::Serde)
+    }
+}
 impl From<Document> for DocumentSer {
     fn from(d: Document) -> Self {
         let warc_headers = d
@@ -119,6 +126,9 @@ impl Document {
         }
     }
 
+    pub fn get_schema() -> Result<String, Error> {
+        DocumentSer::get_schema()
+    }
     /// Instantiate a Document from a record and a related metadata.
     pub fn from_record(record: Record<BufferedBody>, metadata: Metadata) -> Self {
         let (header, body) = record.into_raw_parts();
