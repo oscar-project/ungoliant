@@ -506,4 +506,17 @@ Long enough sentence here :)"#;
         // this fails if doc is annotated with something else
         assert!(doc.metadata().annotation().is_none())
     }
+
+    #[test]
+    fn test_single_sentence() {
+        let (mut doc, _) = gen_valid_long();
+        let content = r#"Ti Pebrero 29 ket ti maika-60 nga aldaw iti bisiesto a tawen iti kalendario a Gregoriano, nga addaan pay nabati a 306 nga al-aldaw tapno maungpot ti tawen."#;
+        doc.set_content(content.to_string());
+ 
+        let a = ShortSentences::new(Length::with_min_size(10), 0.5);
+        let a = ShortSentences::default();
+        a.annotate(&mut doc);
+        // this fails if doc is annotated with something else
+        assert!(doc.metadata().annotation().is_none())
+    } 
 }
