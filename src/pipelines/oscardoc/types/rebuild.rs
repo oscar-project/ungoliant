@@ -277,11 +277,15 @@ impl<'a> RebuildWriters<'a, File> {
     ///
     /// Each language will have a possibly empty avro file, at `<dst>/<lang>.avro`.
     pub fn with_dst(dst: &Path) -> Result<Self, Error> {
+        if !dst.exists() {
+            std::fs::create_dir(dst)?;
+        }
+
         if dst.is_file() {
             error!("rebuild destination must be an empty folder!");
         };
 
-        if dst.read_dir()?.next().is_none() {
+        if !dst.read_dir()?.next().is_none() {
             error!("rebuild destination folder must be empty!");
         }
 
