@@ -18,6 +18,13 @@ pub enum Error {
     FastText(String),
     IncompleteLocation(IncompleteLocation),
     Avro(avro_rs::Error),
+    Csv(csv::Error),
+}
+
+impl From<csv::Error> for Error {
+    fn from(v: csv::Error) -> Self {
+        Self::Csv(v)
+    }
 }
 
 impl From<avro_rs::Error> for Error {

@@ -5,11 +5,12 @@ All identifiers should implement [Identifier] to be useable in processing and pi
 use std::str::FromStr;
 
 use fasttext::Prediction;
+use schemars::JsonSchema;
 
 use crate::{error::Error, lang::Lang};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(from = "IdentificationSer", into = "IdentificationSer")]
 pub struct Identification {
     label: Lang,
@@ -62,9 +63,9 @@ impl From<Prediction> for Identification {
         }
     }
 }
-pub trait Identifier {
+pub trait Identifier<T> {
     /// returns a language identification token (from [crate::lang::LANG]).
-    fn identify(&self, sentence: &str) -> Result<Option<Identification>, Error>;
+    fn identify(&self, sentence: T) -> Result<Option<Identification>, Error>;
 }
 
 #[cfg(test)]

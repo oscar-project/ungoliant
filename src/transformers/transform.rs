@@ -2,8 +2,7 @@
 
 use std::ops::RangeInclusive;
 
-use crate::pipelines::oscardoc::types::Document;
-pub trait Transform {
+pub trait Transform<T> {
     /// Takes ownership of [Document] and returns it.
-    fn transform(&self, doc: &mut Document) -> Vec<RangeInclusive<usize>>;
+    fn transform(&self, doc: &mut T) -> Vec<RangeInclusive<usize>>;
 }

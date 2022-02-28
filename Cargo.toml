@@ -1,6 +1,6 @@
 [package]
 name = "ungoliant"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Julien Abadji <julien.e.abadji@gmail.com>, Pedro J. Ortiz <pedro@pjortiz.com>"]
 edition = "2021"
 description = "The pipeline for the OSCAR corpus."
@@ -20,8 +20,8 @@ log = "*"
 itertools = "0.10.0"
 tokio = { version = "1", features = ["full"] }
 tokio-util = {version="0.6.6", features=["compat"]}
-warc = {git = "https://github.com/jedireza/warc", features=["with_serde"], version = "0.3"}
-ut1_blocklist = {git = "https://github.com/oscar-corpus/ut1-rs"}
+warc = {version="0.3.0", features=["with_serde"]}
+ut1_blocklist = "0.1.0"
 fasttext = "0.6"
 bytes = "1"
 rayon = "1"
@@ -36,6 +36,10 @@ runiq-lib = "1.2.2"
 rand = "0.8.4"
 url = "2.2.2"
 avro-rs = { version = "0.13.0", features = ["snappy"] }
+unicode-script = "0.5.4"
+unicode-segmentation = "1.8.0"
+csv = "1.1.6"
+unic-ucd = "0.9.0"
 
 [dev-dependencies]
 rand_distr = "0.4.2"
@@ -50,4 +54,8 @@ harness = false
 
 [[bench]]
 name = "pipeline_bench_rayon"
+harness = false
+
+[[bench]]
+name = "annotate_noisy"
 harness = false

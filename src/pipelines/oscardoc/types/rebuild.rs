@@ -280,7 +280,6 @@ impl<'a> RebuildWriters<'a, File> {
         if !dst.exists() {
             std::fs::create_dir(dst)?;
         }
-
         if dst.is_file() {
             error!("rebuild destination must be an empty folder!");
         };
