@@ -1,10 +1,12 @@
 [package]
 name = "ungoliant"
-version = "1.1.0"
+version = "1.1.1"
 authors = ["Julien Abadji <julien.e.abadji@gmail.com>, Pedro J. Ortiz <pedro@pjortiz.com>"]
 edition = "2021"
 description = "The pipeline for the OSCAR corpus."
 license = "Apache-2.0"
+homepage = "https://github.com/oscar-corpus/ungoliant"
+repository = "https://github.com/oscar-corpus/ungoliant"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,7 +18,7 @@ futures-util = "0.3"
 futures = "0.3"
 structopt = "0.3.21"
 env_logger = "0.8.3"
-log = "*"
+log = "0.4.14"
 itertools = "0.10.0"
 tokio = { version = "1", features = ["full"] }
 tokio-util = {version="0.6.6", features=["compat"]}
