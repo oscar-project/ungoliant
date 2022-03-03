@@ -11,7 +11,6 @@ pub trait Annotate {
     fn annotate(&self, doc: &mut Document);
 }
 
-struct AnnotatorBuilder {}
 /// Annotator enables annotation chaining, adding multiple annotators and
 /// doing the annotation process in one step.
 pub struct Annotator(Vec<Box<dyn Annotate + Sync>>);
@@ -33,5 +32,31 @@ impl Annotate for Annotator {
 impl Default for Annotator {
     fn default() -> Self {
         Self(vec![])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::transformers::Annotate;
+
+    use super::Annotator;
+
+    #[test]
+    fn test_default() {
+        let a = Annotator::default();
+        assert_eq!(a.0.len(), 0);
+    }
+
+    #[test]
+    fn test_add() {
+        struct MockAnnotate {}
+        impl Annotate for MockAnnotate {
+            fn annotate(&self, _: &mut crate::pipelines::oscardoc::types::Document) {}
+        }
+
+        let mut a = Annotator::default();
+        a.add(Box::new(MockAnnotate {}));
+
+        assert_eq!(a.0.len(), 1);
     }
 }
