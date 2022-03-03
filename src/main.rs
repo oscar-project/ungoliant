@@ -25,6 +25,7 @@ mod sources;
 mod transformers;
 
 #[tokio::main]
+#[cfg(not(tarpaulin_include))]
 async fn main() -> Result<(), error::Error> {
     // set devault log level to info
     let mut builder = env_logger::Builder::new();
