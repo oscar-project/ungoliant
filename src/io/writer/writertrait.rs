@@ -2,8 +2,6 @@ use std::path::Path;
 
 use crate::error::Error;
 
-
-
 pub trait WriterTrait {
     type Item;
 
