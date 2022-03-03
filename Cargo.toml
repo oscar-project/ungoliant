@@ -1,6 +1,6 @@
 [package]
 name = "ungoliant"
-version = "1.1.1"
+version = "1.2.1"
 authors = ["Julien Abadji <julien.e.abadji@gmail.com>, Pedro J. Ortiz <pedro@pjortiz.com>"]
 edition = "2021"
 description = "The pipeline for the OSCAR corpus."
