@@ -61,7 +61,7 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::Pipeline(p) => {
             let mut schema_filepath = p.dst.clone();
             // let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
-            let p = pipelines::OscarDoc::new(p.src, p.dst, p.lid_path);
+            let p = pipelines::OscarDoc::new(p.src, p.dst, p.lid_path, p.blocklist);
             p.run()?;
 
             schema_filepath.push("metadata_schema.json");

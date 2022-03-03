@@ -6,6 +6,7 @@ Currently the approach is to use the [UT1 blocklist](https://dsi.ut-capitole.fr/
  * !*/
 use std::str::FromStr;
 
+use log::info;
 use ut1_blocklist::{self, Blocklist};
 
 use crate::{error::Error, pipelines::oscardoc::types::Document};
@@ -49,6 +50,7 @@ impl<'a> Annotate for ContentDetector<'a> {
         // if we were successful, detect domain and url
         if let Some(valid_url) = url {
             if self.bl.detect_domain(&valid_url) || self.bl.detect_url(&valid_url) {
+                info!("Document {} flagged as adult", doc.warc_id());
                 doc.metadata_mut()
                     .set_annotation(self.bl.kind().to_string());
             }

@@ -164,4 +164,10 @@ pub struct Pipeline {
         default_value = "lid.176.bin"
     )]
     pub lid_path: PathBuf,
+    #[structopt(
+        parse(from_os_str),
+        long = "blocklist-path",
+        help = "Optional path to blocklist."
+    )]
+    pub blocklist: Option<PathBuf>,
 }

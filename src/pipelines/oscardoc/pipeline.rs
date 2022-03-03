@@ -31,9 +31,13 @@ use crate::lang::Lang;
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
-use crate::transformers::{self, Annotate, Annotator, Transform};
+use crate::transformers::{
+    self, Annotate, Annotator, ContentDetector, Header, Noisy, ShortSentences, TinyDocument,
+    Transform,
+};
 use log::{debug, error, info, log_enabled, warn};
 use rayon::prelude::*;
+use ut1_blocklist::Blocklist;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
@@ -44,11 +48,22 @@ pub struct OscarDoc {
     src: PathBuf,
     dst: PathBuf,
     lid_path: PathBuf,
+    blocklist: Option<PathBuf>,
 }
 
 impl OscarDoc {
-    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf) -> Self {
-        Self { src, dst, lid_path }
+    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf, blocklist: Option<PathBuf>) -> Self {
+        if blocklist.is_none() {
+            warn!("No blocklist folder specified! No adult content tagging will be done.");
+        }
+
+        debug!("using blocklist {:?}", blocklist);
+        Self {
+            src,
+            dst,
+            lid_path,
+            blocklist,
+        }
     }
 
     /// list files in source folder,
@@ -93,6 +108,7 @@ impl OscarDoc {
         shard_path: &Path,
         identifier: &identifiers::FastText,
         filter: Option<record::FilterKind>,
+        blocklist: &Option<PathBuf>,
     ) -> Result<(usize, Vec<(Document, Location)>), Error> {
         info!("working on shard: {:?}", shard_path);
 
@@ -174,7 +190,18 @@ impl OscarDoc {
             });
 
         // annotate
-        let annotator = Annotator::default();
+        let mut annotator = Annotator::default();
+        annotator
+            .add(Box::new(TinyDocument::default()))
+            .add(Box::new(ShortSentences::default()))
+            .add(Box::new(Header::default()))
+            .add(Box::new(Noisy::default()));
+
+        if let Some(path) = blocklist {
+            let bl = Blocklist::with_folder("adult", path)?;
+            annotator.add(Box::new(ContentDetector::new(bl)));
+        }
+
         let record_iter = record_iter.map(|(loc, mut r)| {
             annotator.annotate(&mut r);
             (r, loc.build().unwrap())
@@ -337,8 +364,19 @@ impl Pipeline<()> for OscarDoc {
     fn run(&self) -> Result<(), Error> {
         // let errors;
 
-        let cls = FastText::new(&self.lid_path, 1, 0.8)?;
+        let cls = FastText::new(&self.lid_path, 1, 0.8).expect(&format!(
+            "Could not load language identifier at {:?}",
+            self.lid_path
+        ));
 
+        if !self.dst.exists() {
+            warn!("Destination file does not exist. Creating");
+            std::fs::create_dir(&self.dst)?;
+        }
+
+        if !self.dst.is_dir() {
+            panic!("Destination has to be a directory: {:?}", self.dst);
+        }
         let results = self.get_paths_iter()?;
 
         // convert to parallel iterator
@@ -354,8 +392,12 @@ impl Pipeline<()> for OscarDoc {
         let rebuild_files = RebuildWriters::with_dst(&dst_rebuild)?;
 
         //iterate over shards
-        let shards_results =
-            results.map(|(idx, shard)| (idx, Self::process_shard(&shard, &cls, None)));
+        let shards_results = results.map(|(idx, shard)| {
+            (
+                idx,
+                Self::process_shard(&shard, &cls, None, &self.blocklist),
+            )
+        });
 
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {

@@ -11,10 +11,17 @@ pub trait Annotate {
     fn annotate(&self, doc: &mut Document);
 }
 
+struct AnnotatorBuilder {}
 /// Annotator enables annotation chaining, adding multiple annotators and
 /// doing the annotation process in one step.
 pub struct Annotator(Vec<Box<dyn Annotate + Sync>>);
 
+impl Annotator {
+    pub fn add(&mut self, annotator: Box<dyn Annotate + Sync>) -> &mut Annotator {
+        self.0.push(annotator);
+        self
+    }
+}
 impl Annotate for Annotator {
     fn annotate(&self, doc: &mut Document) {
         for annotator in &self.0 {
@@ -25,12 +32,6 @@ impl Annotate for Annotator {
 
 impl Default for Annotator {
     fn default() -> Self {
-        Self(vec![
-            Box::new(TinyDocument::default()),
-            Box::new(ShortSentences::default()),
-            Box::new(ContentDetector::with_defaults().unwrap()),
-            Box::new(Header::default()),
-            Box::new(Noisy::default()),
-        ])
+        Self(vec![])
     }
 }
