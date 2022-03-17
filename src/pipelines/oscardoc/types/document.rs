@@ -45,6 +45,11 @@ impl Metadata {
     pub fn annotation(&self) -> Option<&Vec<String>> {
         self.annotation.as_ref()
     }
+
+    /// Get a reference to the metadata's sentence identifications.
+    pub fn sentence_identifications(&self) -> &[Option<Identification>] {
+        self.sentence_identifications.as_ref()
+    }
 }
 
 impl Default for Metadata {
@@ -191,7 +196,7 @@ impl std::fmt::Debug for Document {
 
         let lines = &self.content.lines().collect::<Vec<&str>>();
         f.debug_struct("Document")
-            .field("content", &lines)
+            .field("content (as lines())", &lines)
             .field("warc_headers", &headers_pp)
             .field("metadata", &self.metadata)
             .finish()
