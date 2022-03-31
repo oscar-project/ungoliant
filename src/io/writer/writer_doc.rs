@@ -113,4 +113,33 @@ Ecoutez ça va plutôt bien.";
 
         std::fs::remove_dir_all(dst).unwrap();
     }
+
+    #[test]
+    fn test_newline_bug() {
+        // create a possibly faulty document
+        let content = r#"hel\nlo\r\n"#.to_string();
+        let headers = HashMap::new();
+        let meta = Metadata::new(
+            &Identification::new(Lang::En, 1.0f32),
+            &*vec![Some(Identification::new(Lang::En, 1.0f32))],
+        );
+        let doc = Document::new(content, headers, meta);
+
+        // check that we have the correct number of ids
+        assert_eq!(
+            doc.content().lines().count(),
+            doc.metadata().sentence_identifications().len()
+        );
+
+        let dst = tempfile::tempdir().unwrap();
+        let mut wr = WriterDoc::new(dst.path(), "fr", Some(10)).unwrap();
+
+        wr.write(vec![doc.clone()]).unwrap();
+        let pathd = PathBuf::from(dst.path()).join("fr_meta.jsonl");
+        let f = File::open(pathd).unwrap();
+
+        let doc_from_ser: Document = serde_json::from_reader(&f).unwrap();
+
+        assert_eq!(doc, doc_from_ser);
+    }
 }
