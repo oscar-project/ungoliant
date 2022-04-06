@@ -13,6 +13,7 @@ mod metawriter;
 mod textwriter;
 pub mod writer;
 mod writer_doc;
+mod writer_doc_avro;
 mod writertrait;
 use metawriter::MetaWriter;
 use textwriter::TextWriter;
