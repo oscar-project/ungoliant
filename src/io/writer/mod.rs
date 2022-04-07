@@ -10,6 +10,7 @@ Each [Writer] is composed of a [TextWriter]/[MetaWriter] couple, with [TextWrite
 This leads the [TextWriter]/[MetaWriter] couple to be cumbersome to use outside of [Writer].
 !*/
 mod metawriter;
+mod parquetwriter;
 mod textwriter;
 pub mod writer;
 mod writer_doc;

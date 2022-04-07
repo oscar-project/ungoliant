@@ -208,7 +208,9 @@ impl OscarDoc {
         });
 
         let record_iter = record_iter.filter_map(|(r, loc): (Document, Location)| {
-            if r.metadata().annotation() == Some(&vec!["noisy".to_string(), "tiny".to_string()]) {
+            if r.metadata().annotation().as_ref()
+                == Some(&vec!["noisy".to_string(), "tiny".to_string()])
+            {
                 debug!("removed document {:?} for noisy+tiny", r.warc_id());
                 None
             } else {
