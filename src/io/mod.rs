@@ -9,5 +9,6 @@ mod langfiles;
 pub mod reader;
 pub mod writer;
 pub use langfiles::LangFiles;
+pub use langfiles::LangFilesAvro;
 pub use langfiles::LangFilesDoc;
 pub use writer::Writer;

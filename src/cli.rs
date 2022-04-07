@@ -170,4 +170,10 @@ pub struct Pipeline {
         help = "Optional path to blocklist."
     )]
     pub blocklist: Option<PathBuf>,
+    #[structopt(
+        long = "format",
+        help = "corpus output format. ('avro' or 'jsonl')",
+        default_value = "jsonl"
+    )]
+    pub format: String,
 }

@@ -41,7 +41,7 @@ use ut1_blocklist::Blocklist;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
-use crate::io::LangFilesDoc;
+use crate::io::{LangFilesAvro, LangFilesDoc};
 
 const DOC_THRESHOLD: f32 = 0.6f32;
 pub struct OscarDoc {
@@ -52,7 +52,13 @@ pub struct OscarDoc {
 }
 
 impl OscarDoc {
-    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf, blocklist: Option<PathBuf>) -> Self {
+    pub fn new(
+        src: PathBuf,
+        dst: PathBuf,
+        lid_path: PathBuf,
+        blocklist: Option<PathBuf>,
+        format: String,
+    ) -> Self {
         if blocklist.is_none() {
             warn!("No blocklist folder specified! No adult content tagging will be done.");
         }
@@ -308,7 +314,7 @@ impl OscarDoc {
 
     /// concurrently write documets
     fn write_documents<'a>(
-        langfiles: &LangFilesDoc,
+        langfiles: &'a LangFilesAvro<'a>,
         avrowriters: &'a RebuildWriters<'a, File>,
         shard_id: usize,
         documents: HashMap<Lang, Vec<(Document, Location)>>,
@@ -333,10 +339,11 @@ impl OscarDoc {
                 let sr = ShardResult::new(shard_id as i64, locations, metadata_cloned);
 
                 // write docs and rebuild files
-                writer_lock.write(docs)?;
+                writer_lock.extend_ser(docs)?;
                 avrowriter_lock.append_ser(sr)?;
 
                 //TODO: not sure that we need the flush
+                writer_lock.flush()?;
                 avrowriter_lock.flush()?;
 
                 Ok(())
@@ -385,7 +392,8 @@ impl Pipeline<()> for OscarDoc {
         //      ourselves.
         let results = results.enumerate().par_bridge();
 
-        let langfiles = LangFilesDoc::new(&self.dst, None)?;
+        // let langfiles = LangFilesDoc::new(&self.dst, None)?;
+        let langfiles = LangFilesAvro::new(&self.dst)?;
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 

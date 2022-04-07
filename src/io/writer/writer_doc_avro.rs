@@ -1,8 +1,9 @@
 //! Avro version of [writer_doc::DocWriter].
 
-use std::io::Write;
+use std::{fmt::Debug, fs::File, io::Write, path::Path};
 
 use avro_rs::{Codec, Schema, Writer};
+use log::{debug, error};
 use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
@@ -93,7 +94,7 @@ let document_schema = r#"
             .clone()
     };
 }
-struct DocWriterAvro<'a, T>
+pub struct DocWriterAvro<'a, T>
 where
     T: Write,
 {
@@ -114,7 +115,16 @@ where
         }
     }
 
-    pub fn append_ser<S: Serialize>(&mut self, val: &S) -> Result<usize, Error> {
+    pub fn extend_ser<I, U: Serialize>(&mut self, vals: I) -> Result<usize, Error>
+    where
+        I: IntoIterator<Item = U>,
+    {
+        self.writer.extend_ser(vals).map_err(|e| e.into())
+    }
+    pub fn append_ser<S>(&mut self, val: &S) -> Result<usize, Error>
+    where
+        S: Serialize,
+    {
         self.writer.append_ser(val).map_err(|e| e.into())
     }
 
@@ -127,6 +137,17 @@ where
     }
 }
 
+impl<'a> DocWriterAvro<'a, File> {
+    pub fn from_file(path: &Path) -> Result<Self, Error> {
+        if path.exists() {
+            error!("{:?} already exists!", path);
+            Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, format!("{path:?}")).into())
+        } else {
+            let fh = File::create(path)?;
+            Ok(DocWriterAvro::new(&SCHEMA, fh, Codec::Snappy))
+        }
+    }
+}
 impl<'a, T> WriterTrait for DocWriterAvro<'a, T>
 where
     T: Write,
@@ -145,7 +166,8 @@ where
     }
 
     fn write(&mut self, vals: Vec<Self::Item>) -> Result<(), crate::error::Error> {
-        todo!()
+        self.extend_ser(&vals)?;
+        Ok(())
     }
 
     fn write_single(&mut self, val: &Self::Item) -> Result<(), crate::error::Error> {
@@ -191,8 +213,16 @@ mod test {
             content.push_str(&i.to_string());
             let mut headers = HashMap::new();
             headers.insert(WarcHeader::ContentType, "conversion".as_bytes().to_owned());
+            headers.insert(
+                WarcHeader::Unknown("warc-identified-language".to_string()),
+                "fr".as_bytes().to_owned(),
+            );
             let default_id = Identification::new(Lang::En, 1.0);
-            let metadata = Metadata::new(&default_id, &vec![Some(default_id.clone()); 3]);
+            let mut metadata = Metadata::new(
+                &default_id,
+                &vec![Some(default_id.clone()), Some(default_id.clone()), None],
+            );
+            metadata.set_annotation("adult".to_string());
             let d = Document::new(content, headers, metadata);
             documents.push(d);
         }
@@ -212,6 +242,7 @@ mod test {
             from_avro.push(deserialized);
         }
 
+        println!("{from_avro:#?}");
         //check equality
         assert_eq!(documents, from_avro);
     }
