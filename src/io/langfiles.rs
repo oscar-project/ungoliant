@@ -7,6 +7,8 @@ Each language (provided by [crate::lang::LANG]) is given a [self::Writer] wrappe
 !*/
 use std::{
     collections::HashMap,
+    fs::File,
+    io::Write,
     path::Path,
     str::FromStr,
     sync::{Arc, Mutex},
@@ -16,7 +18,7 @@ use crate::io::writer::Writer;
 use crate::lang::LANG;
 use crate::{error, lang::Lang};
 
-use super::writer::{WriterDoc, WriterTrait};
+use super::writer::{DocWriterAvro, WriterDoc, WriterTrait};
 /// Holds references to [Writer].
 pub struct LangFiles {
     writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
@@ -26,6 +28,30 @@ pub struct LangFilesDoc {
     writers: HashMap<Lang, Arc<Mutex<WriterDoc>>>,
 }
 
+pub struct LangFilesAvro<'a> {
+    writers: HashMap<Lang, Arc<Mutex<DocWriterAvro<'a, File>>>>,
+}
+
+impl<'a> LangFilesAvro<'a> {
+    pub fn new(dst: &Path) -> Result<Self, error::Error> {
+        let mut writers = HashMap::with_capacity(LANG.len());
+        let mut w;
+        for lang in LANG.iter() {
+            let mut dst = dst.to_path_buf();
+            dst.push(lang);
+            dst.set_extension("avro");
+            w = DocWriterAvro::from_file(&dst)?;
+            let lang = Lang::from_str(lang)?;
+            writers.insert(lang, Arc::new(Mutex::new(w)));
+        }
+
+        Ok(Self { writers })
+    }
+
+    pub fn writers(&'a self) -> &HashMap<Lang, Arc<Mutex<DocWriterAvro<File>>>> {
+        &self.writers
+    }
+}
 impl LangFiles {
     /// Create a new LangFiles. `part_size_bytes` sets an indication of the maximum size
     /// by part.

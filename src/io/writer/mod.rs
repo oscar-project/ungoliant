@@ -13,11 +13,13 @@ mod metawriter;
 mod textwriter;
 pub mod writer;
 mod writer_doc;
+mod writer_doc_avro;
 mod writertrait;
 use metawriter::MetaWriter;
 use textwriter::TextWriter;
 pub use writer::Writer;
 pub use writer_doc::WriterDoc;
+pub(crate) use writer_doc_avro::DocWriterAvro;
 pub use writertrait::WriterTrait;
 
 // pub enum WriterKind {
