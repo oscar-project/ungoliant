@@ -39,7 +39,10 @@ mod tests {
         let annotator = TinyDocument::default();
         annotator.annotate(&mut d);
 
-        assert_eq!(d.metadata().annotation(), Some(&vec!["tiny".to_string()]));
+        assert_eq!(
+            d.metadata().annotation(),
+            Some(vec!["tiny".to_string()]).as_ref()
+        );
     }
 
     #[test]

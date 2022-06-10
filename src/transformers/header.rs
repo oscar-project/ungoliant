@@ -151,7 +151,7 @@ This is a lengthy enough sentence! Or at least I hope :)";
         annotator.annotate(&mut doc);
         assert_eq!(
             doc.metadata().annotation(),
-            Some(&vec!["header".to_string()])
+            Some(vec!["header".to_string()]).as_ref()
         );
     }
 
@@ -182,7 +182,7 @@ This is a lengthy enough sentence! Or at least I hope :)";
         annotator.annotate(&mut doc);
         assert_eq!(
             doc.metadata().annotation(),
-            Some(&vec!["footer".to_string()])
+            Some(vec!["footer".to_string()]).as_ref()
         );
     }
 
@@ -213,7 +213,7 @@ This is a lengthy enough sentence! Or at least I hope :)";
         annotator.annotate(&mut doc);
         assert_eq!(
             doc.metadata().annotation(),
-            Some(&vec!["header".to_string(), "footer".to_string()])
+            Some(vec!["header".to_string(), "footer".to_string()]).as_ref()
         );
     }
 

@@ -2,18 +2,25 @@
 
 All identifiers should implement [Identifier] to be useable in processing and pipelines.
 !*/
-use std::str::FromStr;
+use std::{fmt::Display, ops::Deref, str::FromStr};
 
 use crate::{error::Error, lang::Lang};
 use fasttext::Prediction;
 use log::debug;
+use oxilangtag::{LanguageTag, LanguageTagParseError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
-#[serde(from = "IdentificationSer", into = "IdentificationSer")]
-pub struct Identification {
-    label: Lang,
+use super::fasttext2;
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(try_from = "IdentificationSer", into = "IdentificationSer")]
+// pub struct Identification {
+//     label: LanguageTag<String>,
+//     prob: f32,
+// }
+pub struct Identification<T: Deref<Target = str> + Clone> {
+    label: LanguageTag<T>,
     prob: f32,
 }
 
@@ -23,29 +30,33 @@ struct IdentificationSer {
     prob: f32,
 }
 
-impl From<Identification> for IdentificationSer {
-    fn from(i: Identification) -> Self {
+impl<T> From<Identification<T>> for IdentificationSer
+where
+    T: Deref<Target = str> + Clone,
+{
+    fn from(i: Identification<T>) -> Self {
         Self {
             label: i.label.to_string(),
             prob: i.prob,
         }
     }
 }
-impl From<IdentificationSer> for Identification {
-    fn from(i: IdentificationSer) -> Self {
-        Self {
-            label: Lang::from_str(&i.label).unwrap(),
+impl TryFrom<IdentificationSer> for Identification<String> {
+    type Error = LanguageTagParseError;
+    fn try_from(i: IdentificationSer) -> Result<Self, Self::Error> {
+        Ok(Self {
+            label: LanguageTag::parse(i.label)?,
             prob: i.prob,
-        }
+        })
     }
 }
 
-impl Identification {
-    pub fn new(label: Lang, prob: f32) -> Self {
+impl<T: Deref<Target = str> + Clone> Identification<T> {
+    pub fn new(label: LanguageTag<T>, prob: f32) -> Self {
         Self { label, prob }
     }
     /// Get a reference to the identification's label.
-    pub fn label(&self) -> &Lang {
+    pub fn label(&self) -> &LanguageTag<T> {
         &self.label
     }
 
@@ -55,18 +66,42 @@ impl Identification {
     }
 }
 
-impl From<Prediction> for Identification {
-    fn from(prediction: Prediction) -> Self {
-        debug!("{prediction:?}");
-        Self {
+/// for fasttext2 predictions
+impl TryFrom<Prediction> for Identification<String> {
+    type Error = LanguageTagParseError;
+    fn try_from(prediction: Prediction) -> Result<Self, LanguageTagParseError> {
+        // skip __label__
+        let label = prediction.label.chars().skip(9).collect::<String>();
+
+        //convert to valid bcp47
+        let label = label.replace("_", "-");
+
+        Ok(Self {
             prob: prediction.prob,
-            label: Lang::from_str(&prediction.label.chars().skip(9).collect::<String>()).unwrap(),
-        }
+            label: LanguageTag::parse_and_normalize(&label)?,
+        })
+        // debug!("{prediction:?}");
+        // Self {
+        //     prob: prediction.prob,
+        //     label: Lang::from_str(&prediction.label.chars().skip(9).collect::<String>()).unwrap(),
+        // }
     }
 }
-pub trait Identifier<T> {
+
+// impl From<fasttext2::Prediction> for Identification {
+//     fn from(prediction: fasttext2::Prediction) -> Self {
+//         let label = prediction
+//             .label()
+//             .chars()
+//             .skip(9)
+//             .collect::<String>(())
+//             .unwrap();
+//         todo!()
+//     }
+// }
+pub trait Identifier<T: Deref<Target = str> + Clone> {
     /// returns a language identification token (from [crate::lang::LANG]).
-    fn identify(&self, sentence: T) -> Result<Option<Identification>, Error>;
+    fn identify(&self, sentence: T) -> Result<Option<Identification<T>>, Error>;
 }
 
 #[cfg(test)]
@@ -81,7 +116,7 @@ mod tests {
         let label = "__label__en".to_string();
         let p = Prediction { prob, label };
 
-        let id = Identification::from(p.clone());
+        let id: Identification<String> = Identification::try_from(p.clone()).unwrap();
         assert_eq!(&id.label().to_string(), &"en");
         assert_eq!(id.prob(), &p.prob);
     }
@@ -114,15 +149,13 @@ mod tests {
         ];
 
         for code in model_codes {
-            let code = code.replace('_', "-");
-            let lt = LanguageTag::parse(code.as_str());
-            match lt {
-                Ok(c) => {
-                    println!("{c:?}");
-                    println!("{:?}", c.script())
-                }
-                Err(_) => println!("{code} not parseable"),
-            }
+            let pred = Prediction {
+                label: "__label__".to_string() + code,
+                prob: 1.0f32,
+            };
+
+            let id = Identification::try_from(pred);
+            assert!(id.is_ok());
         }
     }
 }

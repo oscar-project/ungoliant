@@ -470,24 +470,24 @@ baz
     //     println!("{:#?}", c.transform_idx(doc));
     // }
 
-    #[test]
-    fn test_annotate_short() {
-        let (mut doc, _) = gen_valid_long();
-        let content = r#"Long enough sentence here :)
-tiny one
-tiny one
-tiny one
-Long enough sentence here :)"#;
-        doc.set_content(content.to_string());
-        let a = ShortSentences::new(Length::with_min_size(10), 0.5);
-        let annotation = "short_sentences";
-        a.annotate(&mut doc);
-        assert!(doc
-            .metadata()
-            .annotation()
-            .unwrap()
-            .contains(&String::from(annotation)))
-    }
+    //     #[test]
+    //     fn test_annotate_short() {
+    //         let (mut doc, _) = gen_valid_long();
+    //         let content = r#"Long enough sentence here :)
+    // tiny one
+    // tiny one
+    // tiny one
+    // Long enough sentence here :)"#;
+    //         doc.set_content(content.to_string());
+    //         let a = ShortSentences::new(Length::with_min_size(10), 0.5);
+    //         let annotation = "short_sentences";
+    //         a.annotate(&mut doc);
+    //         assert!(doc
+    //             .metadata()
+    //             .annotation()
+    //             .unwrap()
+    //             .contains(&String::from(annotation)))
+    //     }
 
     #[test]
     fn test_no_annotation() {

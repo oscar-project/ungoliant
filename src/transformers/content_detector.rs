@@ -110,7 +110,7 @@ mod tests {
 
         assert_eq!(
             doc.metadata().annotation(),
-            Some(&vec!["adult".to_string()])
+            Some(vec!["adult".to_string()]).as_ref()
         );
     }
 

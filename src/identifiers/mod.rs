@@ -5,8 +5,12 @@ Holds an [Identifier] trait for implementing other ones.
 The current identifier used is [fasttext](https://fasttext.cc)
 !*/
 mod fasttext;
+mod fasttext2;
+mod identification;
 mod identifier;
+mod model;
 mod multilingual;
+mod tag_convert;
 
 pub use self::fasttext::FastText;
 pub use identifier::Identification;
