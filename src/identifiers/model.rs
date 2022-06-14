@@ -1,3 +1,6 @@
+/*! New-style FastText model.
+   Uses [oxilangtag::LanguageTag] rather than Lang.
+* !*/
 use std::{collections::HashMap, marker::PhantomData, ops::Deref, path::Path, str::Lines};
 
 use fasttext::FastText as FastTextLib;
@@ -8,6 +11,7 @@ use crate::{error::Error, lang::Lang};
 
 use super::{identification::Identification, tag_convert::NewTag};
 
+/// Covers individual sentence identifications, lang bins and total size of document in bytes
 #[derive(Debug)]
 struct DocIdentification<T: Deref<Target = str> + Clone> {
     line_ids: Vec<Option<Identification<T>>>,
@@ -20,11 +24,19 @@ struct Old;
 impl ModelKind for Old {}
 struct New;
 impl ModelKind for New {}
+
+/// Prediction trait.
+///
+/// Enables prediction on a single line (top-1 and top-k) and on a set of lines.
 trait Predict<T: Deref<Target = str> + Clone> {
     fn predict_one(&self, line: &str) -> Result<Option<Identification<T>>, Error>;
     fn predict(&self, line: &str) -> Result<Option<Vec<Identification<T>>>, Error>;
     fn weighted_ids(&self, lines: Lines) -> Result<DocIdentification<T>, Error>;
 }
+
+/// FastTextModel.
+///
+/// ModelKind will condition the implementation of the tag conversion
 struct FastText<T: ModelKind> {
     inner: FastTextLib,
     fasttext_kind: PhantomData<T>,
@@ -33,10 +45,13 @@ struct FastText<T: ModelKind> {
 }
 
 impl<T: ModelKind> FastText<T> {
+    /// removes __label__ from identification start
     fn clean_label(label: &str) -> String {
-        label.chars().skip(9).collect::<String>()
+        label[..9].to_string()
     }
 }
+
+/// Prediction for old tags.
 impl Predict<String> for FastText<Old> {
     fn predict(&self, line: &str) -> Result<Option<Vec<Identification<String>>>, Error> {
         //do old stuff
@@ -56,7 +71,7 @@ impl Predict<String> for FastText<Old> {
     }
 }
 
-// impl<T: Deref<Target = str> + Clone> Predict<T> for FastText<New> {
+/// Prediction for new tags/model
 impl Predict<String> for FastText<New> {
     fn predict_one(&self, line: &str) -> Result<Option<Identification<String>>, Error> {
         let pred = self.inner.predict(line, 1, self.threshold)?;
@@ -68,6 +83,8 @@ impl Predict<String> for FastText<New> {
             // The idea is to move out of pred, since we won't need it afterwards.
             let pred = pred.into_iter().next().unwrap();
             println!("{pred:?}");
+
+            // convert prediction to newtag
             let pred_to_languagetag: Result<LanguageTag<String>, _> = NewTag(pred.label).try_into();
             match pred_to_languagetag {
                 Ok(label) => {
@@ -155,6 +172,8 @@ impl Predict<String> for FastText<New> {
         })
     }
 }
+
+/// Fasttext builder.
 struct FastTextBuilder<'a, T> {
     path: Option<&'a Path>,
     kind: PhantomData<T>,

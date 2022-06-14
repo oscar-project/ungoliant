@@ -1,4 +1,4 @@
-/*! Identifier trait
+/*! old style Identifier trait
 
 All identifiers should implement [Identifier] to be useable in processing and pipelines.
 !*/
