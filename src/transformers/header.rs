@@ -29,7 +29,7 @@ impl Default for Header {
     }
 }
 
-impl Annotate for Header {
+impl Annotate<Document> for Header {
     /// checks lines and adds annotations if applicable.
     fn annotate(&self, doc: &mut Document) {
         let nb_lines = doc.content().lines().count();

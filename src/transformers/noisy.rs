@@ -16,7 +16,7 @@ impl Default for Noisy {
         Self { threshold: 0.5 }
     }
 }
-impl Annotate for Noisy {
+impl Annotate<Document> for Noisy {
     fn annotate(&self, doc: &mut Document) {
         // TODO: use counters?
 

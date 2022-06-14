@@ -40,7 +40,7 @@ impl<'a> ContentDetector<'a> {
     }
 }
 
-impl<'a> Annotate for ContentDetector<'a> {
+impl<'a> Annotate<Document> for ContentDetector<'a> {
     /// Checks if domain/url is present in provided blocklist, and adds a tag
     /// corresponding to blocklist kind if true.
     fn annotate(&self, doc: &mut Document) {

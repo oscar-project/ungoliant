@@ -25,7 +25,7 @@ impl ShortSentences {
     }
 }
 
-impl Annotate for ShortSentences {
+impl Annotate<Document> for ShortSentences {
     fn annotate(&self, doc: &mut Document) {
         let filter_results: Vec<bool> = doc
             .content()

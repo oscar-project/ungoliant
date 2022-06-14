@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use super::fasttext2;
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(try_from = "IdentificationSer", into = "IdentificationSer")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+// #[serde(try_from = "IdentificationSer", into = "IdentificationSer")]
 // pub struct Identification {
 //     label: LanguageTag<String>,
 //     prob: f32,

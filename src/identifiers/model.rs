@@ -19,16 +19,30 @@ struct DocIdentification<T: Deref<Target = str> + Clone> {
     total_size: usize,
 }
 
+impl<T: Deref<Target = str> + Clone> DocIdentification<T> {
+    pub fn line_ids(&self) -> &[Option<Identification<T>>] {
+        self.line_ids.as_ref()
+    }
+
+    pub fn lang_bins(&self) -> &HashMap<Option<LanguageTag<T>>, (usize, f32)> {
+        &self.lang_bins
+    }
+
+    pub fn total_size(&self) -> usize {
+        self.total_size
+    }
+}
+
 trait ModelKind {}
-struct Old;
+pub struct Old;
 impl ModelKind for Old {}
-struct New;
+pub struct New;
 impl ModelKind for New {}
 
 /// Prediction trait.
 ///
 /// Enables prediction on a single line (top-1 and top-k) and on a set of lines.
-trait Predict<T: Deref<Target = str> + Clone> {
+pub trait Predict<T: Deref<Target = str> + Clone> {
     fn predict_one(&self, line: &str) -> Result<Option<Identification<T>>, Error>;
     fn predict(&self, line: &str) -> Result<Option<Vec<Identification<T>>>, Error>;
     fn weighted_ids(&self, lines: Lines) -> Result<DocIdentification<T>, Error>;
@@ -37,7 +51,7 @@ trait Predict<T: Deref<Target = str> + Clone> {
 /// FastTextModel.
 ///
 /// ModelKind will condition the implementation of the tag conversion
-struct FastText<T: ModelKind> {
+pub struct FastText<T: ModelKind> {
     inner: FastTextLib,
     fasttext_kind: PhantomData<T>,
     pub k: i32,
