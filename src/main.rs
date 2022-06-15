@@ -68,7 +68,7 @@ async fn main() -> Result<(), error::Error> {
             schema_filepath.push("metadata_schema.json");
             info!("creating json schema file {:?}", schema_filepath);
             let mut f = File::create(schema_filepath)?;
-            f.write_all(Document::get_schema().unwrap().as_bytes())?;
+            // f.write_all(Document::get_schema().unwrap().as_bytes())?;
             // f.write_all(Metadata::get_schema()?.as_bytes())?;
         }
         cli::Ungoliant::Dedup(d) => {

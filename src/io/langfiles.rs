@@ -7,14 +7,16 @@ Each language (provided by [crate::lang::LANG]) is given a [self::Writer] wrappe
 !*/
 use std::{
     collections::HashMap,
-    path::Path,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, Mutex},
 };
 
-use crate::io::writer::Writer;
-use crate::lang::LANG;
+use oxilangtag::LanguageTag;
+
 use crate::{error, lang::Lang};
+use crate::{error::Error, io::writer::Writer};
+use crate::{identifiers::OLD_LANGS, lang::LANG};
 
 use super::writer::{WriterDoc, WriterTrait};
 /// Holds references to [Writer].
@@ -23,7 +25,9 @@ pub struct LangFiles {
 }
 
 pub struct LangFilesDoc {
-    writers: HashMap<Lang, Arc<Mutex<WriterDoc>>>,
+    writers: HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>,
+    dst: PathBuf,
+    part_size_bytes: Option<u64>,
 }
 
 impl LangFiles {
@@ -73,17 +77,59 @@ impl LangFilesDoc {
     pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Result<Self, error::Error> {
         let mut writers = HashMap::with_capacity(LANG.len());
         let mut w;
-        for lang in LANG.iter() {
+        for lang in OLD_LANGS.iter() {
             w = WriterDoc::new(dst, lang, part_size_bytes)?;
-            let lang = Lang::from_str(lang)?;
+            let lang = LanguageTag::parse(lang.to_string())?;
             writers.insert(lang, Arc::new(Mutex::new(w)));
         }
 
-        Ok(Self { writers })
+        Ok(Self {
+            writers,
+            dst: dst.to_path_buf(),
+            part_size_bytes,
+        })
     }
 
+    fn new_writer(
+        dst: &Path,
+        lang: LanguageTag<String>,
+        part_size_bytes: Option<u64>,
+    ) -> Result<Arc<Mutex<WriterDoc>>, Error> {
+        //TODO: remove the box leak?
+        // The idea is that when we encounter a new language we need to keep its
+        // code alive for the rest of the process
+        let lang: &'static str = Box::leak(lang.into_inner().into_boxed_str());
+        let w = WriterDoc::new(dst, lang, part_size_bytes)?;
+
+        Ok(Arc::new(Mutex::new(w)))
+    }
+
+    /// Gets writer for provided language.
+    /// Creates file and writer if not found
+    pub fn get_or_insert_writer(
+        &mut self,
+        k: LanguageTag<String>,
+    ) -> Result<&Arc<Mutex<WriterDoc>>, Error> {
+        // match self.writers.get(k) {
+        //     Some(w) => Ok(w),
+        //     None => {
+        //         let w = Arc::new(Mutex::new(Self::new_writer(
+        //             &self.dst,
+        //             k,
+        //             self.part_size_bytes,
+        //         )?));
+        //         self.writers.insert(k, w);
+        //     }
+        // }
+
+        Ok(self.writers.entry(k.clone()).or_insert(Self::new_writer(
+            &self.dst,
+            k,
+            self.part_size_bytes,
+        )?))
+    }
     /// Get a non-mutable reference to the writers.
-    pub fn writers(&self) -> &HashMap<Lang, Arc<Mutex<WriterDoc>>> {
+    pub fn writers(&self) -> &HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>> {
         &self.writers
     }
 
@@ -103,7 +149,7 @@ mod tests {
     use std::{fs::File, path::PathBuf};
 
     use crate::{
-        identifiers::Identification,
+        identifiers::identification::Identification,
         pipelines::oscardoc::types::{Document, Metadata},
         pipelines::oscarmeta::types::MergedPiece,
     };
@@ -173,7 +219,8 @@ hehe :)"
         let record = Record::default();
         let record: Record<BufferedBody> = record.add_body(content);
 
-        let record_id = Identification::new(Lang::En, 1.0);
+        // let record_id = Identification::new(Lang::En, 1.0);
+        let record_id = Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0);
         let sentences_id = vec![Some(record_id.clone())];
 
         let metadata = Metadata::new(&record_id, &sentences_id);

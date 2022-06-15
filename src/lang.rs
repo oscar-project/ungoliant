@@ -583,6 +583,21 @@ impl Display for Lang {
 
 lazy_static! {
 
+    pub static ref LANGS : HashSet<LanguageTag<&'static str>>= ["en", "ru", "de", "fr", "it",
+     "ja", "es", "ceb", "tr", "pt", "uk", "eo", "pl", "sv", "nl", "he", "zh", "hu", "ar", "ca",
+     "fi", "cs", "fa", "sr", "el", "vi", "bg", "ko", "no", "mk", "ro", "id", "th", "hy", "da",
+     "ta", "hi", "hr", "sr-Latn", "be", "ka", "te", "kk", "war", "lt", "gl", "sk", "bn", "eu",
+     "sl", "kn", "ml", "mr", "et", "az", "ms", "sq", "la", "bs", "nn", "ur", "lv", "my", "tt", "af",
+     "oc", "nds", "ky", "ast", "fil", "is", "ia", "si", "gu", "km", "br", "ba", "uz", "bo", "pa",
+     "vo", "als", "ne", "cy", "jbo", "fy", "mn", "lb", "ce", "ug", "tg", "sco", "sa", "cv", "jv",
+     "min", "io", "or", "as", "new", "ga", "mg", "an", "ckb", "sw", "bar", "lmo", "yi", "arz", "mhr",
+     "azb", "sah", "pnb", "su", "bpy", "pms", "ilo", "wuu", "ku", "ps", "ie", "xmf", "yue", "gom",
+     "li", "mwl", "kw", "sd", "hsb", "scn", "gd", "pam", "bh", "mai", "vec", "mt", "dv", "wa", "mzn",
+     "am", "qu", "eml", "cbk", "tk", "rm", "os", "vls", "yo", "lo", "lez", "so", "myv", "diq", "mrj",
+     "dsb", "frr", "ht", "gn", "bxr", "kv", "sc", "nah", "krc", "bcl", "nap", "gv", "av", "rue", "xal",
+     "pfl", "dty", "hif", "co", "lrc", "vep", "tyv"]
+     .into_iter().map(|lang| LanguageTag::parse(lang).unwrap())
+     .collect();
     /// Holds langs that are available through the OSCAR corpus
     /// Derived from the lang labels from fasttext.
     pub static ref LANG: HashSet<&'static str> = {
@@ -768,8 +783,8 @@ lazy_static! {
 
         m
     };
-}
 
+}
 /// Holds language files handlers
 ///
 /// For each available language, a file is created

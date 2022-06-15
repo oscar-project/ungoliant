@@ -13,6 +13,7 @@ mod multilingual;
 mod tag_convert;
 
 pub use self::fasttext::FastText;
+pub use fasttext2::{NEW_LANGS, OLD_LANGS};
 pub use identifier::Identification;
 pub use identifier::Identifier;
 pub use multilingual::Multilingual;

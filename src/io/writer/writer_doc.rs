@@ -55,10 +55,11 @@ mod tests {
 
     use std::{collections::HashMap, fs::File, path::PathBuf};
 
+    use oxilangtag::LanguageTag;
     use warc::WarcHeader;
 
     use crate::{
-        identifiers::Identification,
+        identifiers::identification::Identification,
         lang::Lang,
         pipelines::oscardoc::types::{Document, Metadata},
     };
@@ -90,7 +91,7 @@ Comment allez-vous?
 Bien, et vous?
 Ecoutez ça va plutôt bien.";
 
-        let id = Identification::new(Lang::En, 1.0);
+        let id = Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0);
         let ids = vec![Some(id.clone()), Some(id.clone()), Some(id.clone())];
         let metadata = Metadata::new(&id, &ids);
         let doc = vec![Document::new(sentences.to_string(), headers, metadata)];

@@ -108,6 +108,8 @@ pub trait Identifier<T: Deref<Target = str> + Clone> {
 mod tests {
     use fasttext::Prediction;
 
+    use crate::identifiers::tag_convert::{NewTag, OldTag};
+
     use super::Identification;
 
     #[test]
@@ -121,6 +123,23 @@ mod tests {
         assert_eq!(id.prob(), &p.prob);
     }
 
+    #[test]
+    fn test_old_new_tryfrom() {
+        let prob = 1.0f32;
+        let label = "__label__en".to_string();
+        let old = Prediction { prob, label };
+
+        let old: Identification<String> =
+            Identification::new(OldTag(old.label).try_into().unwrap(), old.prob);
+
+        let prob = 1.0f32;
+        let label = "__label__eng".to_string();
+        let new = Prediction { prob, label };
+        let new: Identification<String> =
+            Identification::new(NewTag(new.label).try_into().unwrap(), new.prob);
+
+        assert_eq!(old.label(), new.label());
+    }
     #[test]
     fn test_bcp47() {
         use oxilangtag::LanguageTag;

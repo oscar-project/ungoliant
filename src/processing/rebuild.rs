@@ -276,10 +276,11 @@ mod tests {
         io::{BufReader, Cursor},
     };
 
+    use oxilangtag::LanguageTag;
     use warc::WarcReader;
 
     use crate::{
-        identifiers::Identification,
+        identifiers::identification::Identification,
         lang::Lang,
         pipelines::oscardoc::types::{Document, Metadata},
     };
@@ -317,8 +318,15 @@ mod tests {
         );
         let warc_headers = HashMap::new();
         let metadata = Metadata::new(
-            &Identification::new(Lang::En, 1.0),
-            &vec![Some(Identification::new(Lang::En, 1.0)).clone(); 4],
+            &Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0),
+            &vec![
+                Some(Identification::new(
+                    LanguageTag::parse("en".to_string()).unwrap(),
+                    1.0
+                ))
+                .clone();
+                4
+            ],
         );
 
         let _ = Document::new(content, warc_headers, metadata);

@@ -229,8 +229,8 @@ mod tests {
 
     #[test]
     fn test_en() {
-        let old_style = LanguageTag::try_from(OldTag("en")).unwrap();
-        let new_style = LanguageTag::try_from(NewTag("eng")).unwrap();
+        let old_style = LanguageTag::try_from(OldTag("__label__en")).unwrap();
+        let new_style = LanguageTag::try_from(NewTag("__label__eng")).unwrap();
 
         assert_eq!(old_style, new_style);
     }

@@ -12,12 +12,13 @@ use std::{
 
 use avro_rs::{AvroResult, Codec, Schema, Writer};
 use log::error;
+use oxilangtag::LanguageTag;
 use serde::Deserialize;
 use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
-use crate::lang::LANG;
 use crate::{error::Error, lang::Lang};
+use crate::{identifiers::OLD_LANGS, lang::LANG};
 
 use super::{Location, Metadata};
 
@@ -242,20 +243,20 @@ impl<'a> RebuildWriter<'a, File> {
 }
 
 /// Holds mutex-protected [RebuildWriter] for each [Lang].
-pub struct RebuildWriters<'a, T>(HashMap<Lang, Arc<Mutex<RebuildWriter<'a, T>>>>);
+pub struct RebuildWriters<'a, T>(HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, T>>>>);
 
 impl<'a, T> RebuildWriters<'a, T> {
     /// Maps to [HashMap::get].
-    pub fn get(&'a self, k: &Lang) -> Option<&Arc<Mutex<RebuildWriter<T>>>> {
+    pub fn get(&'a self, k: &LanguageTag<String>) -> Option<&Arc<Mutex<RebuildWriter<T>>>> {
         self.0.get(k)
     }
 }
 
 impl<'a> RebuildWriters<'a, File> {
     #[inline]
-    fn forge_dst(dst: &Path, lang: &Lang) -> PathBuf {
+    fn forge_dst(dst: &Path, lang: &LanguageTag<String>) -> PathBuf {
         let mut p = PathBuf::from(dst);
-        p.push(format!("{}.avro", lang));
+        p.push(format!("{}.avro", lang.as_str()));
 
         p
     }
@@ -264,9 +265,9 @@ impl<'a> RebuildWriters<'a, File> {
     /// Convinience function that creates a new ([Lang], `Arc<Mutex<RebuildWriter>>`]) pair.
     fn new_writer_mutex(
         dst: &Path,
-        lang: &str,
-    ) -> Result<(Lang, Arc<Mutex<RebuildWriter<'a, File>>>), Error> {
-        let lang = Lang::from_str(lang).unwrap();
+        lang: LanguageTag<String>,
+    ) -> Result<(LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, File>>>), Error> {
+        // let lang = Lang::from_str(lang).unwrap();
         let path = Self::forge_dst(dst, &lang);
         let rw = RebuildWriter::from_path(&path)?;
         let rw_mutex = Arc::new(Mutex::new(rw));
@@ -288,10 +289,13 @@ impl<'a> RebuildWriters<'a, File> {
             error!("rebuild destination folder must be empty!");
         }
 
-        let ret: Result<HashMap<Lang, Arc<Mutex<RebuildWriter<'_, File>>>>, Error> = LANG
-            .iter()
-            .map(|lang| Self::new_writer_mutex(dst, lang))
-            .collect();
+        let ret: Result<HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'_, File>>>>, Error> =
+            OLD_LANGS
+                .iter()
+                .map(|lang| {
+                    Self::new_writer_mutex(dst, LanguageTag::parse(lang.to_string()).unwrap())
+                })
+                .collect();
 
         Ok(RebuildWriters(ret?))
     }

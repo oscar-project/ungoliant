@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+use oxilangtag::LanguageTag;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
@@ -9,9 +10,12 @@ use warc::Record;
 use warc::WarcHeader;
 
 use crate::error::Error;
-use crate::identifiers::Identification;
+use crate::identifiers::identification::Identification as IdentificationGen;
+// use crate::identifiers::Identification;
 use crate::lang::Lang;
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
+
+type Identification = IdentificationGen<String>;
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 
 /// OSCAR-specific metadata
 /// TODO: make it a HashMap
@@ -52,9 +56,12 @@ impl Default for Metadata {
     /// no annotation and a single english sentence with 1.0 prob.
     fn default() -> Self {
         Self {
-            identification: Identification::new(Lang::En, 1.0),
+            identification: Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0),
             annotation: None,
-            sentence_identifications: vec![Some(Identification::new(Lang::En, 1.0))],
+            sentence_identifications: vec![Some(Identification::new(
+                LanguageTag::parse("en".to_string()).unwrap(),
+                1.0,
+            ))],
         }
     }
 }
@@ -72,7 +79,7 @@ pub struct Document {
     metadata: Metadata,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize)]
 /// Serializable version of [Document].
 struct DocumentSer {
     content: String,
@@ -81,9 +88,9 @@ struct DocumentSer {
 }
 
 impl DocumentSer {
-    pub fn get_schema() -> Result<String, Error> {
-        serde_json::to_string_pretty(&schemars::schema_for!(Self)).map_err(Error::Serde)
-    }
+    // pub fn get_schema() -> Result<String, Error> {
+    //     serde_json::to_string_pretty(&schemars::schema_for!(Self)).map_err(Error::Serde)
+    // }
 }
 impl From<Document> for DocumentSer {
     fn from(d: Document) -> Self {
@@ -126,9 +133,9 @@ impl Document {
         }
     }
 
-    pub fn get_schema() -> Result<String, Error> {
-        DocumentSer::get_schema()
-    }
+    // pub fn get_schema() -> Result<String, Error> {
+    //     DocumentSer::get_schema()
+    // }
     /// Instantiate a Document from a record and a related metadata.
     pub fn from_record(record: Record<BufferedBody>, metadata: Metadata) -> Self {
         let (header, body) = record.into_raw_parts();

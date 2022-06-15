@@ -24,8 +24,10 @@ use std::{collections::HashMap, path::PathBuf};
 use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
-use crate::identifiers::{self, Identification, Identifier};
-use crate::identifiers::{FastText, StrictMultilingual};
+use crate::identifiers::identification::Identification;
+use crate::identifiers::model::{FastText, FastTextBuilder, Old, Predict};
+// use crate::identifiers::{self, Identification, Identifier};
+use crate::identifiers::StrictMultilingual;
 use crate::io::writer::WriterTrait;
 use crate::lang::Lang;
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
@@ -36,6 +38,7 @@ use crate::transformers::{
     Transform,
 };
 use log::{debug, error, info, log_enabled, warn};
+use oxilangtag::LanguageTag;
 use rayon::prelude::*;
 use ut1_blocklist::Blocklist;
 use warc::BufferedBody;
@@ -106,7 +109,7 @@ impl OscarDoc {
     /// Process a shard, returning a [Vec] of [Document].
     fn process_shard(
         shard_path: &Path,
-        identifier: &identifiers::FastText,
+        identifier: &FastText<Old>,
         filter: Option<record::FilterKind>,
         blocklist: &Option<PathBuf>,
     ) -> Result<(usize, Vec<(Document, Location)>), Error> {
@@ -227,7 +230,7 @@ impl OscarDoc {
     /// then compute the most present identification
     fn process_record(
         record: Record<BufferedBody>,
-        identifier: &identifiers::FastText,
+        identifier: &FastText<Old>,
     ) -> Result<Option<Document>, Error> {
         // get lines
         let (headers, body) = record.into_raw_parts();
@@ -235,20 +238,24 @@ impl OscarDoc {
         let lines = body.lines();
 
         // get the id for each line, the byte/prob count and the total byte count of the document
-        let (ids, lang_count, total_count) = identifier.get_weighted_ids(lines)?;
+        let w_ids = identifier.weighted_ids(lines)?;
+        let ids = w_ids.line_ids();
+        let lang_count = w_ids.lang_bins();
+        let total_count = w_ids.total_size();
 
+        //TODO fix multilingual
         // see if the record meets multilingual criteria
-        let multilingual = StrictMultilingual::default().detect(&ids[..]);
+        // let multilingual = StrictMultilingual::default().detect(&ids[..]);
 
-        if multilingual {
-            //TODO: fix prob on multilingual documents
-            let document_identification = Identification::new(Lang::Multi, 0.5);
+        // if multilingual {
+        //     //TODO: fix prob on multilingual documents
+        //     let document_identification = Identification::new(Lang::Multi, 0.5);
 
-            let metadata = Metadata::new(&document_identification, &ids);
-            let doc = Document::new(body.into_owned(), headers.headers, metadata);
+        //     let metadata = Metadata::new(&document_identification, &ids);
+        //     let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
-            return Ok(Some(doc));
-        }
+        //     return Ok(Some(doc));
+        // }
 
         // figure out document language
         // count bytes per language, get language that got most bytes
@@ -267,7 +274,7 @@ impl OscarDoc {
             }
 
             // create id
-            let document_identification = Identification::new(*id, *confidence);
+            let document_identification = Identification::new(id.clone(), *confidence);
 
             // create doc and metadata
             let metadata = Metadata::new(&document_identification, &ids);
@@ -294,11 +301,11 @@ impl OscarDoc {
     /// Gets a vector of documents and outputs a hashmap listing the documents per language
     fn sort_by_lang(
         documents: Vec<(Document, Location)>,
-    ) -> HashMap<Lang, Vec<(Document, Location)>> {
+    ) -> HashMap<LanguageTag<String>, Vec<(Document, Location)>> {
         let mut ret = HashMap::new();
-        for (document, location) in documents {
+        for (document, location) in documents.into_iter() {
             let e = ret
-                .entry(*document.identification().label())
+                .entry(document.identification().label().clone()) //TODO: since we take ownership of documents, we could avoid cloning and taking value itself.
                 .or_insert_with(Vec::new);
             e.push((document, location));
         }
@@ -311,12 +318,12 @@ impl OscarDoc {
         langfiles: &LangFilesDoc,
         avrowriters: &'a RebuildWriters<'a, File>,
         shard_id: usize,
-        documents: HashMap<Lang, Vec<(Document, Location)>>,
+        documents: HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
     ) -> Result<(), Error> {
         let errors: Vec<Error> = documents
             .into_par_iter()
             .map(|(lang, docs)| {
-                debug!("[{}]: {} documents", lang, docs.len());
+                info!("[{}]: {} documents", lang, docs.len());
 
                 // get mutexes on writers
                 let writer = langfiles.writers().get(&lang).unwrap();
@@ -364,10 +371,15 @@ impl Pipeline<()> for OscarDoc {
     fn run(&self) -> Result<(), Error> {
         // let errors;
 
-        let cls = FastText::new(&self.lid_path, 1, 0.8).expect(&format!(
-            "Could not load language identifier at {:?}",
-            self.lid_path
-        ));
+        let cls = FastTextBuilder::default()
+            .path(&self.lid_path)
+            .k(1)
+            .threshold(0.8)
+            .build()?;
+        // let cls = FastText::new(&self.lid_path, 1, 0.8).expect(&format!(
+        //     "Could not load language identifier at {:?}",
+        //     self.lid_path
+        // ));
 
         if !self.dst.exists() {
             warn!("Destination file does not exist. Creating");
