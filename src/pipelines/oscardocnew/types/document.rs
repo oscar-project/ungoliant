@@ -10,23 +10,25 @@ use warc::Record;
 use warc::WarcHeader;
 
 use crate::error::Error;
-use crate::identifiers::identification::Identification;
+use crate::identifiers::identification::Identification as IdentificationGen;
+// use crate::identifiers::Identification;
 use crate::lang::Lang;
+
+type Identification = IdentificationGen<String>;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-// #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 
 /// OSCAR-specific metadata
 /// TODO: make it a HashMap
 pub struct Metadata {
-    identification: Identification<String>,
+    identification: Identification,
     annotation: Option<Vec<String>>,
-    sentence_identifications: Vec<Option<Identification<String>>>,
+    sentence_identifications: Vec<Option<Identification>>,
 }
 
 impl Metadata {
     pub fn new(
-        identification: &Identification<String>,
-        sentence_identifications: &[Option<Identification<String>>],
+        identification: &Identification,
+        sentence_identifications: &[Option<Identification>],
     ) -> Self {
         Metadata {
             identification: identification.clone(),
@@ -77,7 +79,6 @@ pub struct Document {
     metadata: Metadata,
 }
 
-// #[derive(Serialize, Deserialize, JsonSchema)]
 #[derive(Serialize, Deserialize)]
 /// Serializable version of [Document].
 struct DocumentSer {
@@ -86,11 +87,11 @@ struct DocumentSer {
     metadata: Metadata,
 }
 
-// impl DocumentSer {
-//     pub fn get_schema() -> Result<String, Error> {
-//         serde_json::to_string_pretty(&schemars::schema_for!(Self)).map_err(Error::Serde)
-//     }
-// }
+impl DocumentSer {
+    // pub fn get_schema() -> Result<String, Error> {
+    //     serde_json::to_string_pretty(&schemars::schema_for!(Self)).map_err(Error::Serde)
+    // }
+}
 impl From<Document> for DocumentSer {
     fn from(d: Document) -> Self {
         let warc_headers = d
@@ -149,7 +150,7 @@ impl Document {
     }
 
     /// Get a reference to the Document's identification
-    pub fn identification(&self) -> &Identification<String> {
+    pub fn identification(&self) -> &Identification {
         &self.metadata.identification
     }
 

@@ -1,7 +1,13 @@
 /*! New-style FastText model.
    Uses [oxilangtag::LanguageTag] rather than Lang.
 * !*/
-use std::{collections::HashMap, marker::PhantomData, ops::Deref, path::Path, str::Lines};
+use std::{
+    collections::{HashMap, HashSet},
+    marker::PhantomData,
+    ops::Deref,
+    path::Path,
+    str::Lines,
+};
 
 use fasttext::FastText as FastTextLib;
 use log::error;
@@ -9,7 +15,7 @@ use oxilangtag::LanguageTag;
 
 use crate::{error::Error, identifiers::tag_convert::OldTag, lang::Lang};
 
-use super::{identification::Identification, tag_convert::NewTag};
+use super::{identification::Identification, tag_convert::NewTag, NEW_LANGS, OLD_LANGS};
 
 /// Covers individual sentence identifications, lang bins and total size of document in bytes
 #[derive(Debug)]
@@ -33,11 +39,21 @@ impl<T: Deref<Target = str> + Clone> DocIdentification<T> {
     }
 }
 
-pub trait ModelKind {}
+pub trait ModelKind {
+    fn labels() -> &'static HashSet<LanguageTag<String>>;
+}
 pub struct Old;
-impl ModelKind for Old {}
+impl ModelKind for Old {
+    fn labels() -> &'static HashSet<LanguageTag<String>> {
+        &OLD_LANGS
+    }
+}
 pub struct New;
-impl ModelKind for New {}
+impl ModelKind for New {
+    fn labels() -> &'static HashSet<LanguageTag<String>> {
+        &NEW_LANGS
+    }
+}
 
 /// Prediction trait.
 ///

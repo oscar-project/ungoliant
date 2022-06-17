@@ -315,7 +315,7 @@ impl OscarDoc {
 
     /// concurrently write documets
     fn write_documents<'a>(
-        langfiles: &LangFilesDoc,
+        langfiles: &LangFilesDoc<Old>,
         avrowriters: &'a RebuildWriters<'a, File>,
         shard_id: usize,
         documents: HashMap<LanguageTag<String>, Vec<(Document, Location)>>,

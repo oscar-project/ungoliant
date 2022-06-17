@@ -7,6 +7,7 @@ Each language (provided by [crate::lang::LANG]) is given a [self::Writer] wrappe
 !*/
 use std::{
     collections::HashMap,
+    marker::PhantomData,
     path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, Mutex},
@@ -14,7 +15,7 @@ use std::{
 
 use oxilangtag::LanguageTag;
 
-use crate::{error, lang::Lang};
+use crate::{error, identifiers::model::ModelKind, lang::Lang};
 use crate::{error::Error, io::writer::Writer};
 use crate::{identifiers::OLD_LANGS, lang::LANG};
 
@@ -24,8 +25,9 @@ pub struct LangFiles {
     writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
 }
 
-pub struct LangFilesDoc {
+pub struct LangFilesDoc<T: ModelKind> {
     writers: HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>,
+    kind: PhantomData<T>,
     dst: PathBuf,
     part_size_bytes: Option<u64>,
 }
@@ -65,7 +67,7 @@ impl LangFiles {
     }
 }
 
-impl LangFilesDoc {
+impl<T: ModelKind> LangFilesDoc<T> {
     /// Create a new LangFiles. `part_size_bytes` sets an indication of the maximum size
     /// by part.
     /// Note that if it is set too low and a unique record can't be stored in an unique part
@@ -77,14 +79,16 @@ impl LangFilesDoc {
     pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Result<Self, error::Error> {
         let mut writers = HashMap::with_capacity(LANG.len());
         let mut w;
-        for lang in OLD_LANGS.iter() {
-            w = WriterDoc::new(dst, lang, part_size_bytes)?;
-            let lang = LanguageTag::parse(lang.to_string())?;
-            writers.insert(lang, Arc::new(Mutex::new(w)));
+        for lang in T::labels() {
+            // make it a &'static str
+            let lang_str: &'static str = Box::leak(lang.as_str().to_owned().into_boxed_str());
+            w = WriterDoc::new(dst, lang_str, part_size_bytes)?;
+            writers.insert(lang.clone(), Arc::new(Mutex::new(w)));
         }
 
         Ok(Self {
             writers,
+            kind: PhantomData,
             dst: dst.to_path_buf(),
             part_size_bytes,
         })
@@ -149,7 +153,7 @@ mod tests {
     use std::{fs::File, path::PathBuf};
 
     use crate::{
-        identifiers::identification::Identification,
+        identifiers::{identification::Identification, model::Old},
         pipelines::oscardoc::types::{Document, Metadata},
         pipelines::oscarmeta::types::MergedPiece,
     };
@@ -206,13 +210,13 @@ hehe :)"
     #[test]
     fn init_doc() {
         let dst = tempdir().unwrap();
-        LangFilesDoc::new(dst.path(), None).unwrap();
+        let _: LangFilesDoc<Old> = LangFilesDoc::new(dst.path(), None).unwrap();
     }
 
     #[test]
     fn write_one_doc() {
         let dst = tempdir().unwrap();
-        let lf = LangFilesDoc::new(dst.path(), None).unwrap();
+        let lf: LangFilesDoc<Old> = LangFilesDoc::new(dst.path(), None).unwrap();
 
         let content = "Hello!".to_string();
 

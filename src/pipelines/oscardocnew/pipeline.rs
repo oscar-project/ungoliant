@@ -21,16 +21,18 @@ use std::path::Path;
 use std::str::Lines;
 use std::{collections::HashMap, path::PathBuf};
 
-use super::types::{Document, Location, Metadata, RebuildWriters};
-use super::types::{LocationBuilder, ShardResult};
+// use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
-// use crate::identifiers::{self, Identification, Identifier};
-// use crate::identifiers::{FastText, StrictMultilingual};
 use crate::identifiers::identification::Identification;
-use crate::identifiers::model::{FastText, New, Old, Predict};
+use crate::identifiers::model::{FastText, FastTextBuilder, New, Old, Predict};
+use crate::pipelines::oscardoc::types::{Document, Location, Metadata};
+use crate::pipelines::oscardocnew::types::RebuildWriters;
+// use crate::identifiers::{self, Identification, Identifier};
+use crate::identifiers::StrictMultilingual;
 use crate::io::writer::WriterTrait;
 use crate::lang::Lang;
+use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{
@@ -39,7 +41,6 @@ use crate::transformers::{
 };
 use log::{debug, error, info, log_enabled, warn};
 use oxilangtag::LanguageTag;
-use rand::distributions::weighted;
 use rayon::prelude::*;
 use ut1_blocklist::Blocklist;
 use warc::BufferedBody;
@@ -239,12 +240,14 @@ impl OscarDoc {
         let lines = body.lines();
 
         // get the id for each line, the byte/prob count and the total byte count of the document
-        // let (ids, lang_count, total_count) = identifier.weighted_ids(lines)?;
-        let weighted_ids = identifier.weighted_ids(lines)?;
+        let w_ids = identifier.weighted_ids(lines)?;
+        let ids = w_ids.line_ids();
+        let lang_count = w_ids.lang_bins();
+        let total_count = w_ids.total_size();
 
-        // TODO: multilingual
+        //TODO fix multilingual
         // see if the record meets multilingual criteria
-        // let multilingual = StrictMultilingual::default().detect(weighted_ids.line_ids());
+        // let multilingual = StrictMultilingual::default().detect(&ids[..]);
 
         // if multilingual {
         //     //TODO: fix prob on multilingual documents
@@ -258,17 +261,14 @@ impl OscarDoc {
 
         // figure out document language
         // count bytes per language, get language that got most bytes
-        let document_language = weighted_ids.lang_bins().iter().max_by_key(|(_, (v, _))| *v);
+        let document_language = lang_count.iter().max_by_key(|(_, (v, _))| *v);
 
         // build a document and return it if the document language is not the unknown one.
         if let Some((Some(id), (lang_byte_count, confidence))) = document_language {
             // build an Identification with prob = number of bytes from most identified language / total number of bytes
             debug!(
                 "{:?}: {}/{} (c:{})",
-                id,
-                lang_byte_count,
-                weighted_ids.total_size(),
-                confidence
+                id, lang_byte_count, total_count, confidence
             );
 
             if confidence < &DOC_THRESHOLD {
@@ -276,10 +276,10 @@ impl OscarDoc {
             }
 
             // create id
-            let document_identification = Identification::new(*id, *confidence);
+            let document_identification = Identification::new(id.clone(), *confidence);
 
             // create doc and metadata
-            let metadata = Metadata::new(&document_identification, weighted_ids.line_ids());
+            let metadata = Metadata::new(&document_identification, &ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
@@ -293,7 +293,7 @@ impl OscarDoc {
                         .get(&WarcHeader::RecordID)
                         .map(|x| Some(String::from_utf8_lossy(x)))
                 );
-                debug!("{:?}", weighted_ids.total_size());
+                debug!("{:?}", &lang_count);
                 debug!("{}", &body);
             }
             Ok(None)
@@ -305,9 +305,9 @@ impl OscarDoc {
         documents: Vec<(Document, Location)>,
     ) -> HashMap<LanguageTag<String>, Vec<(Document, Location)>> {
         let mut ret = HashMap::new();
-        for (document, location) in documents {
+        for (document, location) in documents.into_iter() {
             let e = ret
-                .entry(*document.identification().label())
+                .entry(document.identification().label().clone()) //TODO: since we take ownership of documents, we could avoid cloning and taking value itself.
                 .or_insert_with(Vec::new);
             e.push((document, location));
         }
@@ -317,15 +317,15 @@ impl OscarDoc {
 
     /// concurrently write documets
     fn write_documents<'a>(
-        langfiles: &LangFilesDoc,
-        avrowriters: &'a RebuildWriters<'a, File>,
+        langfiles: &LangFilesDoc<New>,
+        avrowriters: &'a RebuildWriters<'a, File, New>,
         shard_id: usize,
-        documents: HashMap<Lang, Vec<(Document, Location)>>,
+        documents: HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
     ) -> Result<(), Error> {
         let errors: Vec<Error> = documents
             .into_par_iter()
             .map(|(lang, docs)| {
-                debug!("[{}]: {} documents", lang, docs.len());
+                info!("[{}]: {} documents", lang, docs.len());
 
                 // get mutexes on writers
                 let writer = langfiles.writers().get(&lang).unwrap();
@@ -373,10 +373,15 @@ impl Pipeline<()> for OscarDoc {
     fn run(&self) -> Result<(), Error> {
         // let errors;
 
-        let cls = FastText::new(&self.lid_path, 1, 0.8).expect(&format!(
-            "Could not load language identifier at {:?}",
-            self.lid_path
-        ));
+        let cls = FastTextBuilder::default()
+            .path(&self.lid_path)
+            .k(1)
+            .threshold(0.8)
+            .build()?;
+        // let cls = FastText::new(&self.lid_path, 1, 0.8).expect(&format!(
+        //     "Could not load language identifier at {:?}",
+        //     self.lid_path
+        // ));
 
         if !self.dst.exists() {
             warn!("Destination file does not exist. Creating");
