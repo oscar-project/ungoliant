@@ -182,7 +182,7 @@ mod tests {
         let text = String::from("helloworld");
 
         for _ in 0..10 {
-            tw.write_all(&text.as_bytes()).unwrap();
+            tw.write_all(text.as_bytes()).unwrap();
         }
 
         let mut text = text;
@@ -238,7 +238,7 @@ mod tests {
         // metadata resets = iterations where we open a new fresh file.
         let mut metadata_resets = vec![0, 1, 2, 3, 4, 5, 7, 8];
         for (idx, text) in texts.enumerate() {
-            tw.write_all(&text.as_bytes()).unwrap();
+            tw.write_all(text.as_bytes()).unwrap();
 
             // if the first write flag is up
             if tw.get_reset_first_write() {

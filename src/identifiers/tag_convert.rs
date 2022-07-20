@@ -1,6 +1,5 @@
 //! Conversion utilities or fasttext tags to standardized BCP47.
 use std::collections::HashMap;
-use std::hash::Hash;
 
 // use language_tags::{LanguageTag, ParseError};
 use lazy_static::lazy_static;
@@ -199,10 +198,10 @@ where
             "sh" => "sr-Latn",
             "tl" => "fil",
             "als" => "gsw",
-            other => &other,
+            other => other,
         };
 
-        Ok(LanguageTag::parse(standard.to_string())?)
+        LanguageTag::parse(standard.to_string())
     }
 }
 
@@ -217,7 +216,7 @@ where
     fn try_from(tag: NewTag<T>) -> Result<Self, Self::Error> {
         let t: &str = &tag.0[9..]; // coerce into &str
         let standard = NEW_TAG_REPLACE.get(t).unwrap_or(&t);
-        Ok(LanguageTag::parse(standard.to_string())?)
+        LanguageTag::parse(standard.to_string())
     }
 }
 

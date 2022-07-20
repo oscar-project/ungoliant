@@ -213,9 +213,7 @@ impl Pipeline<()> for OscarMetadata {
 
                 // merge all documents together
                 // get a vector of merged pieces of difference languages
-                let docs_merged = shard_results
-                    .map(|doc| doc.into_merged_pieces_lang())
-                    .flatten()
+                let docs_merged = shard_results.flat_map(|doc| doc.into_merged_pieces_lang())
                     .collect::<Vec<MergedPiece>>();
 
                 // sort merged pieces into different langs

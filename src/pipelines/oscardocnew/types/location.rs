@@ -191,8 +191,8 @@ impl Default for Location {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
-    use rand::prelude::SliceRandom;
+    
+    
 
     use super::Location;
     use super::LocationBuilder;

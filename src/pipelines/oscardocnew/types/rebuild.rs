@@ -7,7 +7,6 @@ use std::{
     fs::File,
     marker::PhantomData,
     path::{Path, PathBuf},
-    str::FromStr,
     sync::{Arc, Mutex},
 };
 
@@ -18,8 +17,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
-use crate::{error::Error, identifiers::model::ModelKind, lang::Lang};
-use crate::{identifiers::OLD_LANGS, lang::LANG};
+use crate::{error::Error, identifiers::model::ModelKind};
+
 
 use crate::pipelines::oscardoc::types::{Location, Metadata};
 
@@ -290,7 +289,7 @@ impl<'a, U: ModelKind> RebuildWriters<'a, File, U> {
             error!("rebuild destination must be an empty folder!");
         };
 
-        if !dst.read_dir()?.next().is_none() {
+        if dst.read_dir()?.next().is_some() {
             error!("rebuild destination folder must be empty!");
         }
 

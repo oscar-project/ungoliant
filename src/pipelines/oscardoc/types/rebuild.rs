@@ -6,7 +6,6 @@ use std::{
     collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
-    str::FromStr,
     sync::{Arc, Mutex},
 };
 
@@ -17,8 +16,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
-use crate::{error::Error, lang::Lang};
-use crate::{identifiers::OLD_LANGS, lang::LANG};
+use crate::{error::Error};
+use crate::{identifiers::OLD_LANGS};
 
 use super::{Location, Metadata};
 
@@ -285,7 +284,7 @@ impl<'a> RebuildWriters<'a, File> {
             error!("rebuild destination must be an empty folder!");
         };
 
-        if !dst.read_dir()?.next().is_none() {
+        if dst.read_dir()?.next().is_some() {
             error!("rebuild destination folder must be empty!");
         }
 

@@ -9,15 +9,14 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     path::{Path, PathBuf},
-    str::FromStr,
     sync::{Arc, Mutex},
 };
 
 use oxilangtag::LanguageTag;
 
-use crate::{error, identifiers::model::ModelKind, lang::Lang};
+use crate::{error, identifiers::model::ModelKind};
 use crate::{error::Error, io::writer::Writer};
-use crate::{identifiers::OLD_LANGS, lang::LANG};
+use crate::{lang::LANG};
 
 use super::writer::{WriterDoc, WriterTrait};
 /// Holds references to [Writer].
@@ -169,7 +168,7 @@ mod tests {
         identification: &'static str,
         headers: WarcHeaders,
     ) -> MergedPiece {
-        let nb_sentences = sentences.split("\n").count();
+        let nb_sentences = sentences.split('\n').count();
         MergedPiece {
             sentences,
             identification,

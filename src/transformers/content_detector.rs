@@ -80,9 +80,9 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert(WarcHeader::TargetURI, url.as_bytes().to_vec());
         let metadata = Metadata::default();
-        let d = Document::new(content, headers, metadata);
+        
 
-        d
+        Document::new(content, headers, metadata)
     }
 
     #[test]

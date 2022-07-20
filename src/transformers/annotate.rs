@@ -1,10 +1,10 @@
 //! Annotate trait
-use super::header::Header;
-use super::noisy::Noisy;
-use super::ContentDetector;
-use super::ShortSentences;
-use super::TinyDocument;
-use crate::pipelines::oscardoc::types::Document;
+
+
+
+
+
+
 
 /// Annotations provide contextual information about content.
 pub trait Annotate<T> {

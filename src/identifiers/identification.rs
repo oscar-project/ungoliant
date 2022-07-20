@@ -2,16 +2,16 @@
 
 All identifiers should implement [Identifier] to be useable in processing and pipelines.
 !*/
-use std::{fmt::Display, ops::Deref, str::FromStr};
+use std::{ops::Deref};
 
-use crate::{error::Error, lang::Lang};
+use crate::{error::Error};
 use fasttext::Prediction;
-use log::debug;
+
 use oxilangtag::{LanguageTag, LanguageTagParseError};
-use schemars::JsonSchema;
+
 use serde::{Deserialize, Serialize};
 
-use super::fasttext2;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 // #[serde(try_from = "IdentificationSer", into = "IdentificationSer")]
@@ -74,7 +74,7 @@ impl TryFrom<Prediction> for Identification<String> {
         let label = prediction.label.chars().skip(9).collect::<String>();
 
         //convert to valid bcp47
-        let label = label.replace("_", "-");
+        let label = label.replace('_', "-");
 
         Ok(Self {
             prob: prediction.prob,
@@ -142,7 +142,7 @@ mod tests {
     }
     #[test]
     fn test_bcp47() {
-        use oxilangtag::LanguageTag;
+        
 
         let model_codes = vec![
             "abk", "ace_Arab", "ace_Latn", "ady", "afr", "aka", "alt", "amh", "ara_Arab",

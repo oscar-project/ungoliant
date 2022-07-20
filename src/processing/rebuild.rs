@@ -281,7 +281,6 @@ mod tests {
 
     use crate::{
         identifiers::identification::Identification,
-        lang::Lang,
         pipelines::oscardoc::types::{Document, Metadata},
     };
 
@@ -324,7 +323,7 @@ mod tests {
                     LanguageTag::parse("en".to_string()).unwrap(),
                     1.0
                 ))
-                .clone();
+                ;
                 4
             ],
         );

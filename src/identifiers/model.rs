@@ -13,7 +13,7 @@ use fasttext::FastText as FastTextLib;
 use log::error;
 use oxilangtag::LanguageTag;
 
-use crate::{error::Error, identifiers::tag_convert::OldTag, lang::Lang};
+use crate::{error::Error, identifiers::tag_convert::OldTag};
 
 use super::{identification::Identification, tag_convert::NewTag, NEW_LANGS, OLD_LANGS};
 
@@ -396,7 +396,7 @@ mod tests {
     use std::path::Path;
 
     use super::{FastText, FastTextBuilder, New, Predict};
-    use language_tags::LanguageTag;
+    
 
     #[test]
     fn test_new_one_sentence() {

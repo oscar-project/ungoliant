@@ -60,7 +60,6 @@ mod tests {
 
     use crate::{
         identifiers::identification::Identification,
-        lang::Lang,
         pipelines::oscardoc::types::{Document, Metadata},
     };
 

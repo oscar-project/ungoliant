@@ -2,17 +2,17 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use oxilangtag::LanguageTag;
-use schemars::JsonSchema;
+
 use serde::Deserialize;
 use serde::Serialize;
 use warc::BufferedBody;
 use warc::Record;
 use warc::WarcHeader;
 
-use crate::error::Error;
+
 use crate::identifiers::identification::Identification as IdentificationGen;
 // use crate::identifiers::Identification;
-use crate::lang::Lang;
+
 
 type Identification = IdentificationGen<String>;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -227,7 +227,7 @@ mod tests {
         assert_eq!(doc.warc_headers(), &headers.headers);
         assert_eq!(
             doc.warc_id(),
-            String::from_utf8_lossy(&headers.headers.get(&WarcHeader::RecordID).unwrap())
+            String::from_utf8_lossy(headers.headers.get(&WarcHeader::RecordID).unwrap())
                 .into_owned()
         );
     }

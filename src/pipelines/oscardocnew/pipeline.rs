@@ -18,20 +18,21 @@
 //! [^1]: We should do this after step 1: better efficiency.
 use std::fs::File;
 use std::path::Path;
-use std::str::Lines;
+
 use std::{collections::HashMap, path::PathBuf};
 
 // use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
 use crate::identifiers::identification::Identification;
-use crate::identifiers::model::{FastText, FastTextBuilder, New, Old, Predict};
+use crate::identifiers::model::{FastText, FastTextBuilder, New, Predict};
+use crate::identifiers::StrictMultilingual;
 use crate::pipelines::oscardoc::types::{Document, Location, Metadata};
 use crate::pipelines::oscardocnew::types::RebuildWriters;
 // use crate::identifiers::{self, Identification, Identifier};
-use crate::identifiers::StrictMultilingual;
+
 use crate::io::writer::WriterTrait;
-use crate::lang::Lang;
+
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
@@ -247,17 +248,18 @@ impl OscarDoc {
 
         //TODO fix multilingual
         // see if the record meets multilingual criteria
-        // let multilingual = StrictMultilingual::default().detect(&ids[..]);
+        let multilingual = StrictMultilingual::default().detect(&ids[..]);
 
-        // if multilingual {
-        //     //TODO: fix prob on multilingual documents
-        //     let document_identification = Identification::new(Lang::Multi, 0.5);
+        if multilingual {
+            //TODO: fix prob on multilingual documents
+            let document_identification =
+                Identification::new(LanguageTag::parse("multi".to_string())?, 0.5);
 
-        //     let metadata = Metadata::new(&document_identification, &ids);
-        //     let doc = Document::new(body.into_owned(), headers.headers, metadata);
+            let metadata = Metadata::new(&document_identification, &ids);
+            let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
-        //     return Ok(Some(doc));
-        // }
+            return Ok(Some(doc));
+        }
 
         // figure out document language
         // count bytes per language, get language that got most bytes
@@ -279,7 +281,7 @@ impl OscarDoc {
             let document_identification = Identification::new(id.clone(), *confidence);
 
             // create doc and metadata
-            let metadata = Metadata::new(&document_identification, &ids);
+            let metadata = Metadata::new(&document_identification, ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
