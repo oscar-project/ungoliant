@@ -9,14 +9,15 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
+use log::info;
 use oxilangtag::LanguageTag;
 
+use crate::lang::LANG;
 use crate::{error, identifiers::model::ModelKind};
 use crate::{error::Error, io::writer::Writer};
-use crate::{lang::LANG};
 
 use super::writer::{WriterDoc, WriterTrait};
 /// Holds references to [Writer].
@@ -24,8 +25,9 @@ pub struct LangFiles {
     writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
 }
 
+type LanguageMap = HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>;
 pub struct LangFilesDoc<T: ModelKind> {
-    writers: HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>,
+    writers: Arc<RwLock<LanguageMap>>,
     kind: PhantomData<T>,
     dst: PathBuf,
     part_size_bytes: Option<u64>,
@@ -75,22 +77,13 @@ impl<T: ModelKind> LangFilesDoc<T> {
     /// Also keep in mind that [Self::close_meta] has to be called once every write is done.
     ///
     // [Self::close_meta] could be integrated in an `impl Drop`
-    pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Result<Self, error::Error> {
-        let mut writers = HashMap::with_capacity(LANG.len());
-        let mut w;
-        for lang in T::labels() {
-            // make it a &'static str
-            let lang_str: &'static str = Box::leak(lang.as_str().to_owned().into_boxed_str());
-            w = WriterDoc::new(dst, lang_str, part_size_bytes)?;
-            writers.insert(lang.clone(), Arc::new(Mutex::new(w)));
-        }
-
-        Ok(Self {
-            writers,
+    pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Self {
+        Self {
+            writers: Arc::new(RwLock::new(HashMap::new())),
             kind: PhantomData,
             dst: dst.to_path_buf(),
             part_size_bytes,
-        })
+        }
     }
 
     fn new_writer(
@@ -107,38 +100,44 @@ impl<T: ModelKind> LangFilesDoc<T> {
         Ok(Arc::new(Mutex::new(w)))
     }
 
-    /// Gets writer for provided language.
-    /// Creates file and writer if not found
-    pub fn get_or_insert_writer(
-        &mut self,
-        k: LanguageTag<String>,
-    ) -> Result<&Arc<Mutex<WriterDoc>>, Error> {
-        // match self.writers.get(k) {
-        //     Some(w) => Ok(w),
-        //     None => {
-        //         let w = Arc::new(Mutex::new(Self::new_writer(
-        //             &self.dst,
-        //             k,
-        //             self.part_size_bytes,
-        //         )?));
-        //         self.writers.insert(k, w);
-        //     }
-        // }
+    pub fn contains(&self, k: &LanguageTag<String>) -> bool {
+        self.writers
+            .read()
+            .expect("Problem locking writers (in read)")
+            .contains_key(k)
+    }
 
-        Ok(self.writers.entry(k.clone()).or_insert(Self::new_writer(
+    pub fn insert_writer(&self, k: LanguageTag<String>) -> Result<(), Error> {
+        info!("Creating writer {k}");
+        info!("{k}: Waiting for lock");
+        let mut writer = self
+            .writers
+            .write()
+            .expect("Problem with locking writers (in write)");
+
+        // we use the entry API rather than insert to keep the
+        // old writer if the lang already exists
+        writer.entry(k.clone()).or_insert(Self::new_writer(
             &self.dst,
-            k,
+            k.clone(),
             self.part_size_bytes,
-        )?))
+        )?);
+
+        info!("{k}: Done");
+        Ok(())
     }
     /// Get a non-mutable reference to the writers.
-    pub fn writers(&self) -> &HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>> {
-        &self.writers
+    // pub fn writers(&self) -> Arc<HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>> {
+    pub fn writers(
+        &self,
+    ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>> {
+        self.writers.read().unwrap()
     }
 
     /// Fix open metadata files by removing trailing comma and closing the array.
     pub fn close_meta(&self) -> Result<(), error::Error> {
-        for writer in self.writers.values() {
+        let writers = self.writers.read().unwrap();
+        for writer in writers.values() {
             let mut writer_lock = writer.lock().unwrap();
             writer_lock.close_meta()?;
         }
@@ -209,20 +208,19 @@ hehe :)"
     #[test]
     fn init_doc() {
         let dst = tempdir().unwrap();
-        let _: LangFilesDoc<Old> = LangFilesDoc::new(dst.path(), None).unwrap();
+        let _: LangFilesDoc<Old> = LangFilesDoc::new(dst.path(), None);
     }
 
     #[test]
     fn write_one_doc() {
         let dst = tempdir().unwrap();
-        let lf: LangFilesDoc<Old> = LangFilesDoc::new(dst.path(), None).unwrap();
+        let lf: LangFilesDoc<Old> = LangFilesDoc::new(dst.path(), None);
 
         let content = "Hello!".to_string();
 
         let record = Record::default();
         let record: Record<BufferedBody> = record.add_body(content);
 
-        // let record_id = Identification::new(Lang::En, 1.0);
         let record_id = Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0);
         let sentences_id = vec![Some(record_id.clone())];
 
@@ -235,8 +233,10 @@ hehe :)"
             metadata,
         )];
 
+        lf.insert_writer(docs[0].identification().label().clone())
+            .unwrap();
         let w = lf
-            .writers
+            .writers()
             .get(docs[0].identification().label())
             .unwrap()
             .clone();

@@ -7,7 +7,7 @@ use std::{
     fs::File,
     marker::PhantomData,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use avro_rs::{AvroResult, Codec, Schema, Writer};
@@ -18,7 +18,6 @@ use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
 use crate::{error::Error, identifiers::model::ModelKind};
-
 
 use crate::pipelines::oscardoc::types::{Location, Metadata};
 
@@ -245,14 +244,21 @@ impl<'a> RebuildWriter<'a, File> {
 /// Holds mutex-protected [RebuildWriter] for each [Lang].
 // pub struct RebuildWriters<'a, T>(HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, T>>>>);
 pub struct RebuildWriters<'a, T, U: ModelKind> {
-    inner: HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, T>>>>,
+    inner: Arc<RwLock<HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, T>>>>>>,
     kind: PhantomData<U>,
 }
 
 impl<'a, T, U: ModelKind> RebuildWriters<'a, T, U> {
-    /// Maps to [HashMap::get].
-    pub fn get(&'a self, k: &LanguageTag<String>) -> Option<&Arc<Mutex<RebuildWriter<T>>>> {
-        self.inner.get(k)
+    pub fn writers(
+        &'a self,
+    ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<T>>>>>
+    {
+        self.inner.read().unwrap()
+    }
+
+    pub fn contains(&'a self, k: &LanguageTag<String>) -> bool {
+        let r_lock = self.inner.read().unwrap();
+        r_lock.contains_key(k)
     }
 }
 
@@ -263,6 +269,13 @@ impl<'a, U: ModelKind> RebuildWriters<'a, File, U> {
         p.push(format!("{}.avro", lang.as_str()));
 
         p
+    }
+
+    pub fn insert(&'a self, root_dir: &Path, k: &LanguageTag<String>) -> Result<(), Error> {
+        let mut wlock = self.inner.write().unwrap();
+        let (lang, new_writer) = Self::new_writer_mutex(root_dir, k.clone())?;
+        wlock.entry(lang).or_insert(new_writer);
+        Ok(())
     }
 
     #[inline]
@@ -293,16 +306,8 @@ impl<'a, U: ModelKind> RebuildWriters<'a, File, U> {
             error!("rebuild destination folder must be empty!");
         }
 
-        let ret: Result<HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'_, File>>>>, Error> =
-            U::labels()
-                .iter()
-                .map(|lang| {
-                    Self::new_writer_mutex(dst, LanguageTag::parse(lang.to_string()).unwrap())
-                })
-                .collect();
-
         Ok(RebuildWriters {
-            inner: ret?,
+            inner: Arc::new(RwLock::new(HashMap::new())),
             kind: PhantomData,
         })
     }

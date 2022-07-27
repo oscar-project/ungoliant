@@ -328,7 +328,11 @@ impl OscarDoc {
                 info!("[{}]: {} documents", lang, docs.len());
 
                 // get mutexes on writers
-                let writer = langfiles.writers().get(&lang).unwrap();
+                let writers = langfiles.writers();
+                if !langfiles.contains(&lang) {
+                    langfiles.insert_writer(lang.clone())?;
+                };
+                let writer = writers.get(&lang).unwrap();
                 let avrowriter = avrowriters.get(&lang).unwrap();
                 let mut writer_lock = writer.lock().unwrap();
                 let mut avrowriter_lock = avrowriter.lock().unwrap();
@@ -399,7 +403,7 @@ impl Pipeline<()> for OscarDoc {
         //      ourselves.
         let results = results.enumerate().par_bridge();
 
-        let langfiles = LangFilesDoc::new(&self.dst, None)?;
+        let langfiles = LangFilesDoc::new(&self.dst, None);
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 

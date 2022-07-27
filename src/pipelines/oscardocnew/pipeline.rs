@@ -321,6 +321,7 @@ impl OscarDoc {
     fn write_documents<'a>(
         langfiles: &LangFilesDoc<New>,
         avrowriters: &'a RebuildWriters<'a, File, New>,
+        rebuild_root_dir: &Path,
         shard_id: usize,
         documents: HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
     ) -> Result<(), Error> {
@@ -329,9 +330,18 @@ impl OscarDoc {
             .map(|(lang, docs)| {
                 info!("[{}]: {} documents", lang, docs.len());
 
-                // get mutexes on writers
-                let writer = langfiles.writers().get(&lang).unwrap();
-                let avrowriter = avrowriters.get(&lang).unwrap();
+                // check if langfiles has an opened file for provided language
+                if !langfiles.contains(&lang) {
+                    langfiles.insert_writer(lang.clone())?;
+                };
+                let writers = langfiles.writers();
+                let writer = writers.get(&lang).unwrap();
+
+                if !avrowriters.contains(&lang) {
+                    avrowriters.insert(rebuild_root_dir, &lang)?;
+                }
+                let avrowriters_lock = avrowriters.writers();
+                let avrowriter = avrowriters_lock.get(&lang).unwrap();
                 let mut writer_lock = writer.lock().unwrap();
                 let mut avrowriter_lock = avrowriter.lock().unwrap();
 
@@ -401,7 +411,7 @@ impl Pipeline<()> for OscarDoc {
         //      ourselves.
         let results = results.enumerate().par_bridge();
 
-        let langfiles = LangFilesDoc::new(&self.dst, None)?;
+        let langfiles = LangFilesDoc::new(&self.dst, None);
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 
@@ -419,7 +429,8 @@ impl Pipeline<()> for OscarDoc {
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
                 let hm = Self::sort_by_lang(shard_result);
-                Self::write_documents(&langfiles, &rebuild_files, shard_id, hm).unwrap();
+                Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
+                    .unwrap();
             } else {
                 error!("Error with shard idx {}:{:?}", idx, shard_result);
             }
