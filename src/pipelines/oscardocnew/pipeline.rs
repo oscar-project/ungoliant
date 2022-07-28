@@ -21,7 +21,6 @@ use std::path::Path;
 
 use std::{collections::HashMap, path::PathBuf};
 
-// use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
 use crate::identifiers::identification::Identification;
@@ -29,7 +28,6 @@ use crate::identifiers::model::{FastText, FastTextBuilder, New, Predict};
 use crate::identifiers::StrictMultilingual;
 use crate::pipelines::oscardoc::types::{Document, Location, Metadata};
 use crate::pipelines::oscardocnew::types::RebuildWriters;
-// use crate::identifiers::{self, Identification, Identifier};
 
 use crate::io::writer::WriterTrait;
 
@@ -92,6 +90,7 @@ impl OscarDoc {
         Ok(results)
     }
 
+    /// Extract shard number from a CC shard path.
     fn get_shard_number(shard_path: &Path) -> Result<usize, Error> {
         let shard_number = shard_path.file_stem();
         let shard_number = shard_number
@@ -109,7 +108,10 @@ impl OscarDoc {
         }
     }
 
-    /// Process a shard, returning a [Vec] of [Document].
+    /// Process a shard.
+    ///
+    /// This opens the shard, filters/identifies all documents and then
+    /// returns the shard id, along with a [Vec] of documents and their relative location (for rebuilding)
     fn process_shard(
         shard_path: &Path,
         identifier: &FastText<New>,
@@ -196,6 +198,7 @@ impl OscarDoc {
             });
 
         // annotate
+        // TODO: Instantiate outside of shard? (We instantiate it once for each shard :/)
         let mut annotator = Annotator::default();
         annotator
             .add(Box::new(TinyDocument::default()))
@@ -203,6 +206,7 @@ impl OscarDoc {
             .add(Box::new(Header::default()))
             .add(Box::new(Noisy::default()));
 
+        // TODO: Same here, we instantiate it once by shard
         if let Some(path) = blocklist {
             let bl = Blocklist::with_folder("adult", path)?;
             annotator.add(Box::new(ContentDetector::new(bl)));
@@ -390,10 +394,6 @@ impl Pipeline<()> for OscarDoc {
             .k(1)
             .threshold(0.8)
             .build()?;
-        // let cls = FastText::new(&self.lid_path, 1, 0.8).expect(&format!(
-        //     "Could not load language identifier at {:?}",
-        //     self.lid_path
-        // ));
 
         if !self.dst.exists() {
             warn!("Destination file does not exist. Creating");
