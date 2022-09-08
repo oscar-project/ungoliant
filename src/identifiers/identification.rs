@@ -2,23 +2,16 @@
 
 All identifiers should implement [Identifier] to be useable in processing and pipelines.
 !*/
-use std::{ops::Deref};
+use std::ops::Deref;
 
-use crate::{error::Error};
+use crate::error::Error;
 use fasttext::Prediction;
 
 use oxilangtag::{LanguageTag, LanguageTagParseError};
 
 use serde::{Deserialize, Serialize};
 
-
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-// #[serde(try_from = "IdentificationSer", into = "IdentificationSer")]
-// pub struct Identification {
-//     label: LanguageTag<String>,
-//     prob: f32,
-// }
 pub struct Identification<T: Deref<Target = str> + Clone> {
     label: LanguageTag<T>,
     prob: f32,
@@ -108,7 +101,9 @@ pub trait Identifier<T: Deref<Target = str> + Clone> {
 mod tests {
     use fasttext::Prediction;
 
-    use crate::identifiers::tag_convert::{NewTag, OldTag};
+    // use crate::identifiers::tag_convert::{NewTag, OldTag};
+
+    use crate::identifiers::tag_convert::Tag;
 
     use super::Identification;
 
@@ -130,20 +125,19 @@ mod tests {
         let old = Prediction { prob, label };
 
         let old: Identification<String> =
-            Identification::new(OldTag(old.label).try_into().unwrap(), old.prob);
+            Identification::new(Tag::new(&old.label).try_into().unwrap(), old.prob);
+        Identification::new(Tag::new(&old.label).try_into().unwrap(), old.prob);
 
         let prob = 1.0f32;
         let label = "__label__eng".to_string();
         let new = Prediction { prob, label };
         let new: Identification<String> =
-            Identification::new(NewTag(new.label).try_into().unwrap(), new.prob);
+            Identification::new(Tag::new(&new.label).try_into().unwrap(), new.prob);
 
         assert_eq!(old.label(), new.label());
     }
     #[test]
     fn test_bcp47() {
-        
-
         let model_codes = vec![
             "abk", "ace_Arab", "ace_Latn", "ady", "afr", "aka", "alt", "amh", "ara_Arab",
             "ara_Latn", "arn", "asm", "ast", "awa", "ayr", "azb", "azj", "bak", "bam", "ban",

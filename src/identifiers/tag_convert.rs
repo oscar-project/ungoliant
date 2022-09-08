@@ -1,5 +1,5 @@
 //! Conversion utilities or fasttext tags to standardized BCP47.
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap, convert::TryFrom};
 
 // use language_tags::{LanguageTag, ParseError};
 use lazy_static::lazy_static;
@@ -166,70 +166,55 @@ lazy_static! {
     .collect();
 }
 
-pub enum Tag<T: Deref<Target = str> + Clone> {
-    Old(OldTag<T>),
-    New(NewTag<T>),
+pub struct Tag<'a> {
+    inner: Cow<'a, str>,
 }
 
-impl<T: Deref<Target = str> + Clone> TryFrom<Tag<T>> for LanguageTag<String> {
-    type Error = LanguageTagParseError;
-
-    fn try_from(value: Tag<T>) -> Result<Self, Self::Error> {
-        match value {
-            Tag::Old(tag) => tag.try_into(),
-            Tag::New(tag) => tag.try_into(),
+impl<'a> Tag<'a> {
+    pub fn new(tag: &'a str) -> Self {
+        Self {
+            // attempt to remove first nine chars or pass the whole thing.
+            inner: Tag::fix(&tag.get(9..).unwrap_or(&tag)),
         }
     }
-}
 
-pub struct OldTag<T: Deref<Target = str> + Clone>(pub T);
-pub struct NewTag<T: Deref<Target = str> + Clone>(pub T);
+    #[inline]
+    fn fix(tag: &'a str) -> Cow<'a, str> {
+        match NEW_TAG_REPLACE.get(&tag) {
+            None => Cow::from(tag),
+            Some(x) => Cow::from(x.to_string()),
+        }
+    }
 
-/// Old-style tags are mainly correct BCP47, apart from two.
-/// We also fix als -> gsw here.
-impl<T> TryFrom<OldTag<T>> for LanguageTag<String>
-where
-    T: Deref<Target = str> + Clone,
-{
-    type Error = LanguageTagParseError;
-    fn try_from(tag: OldTag<T>) -> Result<Self, Self::Error> {
-        let standard = match &tag.0.deref()[9..] {
-            //why deref works here?
-            "sh" => "sr-Latn",
-            "tl" => "fil",
-            "als" => "gsw",
-            other => other,
-        };
-
-        LanguageTag::parse(standard.to_string())
+    pub fn inner(&self) -> &Cow<'a, str> {
+        &self.inner
     }
 }
 
-/// New style tags are correct BCP47 but are in ISO 639-2 which currently
-/// makes the comparison hard with old style tags.
-/// We convert codes to ISO-639-1 when possible.
-impl<T> TryFrom<NewTag<T>> for LanguageTag<String>
-where
-    T: Deref<Target = str> + Clone,
-{
+impl<'a> TryFrom<Tag<'a>> for LanguageTag<String> {
     type Error = LanguageTagParseError;
-    fn try_from(tag: NewTag<T>) -> Result<Self, Self::Error> {
-        let t: &str = &tag.0[9..]; // coerce into &str
-        let standard = NEW_TAG_REPLACE.get(t).unwrap_or(&t);
-        LanguageTag::parse(standard.to_string())
+    //TODO: remove cloning, use generics to provide a ref
+    // if applicable
+    fn try_from(tag: Tag<'a>) -> Result<Self, Self::Error> {
+        LanguageTag::parse(tag.inner.into_owned())
     }
 }
-
 #[cfg(test)]
 mod tests {
+    use std::borrow::Borrow;
+
     use oxilangtag::LanguageTag;
 
-    use super::{NewTag, OldTag};
+    use crate::{identifiers::tag_convert::Tag, lang::Lang};
+
+    // use super::{NewTag, OldTag};
 
     #[test]
     fn test_en() {
-        let old_style = LanguageTag::try_from(OldTag("__label__en")).unwrap();
-        let new_style = LanguageTag::try_from(NewTag("__label__eng")).unwrap();
+        let old_style = Tag::new("__label__en");
+        let new_style = Tag::new("__label__eng");
+        let old_style: LanguageTag<String> = old_style.try_into().unwrap();
+        let new_style: LanguageTag<String> = new_style.try_into().unwrap();
 
         assert_eq!(old_style, new_style);
     }

@@ -3,7 +3,9 @@ use std::{collections::HashMap, path::PathBuf};
 use super::types::Document;
 use super::types::MergedPiece;
 use crate::error::Error;
-use crate::identifiers::FastText;
+use crate::identifiers::model::FastText;
+use crate::identifiers::model::FastTextBuilder;
+use crate::identifiers::model::Predict;
 use crate::io::writer::WriterTrait;
 use crate::lang::LANG;
 use crate::sources::commoncrawl::Wet;
@@ -64,10 +66,10 @@ impl OscarMetadata {
 
             // check if fasttext provided lang exists
             // return None if not
-            match LANG.get(lang.label.as_str()) {
+            match LANG.get(lang.label().as_str()) {
                 Some(lang) => Some((sentence.to_string(), *lang)),
                 None => {
-                    warn!("lang {} does not exist!", lang.label);
+                    warn!("lang {} does not exist!", lang.label());
                     None
                 }
             }
@@ -126,7 +128,11 @@ impl Pipeline<()> for OscarMetadata {
     fn run(&self) -> Result<(), Error> {
         // let errors;
 
-        let cls = FastText::new(&self.lid_path, 1, 0.8)?;
+        let cls = FastTextBuilder::default()
+            .path(&self.lid_path)
+            .k(1)
+            .threshold(0.8)
+            .build()?;
 
         // list files in source folder,
         // filter out errors from fs and from gzip/wet.
@@ -213,7 +219,8 @@ impl Pipeline<()> for OscarMetadata {
 
                 // merge all documents together
                 // get a vector of merged pieces of difference languages
-                let docs_merged = shard_results.flat_map(|doc| doc.into_merged_pieces_lang())
+                let docs_merged = shard_results
+                    .flat_map(|doc| doc.into_merged_pieces_lang())
                     .collect::<Vec<MergedPiece>>();
 
                 // sort merged pieces into different langs
@@ -253,12 +260,12 @@ mod tests {
 
     use warc::{EmptyBody, Record};
 
-    use crate::identifiers::FastText;
+    use crate::identifiers::model::{FastText, FastTextBuilder};
 
     use super::OscarMetadata;
     #[test]
     fn test_process_record() {
-        let cls = FastText::new_lid().unwrap();
+        let cls = FastTextBuilder::default().build().unwrap();
 
         // let oscar_metadata =
         //     OscarMetadata::new(temp_dir(), temp_dir(), PathBuf::from("lid.176.bin"));

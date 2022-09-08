@@ -21,13 +21,13 @@ use std::path::Path;
 
 use std::{collections::HashMap, path::PathBuf};
 
-use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
 use crate::identifiers::identification::Identification;
-use crate::identifiers::model::{FastText, FastTextBuilder, Old, Predict};
+use crate::identifiers::model::{FastText, FastTextBuilder, Predict};
 use crate::identifiers::StrictMultilingual;
-// use crate::identifiers::{self, Identification, Identifier};
+use crate::pipelines::oscardoc::types::RebuildWriters;
+use crate::pipelines::oscardoc::types::{Document, Location, Metadata};
 
 use crate::io::writer::WriterTrait;
 
@@ -90,6 +90,7 @@ impl OscarDoc {
         Ok(results)
     }
 
+    /// Extract shard number from a CC shard path.
     fn get_shard_number(shard_path: &Path) -> Result<usize, Error> {
         let shard_number = shard_path.file_stem();
         let shard_number = shard_number
@@ -107,10 +108,13 @@ impl OscarDoc {
         }
     }
 
-    /// Process a shard, returning a [Vec] of [Document].
+    /// Process a shard.
+    ///
+    /// This opens the shard, filters/identifies all documents and then
+    /// returns the shard id, along with a [Vec] of documents and their relative location (for rebuilding)
     fn process_shard(
         shard_path: &Path,
-        identifier: &FastText<Old>,
+        identifier: &FastText,
         filter: Option<record::FilterKind>,
         blocklist: &Option<PathBuf>,
     ) -> Result<(usize, Vec<(Document, Location)>), Error> {
@@ -194,6 +198,7 @@ impl OscarDoc {
             });
 
         // annotate
+        // TODO: Instantiate outside of shard? (We instantiate it once for each shard :/)
         let mut annotator = Annotator::default();
         annotator
             .add(Box::new(TinyDocument::default()))
@@ -201,6 +206,7 @@ impl OscarDoc {
             .add(Box::new(Header::default()))
             .add(Box::new(Noisy::default()));
 
+        // TODO: Same here, we instantiate it once by shard
         if let Some(path) = blocklist {
             let bl = Blocklist::with_folder("adult", path)?;
             annotator.add(Box::new(ContentDetector::new(bl)));
@@ -231,7 +237,7 @@ impl OscarDoc {
     /// then compute the most present identification
     fn process_record(
         record: Record<BufferedBody>,
-        identifier: &FastText<Old>,
+        identifier: &FastText,
     ) -> Result<Option<Document>, Error> {
         // get lines
         let (headers, body) = record.into_raw_parts();
@@ -244,7 +250,7 @@ impl OscarDoc {
         let lang_count = w_ids.lang_bins();
         let total_count = w_ids.total_size();
 
-        // TODO fix multilingual
+        //TODO fix multilingual
         // see if the record meets multilingual criteria
         let multilingual = StrictMultilingual::default().detect(&ids[..]);
 
@@ -317,8 +323,9 @@ impl OscarDoc {
 
     /// concurrently write documets
     fn write_documents<'a>(
-        langfiles: &LangFilesDoc<Old>,
+        langfiles: &LangFilesDoc,
         avrowriters: &'a RebuildWriters<'a, File>,
+        rebuild_root_dir: &Path,
         shard_id: usize,
         documents: HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
     ) -> Result<(), Error> {
@@ -327,13 +334,18 @@ impl OscarDoc {
             .map(|(lang, docs)| {
                 info!("[{}]: {} documents", lang, docs.len());
 
-                // get mutexes on writers
-                let writers = langfiles.writers();
+                // check if langfiles has an opened file for provided language
                 if !langfiles.contains(&lang) {
                     langfiles.insert_writer(lang.clone())?;
                 };
+                let writers = langfiles.writers();
                 let writer = writers.get(&lang).unwrap();
-                let avrowriter = avrowriters.get(&lang).unwrap();
+
+                if !avrowriters.contains(&lang) {
+                    avrowriters.insert(rebuild_root_dir, &lang)?;
+                }
+                let avrowriters_lock = avrowriters.writers();
+                let avrowriter = avrowriters_lock.get(&lang).unwrap();
                 let mut writer_lock = writer.lock().unwrap();
                 let mut avrowriter_lock = avrowriter.lock().unwrap();
 
@@ -382,10 +394,6 @@ impl Pipeline<()> for OscarDoc {
             .k(1)
             .threshold(0.8)
             .build()?;
-        // let cls = FastText::new(&self.lid_path, 1, 0.8).expect(&format!(
-        //     "Could not load language identifier at {:?}",
-        //     self.lid_path
-        // ));
 
         if !self.dst.exists() {
             warn!("Destination file does not exist. Creating");
@@ -421,7 +429,8 @@ impl Pipeline<()> for OscarDoc {
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
                 let hm = Self::sort_by_lang(shard_result);
-                Self::write_documents(&langfiles, &rebuild_files, shard_id, hm).unwrap();
+                Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
+                    .unwrap();
             } else {
                 error!("Error with shard idx {}:{:?}", idx, shard_result);
             }

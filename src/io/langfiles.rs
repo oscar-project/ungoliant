@@ -26,9 +26,8 @@ pub struct LangFiles {
 }
 
 type LanguageMap = HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>;
-pub struct LangFilesDoc<T: ModelKind> {
+pub struct LangFilesDoc {
     writers: Arc<RwLock<LanguageMap>>,
-    kind: PhantomData<T>,
     dst: PathBuf,
     part_size_bytes: Option<u64>,
 }
@@ -68,7 +67,7 @@ impl LangFiles {
     }
 }
 
-impl<T: ModelKind> LangFilesDoc<T> {
+impl LangFilesDoc {
     /// Create a new LangFiles. `part_size_bytes` sets an indication of the maximum size
     /// by part.
     /// Note that if it is set too low and a unique record can't be stored in an unique part
@@ -80,7 +79,6 @@ impl<T: ModelKind> LangFilesDoc<T> {
     pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Self {
         Self {
             writers: Arc::new(RwLock::new(HashMap::new())),
-            kind: PhantomData,
             dst: dst.to_path_buf(),
             part_size_bytes,
         }
@@ -151,7 +149,7 @@ mod tests {
     use std::{fs::File, path::PathBuf};
 
     use crate::{
-        identifiers::{identification::Identification, model::Old},
+        identifiers::identification::Identification,
         pipelines::oscardoc::types::{Document, Metadata},
         pipelines::oscarmeta::types::MergedPiece,
     };
@@ -208,13 +206,13 @@ hehe :)"
     #[test]
     fn init_doc() {
         let dst = tempdir().unwrap();
-        let _: LangFilesDoc<Old> = LangFilesDoc::new(dst.path(), None);
+        let _: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
     }
 
     #[test]
     fn write_one_doc() {
         let dst = tempdir().unwrap();
-        let lf: LangFilesDoc<Old> = LangFilesDoc::new(dst.path(), None);
+        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
 
         let content = "Hello!".to_string();
 
