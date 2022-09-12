@@ -7,6 +7,7 @@ use crate::pipelines::oscardoc::types::IncompleteLocation;
 
 #[derive(Debug)]
 #[allow(dead_code)]
+#[cfg(not(tarpaulin_include))]
 pub enum Error {
     Io(std::io::Error),
     Warc(warc::Error),
