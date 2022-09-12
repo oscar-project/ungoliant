@@ -4,7 +4,6 @@ Holds an [Identifier] trait for implementing other ones.
 
 The current identifier used is [fasttext](https://fasttext.cc) !*/
 pub(crate) mod identification;
-#[deprecated]
 pub(crate) mod model;
 mod multilingual;
 mod tag_convert;

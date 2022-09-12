@@ -2,31 +2,32 @@ name: Rust
 
 on:
   push:
-    branches: [ master, dev ]
+    branches: [master, dev]
   pull_request:
-    branches: [ master, dev ]
+    branches: [master, dev]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose
 
-    - name: Fetch identification bin
-      run: wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
-    - name: Run tests
-      run: cargo test --verbose
-      
-    - name: Run cargo-tarpaulin
-      uses: actions-rs/tarpaulin@v0.1
-      continue-on-error: true
-      
-    - name: Upload to codecov.io
-      uses: codecov/codecov-action@v1
+      - name: Fetch identification bin (176)
+        run: wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
+      - name: Fetch identification bin (189)
+        run: wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.189.bin
+      - name: Run tests
+        run: cargo test --verbose
+
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        continue-on-error: true
+
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v1

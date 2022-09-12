@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn test_new_one_sentence() {
         let model: FastText = FastTextBuilder::default()
-            .path(Path::new("lid.218a.bin"))
+            .path(Path::new("lid.176.bin"))
             .build_or_default()
             .unwrap();
 
@@ -285,22 +285,6 @@ mod tests {
         let pred = model.predict_one(sentence);
 
         println!("{pred:?}");
-    }
-
-    #[test]
-    fn test_new_document() {
-        let document = "Ceci est une phrase en français.
-        This is a sentence in english. 
-        Ola, como estas? Esta pregunta estas en español!"
-            .lines();
-
-        let model: FastText = FastTextBuilder::default()
-            .path(Path::new("lid.218a.bin"))
-            .build_or_default()
-            .unwrap();
-
-        let pred = model.weighted_ids(document);
-        println!("{pred:#?}");
     }
 
     #[test]
@@ -324,7 +308,7 @@ mod tests {
             .build_or_default()
             .unwrap();
         let new_model: FastText = FastTextBuilder::default()
-            .path(Path::new("lid.218a.bin"))
+            .path(Path::new("lid.189.bin"))
             .build_or_default()
             .unwrap();
 
@@ -333,19 +317,6 @@ mod tests {
         let old_pred = old_model.predict_one(sentence).unwrap();
         let new_pred = new_model.predict_one(sentence).unwrap();
 
-        // let old_pred_canon = LanguageTag::parse(old_pred.unwrap().label().as_str())
-        //     .unwrap()
-        //     .canonicalize()
-        //     .unwrap();
-        // let new_pred_canon = LanguageTag::parse(new_pred.unwrap().label().as_str())
-        //     .unwrap()
-        //     .canonicalize()
-        //     .unwrap();
-
-        // let zh_6391 = LanguageTag::parse("zh").unwrap();
-        // let zh_6392 = LanguageTag::parse("zho").unwrap().canonicalize().unwrap();
-        // assert_eq!(zh_6391, zh_6392);
-        // println!("{new_pred_canon}, {old_pred_canon}");
         assert_eq!(old_pred.unwrap().label(), new_pred.unwrap().label());
     }
 }
