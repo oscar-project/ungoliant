@@ -60,6 +60,7 @@ mod tests {
 
     use crate::{
         identifiers::identification::Identification,
+        lang::Lang,
         pipelines::oscardoc::types::{Document, Metadata},
     };
 
@@ -120,8 +121,11 @@ Ecoutez ça va plutôt bien.";
         let content = r#"hel\nlo\r\n"#.to_string();
         let headers = HashMap::new();
         let meta = Metadata::new(
-            &Identification::new(Lang::En, 1.0f32),
-            &*vec![Some(Identification::new(Lang::En, 1.0f32))],
+            &Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0f32),
+            &*vec![Some(Identification::new(
+                LanguageTag::parse("en".to_string()).unwrap(),
+                1.0f32,
+            ))],
         );
         let doc = Document::new(content, headers, meta);
 
