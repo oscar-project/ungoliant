@@ -43,7 +43,10 @@ pub fn pipeline_full_sequential_benchmark(c: &mut Criterion) {
         }
     }
     c.bench_function("pipeline single ", |b| {
-        b.iter(|| black_box(parse_headers()))
+        b.iter(|| {
+            parse_headers();
+            black_box(())
+        })
     });
 }
 
@@ -67,7 +70,10 @@ pub fn pipeline_multithread_benchmark(c: &mut Criterion) {
         }
     }
     c.bench_function("pipeline multi chunk.len()==4", |b| {
-        b.iter(|| black_box(parse_headers()))
+        b.iter(|| {
+            parse_headers();
+            black_box(())
+        })
     });
 }
 
@@ -92,7 +98,10 @@ pub fn pipeline_multithread2_benchmark(c: &mut Criterion) {
         // }
     }
     c.bench_function("pipeline multi chunk.len()==4", |b| {
-        b.iter(|| black_box(parse_headers()))
+        b.iter(|| {
+            parse_headers();
+            black_box(())
+        })
     });
 }
 

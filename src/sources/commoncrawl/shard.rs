@@ -116,7 +116,7 @@ mod tests {
             "warc-record-id": "<urn:uuid:c7f19cbd-e348-48ff-9a92-4852b114b6db>"
           }"#;
 
-        let headers: HashMap<WarcHeader, String> = serde_json::from_str(&headers_json).unwrap();
+        let headers: HashMap<WarcHeader, String> = serde_json::from_str(headers_json).unwrap();
         println!("{:?}", headers);
     }
 

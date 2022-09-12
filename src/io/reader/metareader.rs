@@ -75,11 +75,11 @@ mod tests {
     use super::*;
 
     fn gen_data() -> String {
-        let data = r#"{"headers":{"warc-date":"2021-02-24T18:50:04Z","warc-identified-content-language":"afr","content-type":"text/plain","warc-record-id":"<urn:uuid:4c2d4cbb-24ef-4885-9516-d131fc15af2e>","content-length":"4891","warc-type":"conversion","warc-refers-to":"<urn:uuid:94ff8c3f-838f-44e6-ba2a-a47262025819>","warc-block-digest":"sha1:UMHO34U75QPBAT2DB756CLZYMVGQZC6G","warc-target-uri":"https://foo.bar/baz"},"offset":0,"nb_sentences":2}
+        
+        r#"{"headers":{"warc-date":"2021-02-24T18:50:04Z","warc-identified-content-language":"afr","content-type":"text/plain","warc-record-id":"<urn:uuid:4c2d4cbb-24ef-4885-9516-d131fc15af2e>","content-length":"4891","warc-type":"conversion","warc-refers-to":"<urn:uuid:94ff8c3f-838f-44e6-ba2a-a47262025819>","warc-block-digest":"sha1:UMHO34U75QPBAT2DB756CLZYMVGQZC6G","warc-target-uri":"https://foo.bar/baz"},"offset":0,"nb_sentences":2}
 {"headers":{"warc-refers-to":"<urn:uuid:8eca168f-1bd7-4ab8-bbe5-4ec64a547f35>","content-length":"5913","warc-target-uri":"http://foo.bar/baz/quux","warc-identified-content-language":"afr","warc-record-id":"<urn:uuid:8f77684e-09d2-48d5-a81b-4117add8614c>","warc-block-digest":"sha1:GAYXLT4D2I3R34IPT4OGVCHWCKNDGK4F","warc-type":"conversion","content-type":"text/plain","warc-date":"2021-02-24T17:08:20Z"},"offset":3,"nb_sentences":2}
 {"headers":{"warc-type":"conversion","warc-record-id":"<urn:uuid:610cefa9-de2b-412a-80e1-1ba68ab85e08>","warc-refers-to":"<urn:uuid:beff3c61-4c5c-4bf0-83c8-d9e8ba0ff1f3>","warc-date":"2021-02-24T17:29:45Z","warc-identified-content-language":"afr","content-length":"17550","warc-block-digest":"sha1:QC4BQEBP4SPAX3F555A7TWVU7M3BNBIL","content-type":"text/plain","warc-target-uri":"http://foo.bar.baz/quux"},"offset":6,"nb_sentences":11}
-"#.to_string();
-        data
+"#.to_string()
     }
 
     #[test]

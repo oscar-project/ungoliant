@@ -1,35 +1,35 @@
 //! Annotate trait
-use super::header::Header;
-use super::noisy::Noisy;
-use super::ContentDetector;
-use super::ShortSentences;
-use super::TinyDocument;
-use crate::pipelines::oscardoc::types::Document;
+
+
+
+
+
+
 
 /// Annotations provide contextual information about content.
-pub trait Annotate {
-    fn annotate(&self, doc: &mut Document);
+pub trait Annotate<T> {
+    fn annotate(&self, doc: &mut T);
 }
 
 /// Annotator enables annotation chaining, adding multiple annotators and
 /// doing the annotation process in one step.
-pub struct Annotator(Vec<Box<dyn Annotate + Sync>>);
+pub struct Annotator<T>(Vec<Box<dyn Annotate<T> + Sync>>);
 
-impl Annotator {
-    pub fn add(&mut self, annotator: Box<dyn Annotate + Sync>) -> &mut Annotator {
+impl<T> Annotator<T> {
+    pub fn add(&mut self, annotator: Box<dyn Annotate<T> + Sync>) -> &mut Annotator<T> {
         self.0.push(annotator);
         self
     }
 }
-impl Annotate for Annotator {
-    fn annotate(&self, doc: &mut Document) {
+impl<T> Annotate<T> for Annotator<T> {
+    fn annotate(&self, doc: &mut T) {
         for annotator in &self.0 {
             annotator.annotate(doc);
         }
     }
 }
 
-impl Default for Annotator {
+impl<T> Default for Annotator<T> {
     fn default() -> Self {
         Self(vec![])
     }
@@ -37,21 +37,21 @@ impl Default for Annotator {
 
 #[cfg(test)]
 mod tests {
-    use crate::transformers::Annotate;
+    use crate::{pipelines::oscardoc::types::Document, transformers::Annotate};
 
     use super::Annotator;
 
     #[test]
     fn test_default() {
-        let a = Annotator::default();
+        let a = Annotator::<Document>::default();
         assert_eq!(a.0.len(), 0);
     }
 
     #[test]
     fn test_add() {
         struct MockAnnotate {}
-        impl Annotate for MockAnnotate {
-            fn annotate(&self, _: &mut crate::pipelines::oscardoc::types::Document) {}
+        impl Annotate<Document> for MockAnnotate {
+            fn annotate(&self, _: &mut Document) {}
         }
 
         let mut a = Annotator::default();

@@ -5,21 +5,21 @@ Each (avro) record is an  `(shard_id, array of (shard) records)`.
 use std::{
     collections::HashMap,
     fs::File,
+    marker::PhantomData,
     path::{Path, PathBuf},
-    str::FromStr,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use avro_rs::{AvroResult, Codec, Schema, Writer};
 use log::error;
+use oxilangtag::LanguageTag;
 use serde::Deserialize;
 use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
-use crate::lang::LANG;
-use crate::{error::Error, lang::Lang};
+use crate::{error::Error, identifiers::model::ModelKind};
 
-use super::{Location, Metadata};
+use crate::pipelines::oscardoc::types::{Location, Metadata};
 
 lazy_static! {
     static ref SCHEMA: Schema = {
@@ -242,31 +242,48 @@ impl<'a> RebuildWriter<'a, File> {
 }
 
 /// Holds mutex-protected [RebuildWriter] for each [Lang].
-pub struct RebuildWriters<'a, T>(HashMap<Lang, Arc<Mutex<RebuildWriter<'a, T>>>>);
+// pub struct RebuildWriters<'a, T>(HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, T>>>>);
+pub struct RebuildWriters<'a, T> {
+    inner: Arc<RwLock<HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, T>>>>>>,
+}
 
 impl<'a, T> RebuildWriters<'a, T> {
-    /// Maps to [HashMap::get].
-    pub fn get(&'a self, k: &Lang) -> Option<&Arc<Mutex<RebuildWriter<T>>>> {
-        self.0.get(k)
+    pub fn writers(
+        &'a self,
+    ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<T>>>>>
+    {
+        self.inner.read().unwrap()
+    }
+
+    pub fn contains(&'a self, k: &LanguageTag<String>) -> bool {
+        let r_lock = self.inner.read().unwrap();
+        r_lock.contains_key(k)
     }
 }
 
 impl<'a> RebuildWriters<'a, File> {
     #[inline]
-    fn forge_dst(dst: &Path, lang: &Lang) -> PathBuf {
+    fn forge_dst(dst: &Path, lang: &LanguageTag<String>) -> PathBuf {
         let mut p = PathBuf::from(dst);
-        p.push(format!("{}.avro", lang));
+        p.push(format!("{}.avro", lang.as_str()));
 
         p
+    }
+
+    pub fn insert(&'a self, root_dir: &Path, k: &LanguageTag<String>) -> Result<(), Error> {
+        let mut wlock = self.inner.write().unwrap();
+        let (lang, new_writer) = Self::new_writer_mutex(root_dir, k.clone())?;
+        wlock.entry(lang).or_insert(new_writer);
+        Ok(())
     }
 
     #[inline]
     /// Convinience function that creates a new ([Lang], `Arc<Mutex<RebuildWriter>>`]) pair.
     fn new_writer_mutex(
         dst: &Path,
-        lang: &str,
-    ) -> Result<(Lang, Arc<Mutex<RebuildWriter<'a, File>>>), Error> {
-        let lang = Lang::from_str(lang).unwrap();
+        lang: LanguageTag<String>,
+    ) -> Result<(LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, File>>>), Error> {
+        // let lang = Lang::from_str(lang).unwrap();
         let path = Self::forge_dst(dst, &lang);
         let rw = RebuildWriter::from_path(&path)?;
         let rw_mutex = Arc::new(Mutex::new(rw));
@@ -284,16 +301,13 @@ impl<'a> RebuildWriters<'a, File> {
             error!("rebuild destination must be an empty folder!");
         };
 
-        if !dst.read_dir()?.next().is_none() {
+        if dst.read_dir()?.next().is_some() {
             error!("rebuild destination folder must be empty!");
         }
 
-        let ret: Result<HashMap<Lang, Arc<Mutex<RebuildWriter<'_, File>>>>, Error> = LANG
-            .iter()
-            .map(|lang| Self::new_writer_mutex(dst, lang))
-            .collect();
-
-        Ok(RebuildWriters(ret?))
+        Ok(RebuildWriters {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        })
     }
 }
 

@@ -18,7 +18,7 @@ use std::{
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 /// Base url for commoncrawl downloading.
-const BASE_URL: &str = "https://commoncrawl.s3.amazonaws.com/";
+const BASE_URL: &str = "https://data.commoncrawl.org/";
 
 #[derive(Debug)]
 pub enum Error {

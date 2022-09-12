@@ -21,7 +21,7 @@ use log::debug;
 
 use crate::filtering::Filter;
 
-use super::Identification;
+use super::identification::Identification;
 
 /// Strict Multilingual detector
 ///
@@ -36,8 +36,8 @@ pub struct StrictMultilingual {
     min_confident_pctg: f64,
 }
 
-impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
-    fn detect(&self, item: &[(Option<Identification>, usize)]) -> bool {
+impl Filter<&[(Option<Identification<String>>, usize)]> for StrictMultilingual {
+    fn detect(&self, item: &[(Option<Identification<String>>, usize)]) -> bool {
         let nb_bytes: usize = item.iter().map(|(_, nb_bytes)| nb_bytes).sum();
         let nb_lines = item.len();
 
@@ -63,14 +63,19 @@ impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
             return false;
         }
 
-        let mut bytes_per_lang = HashMap::new();
+        let mut bytes_per_lang: HashMap<_, usize> = HashMap::new();
+        bytes_per_lang.insert(None, 0);
         // count lines for each language AND for no-identification
         for (id, bytes) in item {
             // key is None for no identification
-            let key = id.as_ref().map(|id| *id.label());
+            let key = id.as_ref().map(|id| id.label());
 
-            let count = bytes_per_lang.entry(key).or_insert(*bytes);
-            *count += *bytes;
+            match bytes_per_lang.get_mut(&key) {
+                Some(count) => *count += *bytes,
+                None => {
+                    bytes_per_lang.insert(key.clone(), *bytes);
+                }
+            }
         }
 
         let nb_langs = bytes_per_lang.keys().filter(|x| x.is_some()).count();
@@ -81,7 +86,6 @@ impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
 
         let count_threshold =
             (nb_bytes as f32 / bytes_per_lang.keys().count() as f32).floor() as usize;
-
         for (lang, count) in bytes_per_lang {
             match lang {
                 Some(_) => {
@@ -102,8 +106,8 @@ impl Filter<&[(Option<Identification>, usize)]> for StrictMultilingual {
     }
 }
 
-impl Filter<&[Option<Identification>]> for StrictMultilingual {
-    fn detect(&self, item: &[Option<Identification>]) -> bool {
+impl Filter<&[Option<Identification<String>>]> for StrictMultilingual {
+    fn detect(&self, item: &[Option<Identification<String>>]) -> bool {
         let nb_lines = item.len();
         // check if the document has less than 10 lines
         if item.len() < self.min_sentences {
@@ -131,7 +135,7 @@ impl Filter<&[Option<Identification>]> for StrictMultilingual {
         // count lines for each language AND for no-identification
         for id in item {
             // key is None for no identification
-            let key = id.as_ref().map(|id| *id.label());
+            let key = id.as_ref().map(|id| id.label());
 
             let count = sentences_per_lang.entry(key).or_insert(0);
             *count += 1;
@@ -206,8 +210,8 @@ pub struct Multilingual {
     q: f32,
 }
 
-impl Filter<&[Option<Identification>]> for Multilingual {
-    fn detect(&self, item: &[Option<Identification>]) -> bool {
+impl Filter<&[Option<Identification<String>>]> for Multilingual {
+    fn detect(&self, item: &[Option<Identification<String>>]) -> bool {
         if item.len() < self.min_sentences {
             return false;
         }
@@ -217,7 +221,7 @@ impl Filter<&[Option<Identification>]> for Multilingual {
         // count lines for each language AND for no-identification
         for id in item {
             // key is None for no identification
-            let key = id.as_ref().map(|id| *id.label());
+            let key = id.as_ref().map(|id| id.label());
 
             let count = sentences_per_lang.entry(key).or_insert(0);
             *count += 1;
@@ -294,14 +298,23 @@ mod tests {
 
     use crate::{
         filtering::Filter,
-        identifiers::{multilingual::Multilingual, Identification, StrictMultilingual},
+        identifiers::{
+            identification::Identification, multilingual::Multilingual, StrictMultilingual,
+        },
         lang::Lang,
     };
+    use lazy_static::lazy_static;
+    use oxilangtag::LanguageTag;
+
+    lazy_static! {
+        pub static ref ID_EN: LanguageTag<String> = LanguageTag::parse("en".to_string()).unwrap();
+        pub static ref ID_FR: LanguageTag<String> = LanguageTag::parse("fr".to_string()).unwrap();
+    }
 
     #[test]
     fn test_multilingual() {
-        let id = Some(Identification::new(Lang::En, 1.0));
-        let ids = vec![id.clone(); 10];
+        let id = Some(Identification::new(ID_EN.clone(), 1.0));
+        let ids = vec![id; 10];
         let m = Multilingual::default();
         assert_eq!(m.detect(&ids), false);
     }
@@ -309,10 +322,10 @@ mod tests {
     #[test]
     fn test_multilingual2() {
         let id = [
-            Some(Identification::new(Lang::En, 1.0)),
-            Some(Identification::new(Lang::En, 1.0)),
-            Some(Identification::new(Lang::Fr, 1.0)),
-            Some(Identification::new(Lang::Fr, 1.0)),
+            Some(Identification::new(ID_EN.clone(), 1.0)),
+            Some(Identification::new(ID_EN.clone(), 1.0)),
+            Some(Identification::new(ID_FR.clone(), 1.0)),
+            Some(Identification::new(ID_FR.clone(), 1.0)),
         ]
         .into_iter()
         .cycle();
@@ -324,12 +337,12 @@ mod tests {
     #[test]
     fn strict_bytes_false() {
         let id = [
-            (Some(Identification::new(Lang::En, 1.0)), 100),
-            (Some(Identification::new(Lang::En, 1.0)), 100),
-            (Some(Identification::new(Lang::Fr, 1.0)), 1),
-            (Some(Identification::new(Lang::Fr, 1.0)), 10),
-            (Some(Identification::new(Lang::Fr, 1.0)), 10),
-            (Some(Identification::new(Lang::Fr, 1.0)), 10),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 100),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 100),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 1),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 10),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 10),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 10),
         ]
         .into_iter()
         .cycle();
@@ -341,11 +354,12 @@ mod tests {
     #[test]
     fn strict_bytes_true() {
         let id = [
-            (Some(Identification::new(Lang::En, 1.0)), 100),
-            (Some(Identification::new(Lang::En, 1.0)), 100),
-            (Some(Identification::new(Lang::Fr, 1.0)), 100),
-            (Some(Identification::new(Lang::Fr, 1.0)), 100),
-            (Some(Identification::new(Lang::Fr, 1.0)), 10),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 100),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 110),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 111),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 100),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 130),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 10),
         ]
         .into_iter()
         .cycle();
@@ -354,9 +368,56 @@ mod tests {
         assert_eq!(m.detect(&ids[..]), true);
     }
 
+    // test strict multilinguality
+    // Ensure to have enough (>1/3 of total) in two langs, with a little junk data
+    #[test]
+    fn strict_bytes_with_junk() {
+        let id = [
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 100),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 110),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 111),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 45),
+            (None, 100),
+            (None, 150),
+            // (None, 3),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 100),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 130),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 130),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 130),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 10),
+        ]
+        .into_iter()
+        .cycle();
+        let ids: Vec<(_, usize)> = id.take(200).collect();
+        let m = StrictMultilingual::default();
+        let ret = m.detect(&ids[..]);
+        assert_eq!(ret, true);
+    }
+    // test strict multilinguality
+    // Ensure to have enough (>1/3 of total) in two langs, with no junk data
+    #[test]
+    fn strict_bytes_no_junk() {
+        let id = [
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 100),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 110),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 111),
+            (Some(Identification::new(ID_EN.clone(), 1.0)), 45),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 100),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 130),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 130),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 130),
+            (Some(Identification::new(ID_FR.clone(), 1.0)), 10),
+        ]
+        .into_iter()
+        .cycle();
+        let ids: Vec<(_, usize)> = id.take(200).collect();
+        let m = StrictMultilingual::default();
+        let ret = m.detect(&ids[..]);
+        assert_eq!(ret, true);
+    }
     #[test]
     fn test_too_short() {
-        let id = [(Some(Identification::new(Lang::En, 1.0)), 100)]
+        let id = [(Some(Identification::new(ID_EN.clone(), 1.0)), 100)]
             .into_iter()
             .cycle();
 
@@ -367,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_not_confident_enough() {
-        let id = [(Some(Identification::new(Lang::En, 0.1)), 100)]
+        let id = [(Some(Identification::new(ID_EN.clone(), 0.1)), 100)]
             .into_iter()
             .cycle();
 
@@ -379,7 +440,7 @@ mod tests {
     #[test]
     fn test_too_much_none() {
         let id = [
-            (Some(Identification::new(Lang::En, 0.1)), 100),
+            (Some(Identification::new(ID_EN.clone(), 0.1)), 100),
             (None, 100),
             (None, 100),
             (None, 100),
@@ -395,13 +456,43 @@ mod tests {
     #[test]
     fn test_too_much_languages() {
         let id = [
-            (Some(Identification::new(Lang::En, 0.1)), 100),
-            (Some(Identification::new(Lang::Fr, 0.1)), 100),
-            (Some(Identification::new(Lang::Uk, 0.1)), 100),
-            (Some(Identification::new(Lang::Fi, 0.1)), 100),
-            (Some(Identification::new(Lang::Uz, 0.1)), 100),
-            (Some(Identification::new(Lang::Pa, 0.1)), 100),
-            (Some(Identification::new(Lang::Zh, 0.1)), 100),
+            (Some(Identification::new(ID_EN.clone(), 0.1)), 100),
+            (Some(Identification::new(ID_FR.clone(), 0.1)), 100),
+            (
+                Some(Identification::new(
+                    LanguageTag::parse("uk".to_string()).unwrap(),
+                    0.1,
+                )),
+                100,
+            ),
+            (
+                Some(Identification::new(
+                    LanguageTag::parse("fi".to_string()).unwrap(),
+                    0.1,
+                )),
+                100,
+            ),
+            (
+                Some(Identification::new(
+                    LanguageTag::parse("uz".to_string()).unwrap(),
+                    0.1,
+                )),
+                100,
+            ),
+            (
+                Some(Identification::new(
+                    LanguageTag::parse("pa".to_string()).unwrap(),
+                    0.1,
+                )),
+                100,
+            ),
+            (
+                Some(Identification::new(
+                    LanguageTag::parse("zh".to_string()).unwrap(),
+                    0.1,
+                )),
+                100,
+            ),
         ]
         .into_iter()
         .cycle();
@@ -412,7 +503,7 @@ mod tests {
     }
     #[test]
     fn test_too_little_languages() {
-        let id = [(Some(Identification::new(Lang::En, 0.1)), 100)]
+        let id = [(Some(Identification::new(ID_EN.clone(), 0.1)), 100)]
             .into_iter()
             .cycle();
 

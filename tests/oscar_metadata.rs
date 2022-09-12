@@ -258,7 +258,7 @@ fn assert_meta_validity() {
                         // silently fail condition
                         // not ideal
                         .unwrap_or(&",".to_string())
-                        .contains(",")
+                        .contains(',')
                     {
                         return Some((idx, x));
                     }
@@ -271,14 +271,12 @@ fn assert_meta_validity() {
                 let corpus_lines: HashSet<&str> = sentences
                     .iter()
                     .skip(meta.offset)
-                    .take(meta.nb_sentences)
-                    // deref to &str
-                    .map(|x| *x)
+                    .take(meta.nb_sentences).copied()
                     .collect();
 
                 // get lines from shard
                 // in a vec
-                let shard_string = String::from_utf8_lossy(&shard_records[m.0].body());
+                let shard_string = String::from_utf8_lossy(shard_records[m.0].body());
                 let shard_lines: HashSet<&str> = shard_string.lines().collect();
 
                 // ensure that corpus is into shard
@@ -286,8 +284,8 @@ fn assert_meta_validity() {
             }
         }
     }
-    std::fs::remove_dir_all(&src).expect(&format!("could not delete test src folder: {:?}", &dst));
-    std::fs::remove_dir_all(&dst).expect(&format!("could not delete test dst folder: {:?}", &dst));
+    std::fs::remove_dir_all(&src).unwrap_or_else(|_| panic!("could not delete test src folder: {:?}", &dst));
+    std::fs::remove_dir_all(&dst).unwrap_or_else(|_| panic!("could not delete test dst folder: {:?}", &dst));
 }
 
 #[test]
@@ -429,7 +427,7 @@ fn assert_meta_validity_multishard() {
                 let body = record.body();
 
                 //transform body into a vector of sentences
-                let body = String::from_utf8_lossy(&body)
+                let body = String::from_utf8_lossy(body)
                     .lines()
                     .map(|line| line.to_string())
                     .collect::<Vec<String>>();
@@ -438,7 +436,7 @@ fn assert_meta_validity_multishard() {
             }
             Err(e) => {
                 println!("{:?}", e);
-                return None;
+                None
             }
         });
 
@@ -468,7 +466,7 @@ fn pipeline_single_shard() {
     let dst = PathBuf::from("temp_1/");
 
     let lid_path = PathBuf::from("lid.176.bin");
-    let p = OscarMetadata::new(src.clone(), dst.clone(), lid_path);
+    let p = OscarMetadata::new(src, dst.clone(), lid_path);
     let res = p.run();
     assert!(res.is_ok());
 

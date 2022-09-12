@@ -40,7 +40,7 @@ impl<'a> ContentDetector<'a> {
     }
 }
 
-impl<'a> Annotate for ContentDetector<'a> {
+impl<'a> Annotate<Document> for ContentDetector<'a> {
     /// Checks if domain/url is present in provided blocklist, and adds a tag
     /// corresponding to blocklist kind if true.
     fn annotate(&self, doc: &mut Document) {
@@ -80,9 +80,9 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert(WarcHeader::TargetURI, url.as_bytes().to_vec());
         let metadata = Metadata::default();
-        let d = Document::new(content, headers, metadata);
+        
 
-        d
+        Document::new(content, headers, metadata)
     }
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
 
         assert_eq!(
             doc.metadata().annotation(),
-            Some(&vec!["adult".to_string()])
+            Some(vec!["adult".to_string()]).as_ref()
         );
     }
 

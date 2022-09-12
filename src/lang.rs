@@ -18,6 +18,7 @@ use structopt::lazy_static::lazy_static;
 
 use crate::error::Error;
 
+#[deprecated = "Use something dynamic (LanguageTag + RwLock<HashMap<...>> rather than a fixed set of languages"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum Lang {
     Af,
@@ -384,6 +385,7 @@ impl Lang {
         lang_str
     }
 }
+
 impl FromStr for Lang {
     type Err = Error;
 
@@ -580,9 +582,8 @@ impl Display for Lang {
 }
 
 lazy_static! {
-
-    /// Holds langs that are available through the OSCAR corpus
-    /// Derived from the lang labels from fasttext.
+   /// Holds langs that are available through the OSCAR corpus
+   /// Derived from the lang labels from fasttext.
     pub static ref LANG: HashSet<&'static str> = {
         let mut m = HashSet::new();
         m.insert("fr");
@@ -766,8 +767,8 @@ lazy_static! {
 
         m
     };
-}
 
+}
 /// Holds language files handlers
 ///
 /// For each available language, a file is created

@@ -1,0 +1,221 @@
+//! Conversion utilities or fasttext tags to standardized BCP47.
+use std::{borrow::Cow, collections::HashMap, convert::TryFrom};
+
+// use language_tags::{LanguageTag, ParseError};
+use lazy_static::lazy_static;
+use oxilangtag::{LanguageTag, LanguageTagParseError};
+use std::ops::Deref;
+
+lazy_static! {
+    pub static ref NEW_TAG_REPLACE: HashMap<&'static str, &'static str> = [
+        ("abk", "ab"),
+        ("ace_Arab", "ace-Arab"),
+        ("ace_Latn", "ace-Latn"),
+        ("afr", "af"),
+        ("aka", "ak"),
+        ("amh", "am"),
+        ("ara_Arab", "ar-Arab"),
+        ("ara_Latn", "ar-Latn"),
+        ("asm", "as"),
+        ("bak", "ba"),
+        ("bam", "bm"),
+        ("bel", "be"),
+        ("ben", "bn"),
+        ("bis", "bi"),
+        ("bjn_Arab", "bjn-Arab"),
+        ("bjn_Latn", "bjn-Latn"),
+        ("bod", "bo"),
+        ("bos", "bs"),
+        ("bul", "bg"),
+        ("cat", "ca"),
+        ("ces", "cs"),
+        ("che", "ce"),
+        ("chv", "cv"),
+        ("crh_Latn", "crh-Latn"),
+        ("cym", "cy"),
+        ("dan", "da"),
+        ("deu", "de"),
+        ("dzo", "dz"),
+        ("ell", "el"),
+        ("eng", "en"),
+        ("epo", "eo"),
+        ("est", "et"),
+        ("eus", "eu"),
+        ("ewe", "ee"),
+        ("fao", "fo"),
+        ("fas", "fa"),
+        ("fij", "fj"),
+        ("fin", "fi"),
+        ("fra", "fr"),
+        ("gla", "gd"),
+        ("gle", "ga"),
+        ("glg", "gl"),
+        ("grn", "gn"),
+        ("guj", "gu"),
+        ("hat", "ht"),
+        ("hau", "ha"),
+        ("heb", "he"),
+        ("hin", "hi"),
+        ("hrv", "hr"),
+        ("hun", "hu"),
+        ("hye", "hy"),
+        ("ibo", "ig"),
+        ("ind", "id"),
+        ("isl", "is"),
+        ("ita", "it"),
+        ("jav", "jv"),
+        ("jpn", "ja"),
+        ("kal", "kl"),
+        ("kan", "kn"),
+        ("kas_Arab", "ks-Arab"),
+        ("kas_Deva", "ks-Deva"),
+        ("kat", "ka"),
+        ("kau_Arab", "kr-Arab"),
+        ("kau_Latn", "kr-Latn"),
+        ("kaz", "kk"),
+        ("khm", "km"),
+        ("kik", "ki"),
+        ("kin", "rw"),
+        ("kir", "ky"),
+        ("kon", "kg"),
+        ("kor", "ko"),
+        ("kur", "ku"),
+        ("lao", "lo"),
+        ("lav", "lv"),
+        ("lim", "li"),
+        ("lin", "ln"),
+        ("lit", "lt"),
+        ("ltz", "lb"),
+        ("lug", "lg"),
+        ("mal", "ml"),
+        ("mar", "mr"),
+        ("min_Latn", "min-Latn"),
+        ("mkd", "mk"),
+        ("mlg", "mg"),
+        ("mlt", "mt"),
+        ("mni_Mtei", "mni-Mtei"),
+        ("mon", "mn"),
+        ("mri", "mi"),
+        ("msa", "ms"),
+        ("mya", "my"),
+        ("nav", "nv"),
+        ("nld", "nl"),
+        ("nno", "nn"),
+        ("nob", "nb"),
+        ("nya", "ny"),
+        ("oci", "oc"),
+        ("orm", "om"),
+        ("oss", "os"),
+        ("pan", "pa"),
+        ("pol", "pl"),
+        ("por", "pt"),
+        ("prs", "fa-AF"),
+        ("pus", "ps"),
+        ("que", "qu"),
+        ("roh", "rm"),
+        ("ron", "ro"),
+        ("run", "rn"),
+        ("rus", "ru"),
+        ("sag", "sg"),
+        ("san", "sa"),
+        ("sin", "si"),
+        ("slk", "sk"),
+        ("slv", "sl"),
+        ("smo", "sm"),
+        ("sna", "sn"),
+        ("snd", "sd"),
+        ("som", "so"),
+        ("sot", "st"),
+        ("spa", "es"),
+        ("sqi", "sq"),
+        ("srd", "sc"),
+        ("srp_Cyrl", "sr-Cyrl"),
+        ("ssw", "ss"),
+        ("sun", "su"),
+        ("swe", "sv"),
+        ("tah", "ty"),
+        ("tam", "ta"),
+        ("tat_Cyrl", "tt-Cyrl"),
+        ("tel", "te"),
+        ("tgk", "tg"),
+        ("tgl", "fil"),
+        ("tha", "th"),
+        ("tir", "ti"),
+        ("tmh_Latn", "tmh-Latn"),
+        ("tmh_Tfng", "tmh-Tfng"),
+        ("ton", "to"),
+        ("tsn", "tn"),
+        ("tso", "ts"),
+        ("tuk", "tk"),
+        ("tur", "tr"),
+        ("twi", "tw"),
+        ("uig", "ug"),
+        ("ukr", "uk"),
+        ("urd", "ur"),
+        ("uzb", "uz"),
+        ("vie", "vi"),
+        ("wol", "wo"),
+        ("xho", "xh"),
+        ("yid", "yi"),
+        ("yor", "yo"),
+        ("zho_Hans", "zh-Hans"),
+        ("zho_Hant", "zh-Hant"),
+        ("zul", "zu"),
+    ]
+    .into_iter()
+    .collect();
+}
+
+pub struct Tag<'a> {
+    inner: Cow<'a, str>,
+}
+
+impl<'a> Tag<'a> {
+    pub fn new(tag: &'a str) -> Self {
+        Self {
+            // attempt to remove first nine chars or pass the whole thing.
+            inner: Tag::fix(&tag.get(9..).unwrap_or(&tag)),
+        }
+    }
+
+    #[inline]
+    fn fix(tag: &'a str) -> Cow<'a, str> {
+        match NEW_TAG_REPLACE.get(&tag) {
+            None => Cow::from(tag),
+            Some(x) => Cow::from(x.to_string()),
+        }
+    }
+
+    pub fn inner(&self) -> &Cow<'a, str> {
+        &self.inner
+    }
+}
+
+impl<'a> TryFrom<Tag<'a>> for LanguageTag<String> {
+    type Error = LanguageTagParseError;
+    //TODO: remove cloning, use generics to provide a ref
+    // if applicable
+    fn try_from(tag: Tag<'a>) -> Result<Self, Self::Error> {
+        LanguageTag::parse(tag.inner.into_owned())
+    }
+}
+#[cfg(test)]
+mod tests {
+    use std::borrow::Borrow;
+
+    use oxilangtag::LanguageTag;
+
+    use crate::{identifiers::tag_convert::Tag, lang::Lang};
+
+    // use super::{NewTag, OldTag};
+
+    #[test]
+    fn test_en() {
+        let old_style = Tag::new("__label__en");
+        let new_style = Tag::new("__label__eng");
+        let old_style: LanguageTag<String> = old_style.try_into().unwrap();
+        let new_style: LanguageTag<String> = new_style.try_into().unwrap();
+
+        assert_eq!(old_style, new_style);
+    }
+}

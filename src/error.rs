@@ -1,10 +1,13 @@
 //! Error enum
 use std::string::FromUtf8Error;
 
+use oxilangtag::LanguageTagParseError;
+
 use crate::pipelines::oscardoc::types::IncompleteLocation;
 
 #[derive(Debug)]
 #[allow(dead_code)]
+#[cfg(not(tarpaulin_include))]
 pub enum Error {
     Io(std::io::Error),
     Warc(warc::Error),
@@ -16,9 +19,16 @@ pub enum Error {
     GlobPattern(glob::PatternError),
     Ut1(ut1_blocklist::Error),
     FastText(String),
+    Languagetag(LanguageTagParseError),
     IncompleteLocation(IncompleteLocation),
     Avro(avro_rs::Error),
     Csv(csv::Error),
+}
+
+impl From<LanguageTagParseError> for Error {
+    fn from(v: LanguageTagParseError) -> Self {
+        Self::Languagetag(v)
+    }
 }
 
 impl From<csv::Error> for Error {

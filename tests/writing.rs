@@ -10,13 +10,13 @@ use warc::WarcHeader;
 fn english_sentences(nb: i32) -> Vec<String> {
     (0..nb)
         .into_iter()
-        .map(|x| format!("english sentence number {}", x + 1).to_string())
+        .map(|x| format!("english sentence number {}", x + 1))
         .collect()
 }
 fn french_sentences(nb: i32) -> Vec<String> {
     (0..nb)
         .into_iter()
-        .map(|x| format!("phrase française numéro {}", x + 1).to_string())
+        .map(|x| format!("phrase française numéro {}", x + 1))
         .collect()
 }
 

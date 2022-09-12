@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn document_by_lang() {
         let (headers, sentences, identifications) = gen_test();
-        let d = Document::new(headers.clone(), sentences.clone(), identifications).unwrap();
+        let d = Document::new(headers, sentences.clone(), identifications).unwrap();
         let merged_pieces = d.into_merged_pieces();
         println!("{:?}", sentences);
         println!("{:#?}", merged_pieces);
@@ -488,7 +488,7 @@ mod tests {
             offset: 0,
             nb_sentences: 0,
         };
-        let result: Metadata = serde_json::from_str(&meta_json).unwrap();
+        let result: Metadata = serde_json::from_str(meta_json).unwrap();
         assert_eq!(result, expected);
     }
 }
