@@ -73,7 +73,7 @@ impl Filter<&[(Option<Identification<String>>, usize)]> for StrictMultilingual {
             match bytes_per_lang.get_mut(&key) {
                 Some(count) => *count += *bytes,
                 None => {
-                    bytes_per_lang.insert(key.clone(), *bytes);
+                    bytes_per_lang.insert(key, *bytes);
                 }
             }
         }
@@ -301,7 +301,6 @@ mod tests {
         identifiers::{
             identification::Identification, multilingual::Multilingual, StrictMultilingual,
         },
-        lang::Lang,
     };
     use lazy_static::lazy_static;
     use oxilangtag::LanguageTag;

@@ -7,7 +7,6 @@ Each language (provided by [crate::lang::LANG]) is given a [self::Writer] wrappe
 !*/
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
 };
@@ -16,7 +15,7 @@ use log::info;
 use oxilangtag::LanguageTag;
 
 use crate::lang::LANG;
-use crate::{error, identifiers::model::ModelKind};
+use crate::{error};
 use crate::{error::Error, io::writer::Writer};
 
 use super::writer::{WriterDoc, WriterTrait};

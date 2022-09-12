@@ -252,14 +252,14 @@ impl OscarDoc {
 
         //TODO fix multilingual
         // see if the record meets multilingual criteria
-        let multilingual = StrictMultilingual::default().detect(&ids[..]);
+        let multilingual = StrictMultilingual::default().detect(ids);
 
         if multilingual {
             //TODO: fix prob on multilingual documents
             let document_identification =
                 Identification::new(LanguageTag::parse("multi".to_string())?, 0.5);
 
-            let metadata = Metadata::new(&document_identification, &ids);
+            let metadata = Metadata::new(&document_identification, ids);
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
             return Ok(Some(doc));

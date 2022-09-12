@@ -5,7 +5,6 @@ Each (avro) record is an  `(shard_id, array of (shard) records)`.
 use std::{
     collections::HashMap,
     fs::File,
-    marker::PhantomData,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
 };
@@ -17,7 +16,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
-use crate::{error::Error, identifiers::model::ModelKind};
+use crate::{error::Error};
 
 use crate::pipelines::oscardoc::types::{Location, Metadata};
 

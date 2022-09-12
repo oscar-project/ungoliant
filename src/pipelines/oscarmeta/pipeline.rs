@@ -260,7 +260,7 @@ mod tests {
 
     use warc::{EmptyBody, Record};
 
-    use crate::identifiers::model::{FastText, FastTextBuilder};
+    use crate::identifiers::model::{FastTextBuilder};
 
     use super::OscarMetadata;
     #[test]

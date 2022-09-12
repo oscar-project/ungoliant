@@ -4,7 +4,7 @@ use std::{borrow::Cow, collections::HashMap, convert::TryFrom};
 // use language_tags::{LanguageTag, ParseError};
 use lazy_static::lazy_static;
 use oxilangtag::{LanguageTag, LanguageTagParseError};
-use std::ops::Deref;
+
 
 lazy_static! {
     pub static ref NEW_TAG_REPLACE: HashMap<&'static str, &'static str> = [
@@ -174,7 +174,7 @@ impl<'a> Tag<'a> {
     pub fn new(tag: &'a str) -> Self {
         Self {
             // attempt to remove first nine chars or pass the whole thing.
-            inner: Tag::fix(&tag.get(9..).unwrap_or(&tag)),
+            inner: Tag::fix(tag.get(9..).unwrap_or(tag)),
         }
     }
 
@@ -201,11 +201,11 @@ impl<'a> TryFrom<Tag<'a>> for LanguageTag<String> {
 }
 #[cfg(test)]
 mod tests {
-    use std::borrow::Borrow;
+    
 
     use oxilangtag::LanguageTag;
 
-    use crate::{identifiers::tag_convert::Tag, lang::Lang};
+    use crate::{identifiers::tag_convert::Tag};
 
     // use super::{NewTag, OldTag};
 

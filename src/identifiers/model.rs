@@ -3,7 +3,6 @@
 * !*/
 use std::{
     collections::{HashMap, HashSet},
-    marker::PhantomData,
     ops::Deref,
     path::Path,
     str::Lines,
@@ -148,7 +147,7 @@ impl Predict<String> for FastText {
                     let ide_label = ide.as_ref().map(|i| i.label().clone());
                     let ide_prob = ide.as_ref().map(|i| *i.prob());
                     // get length of current line
-                    let byte_count = line.bytes().count();
+                    let byte_count = line.len();
 
                     lang_count
                         .entry(ide_label)
