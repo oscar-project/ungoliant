@@ -355,7 +355,8 @@ impl OscarDoc {
 
                 // clone metadata
                 let metadata_cloned = docs.iter().map(|doc| doc.metadata().clone()).collect();
-                let sr = ShardResult::new(shard_id as i64, locations, metadata_cloned);
+                let mut sr = ShardResult::new(shard_id as i64, locations, metadata_cloned);
+                sr.sort();
 
                 // write docs and rebuild files
                 writer_lock.write(docs)?;

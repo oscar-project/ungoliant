@@ -1,5 +1,17 @@
 /*! Rebuild file writer/schema
 Each (avro) record is an  `(shard_id, array of (shard) records)`.
+
+# Rebuild files
+
+Each lang has its avro file.
+Each record corresponds to a shard, and contains a list of "slimmed" documents.
+
+Those slim documents contain:
+- language identification related metadata,
+- record id,
+- line start/end for each WARC Record. Note that `line_start and line_end` are _included_,
+so a document that has `(line_start, line_end) == (10, 10)` has a single line that is at offset 10.
+
 !*/
 
 use std::{
@@ -16,7 +28,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
-use crate::{error::Error};
+use crate::error::Error;
 
 use crate::pipelines::oscardoc::types::{Location, Metadata};
 
@@ -172,6 +184,14 @@ impl ShardResult {
             shard_id,
             rebuild_info,
         }
+    }
+
+    /// order by location in shard.
+    /// This destroys the order of document, but is necessary for the rebuilding process to be efficient.
+    #[inline]
+    pub fn sort(&mut self) {
+        self.rebuild_info
+            .sort_unstable_by(|a, b| a.loc_in_shard.cmp(&b.loc_in_shard))
     }
 
     /// extract owned parts of struct: (`shard_id`, `Vec<RebuildInformation>`)
