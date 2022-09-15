@@ -1,0 +1,44 @@
+name: get_test_data
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+env:
+  CARGO_TERM_COLOR: always
+ 
+jobs:
+  cache_test_data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch identification bin (176)
+        run: wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
+      - name: Fetch identification bin (189)
+        run: wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.189.bin
+      - name: Fetch CC shards
+        run: |
+             mkdir -p res/shards
+             wget -O res/shards/0.txt.gz https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/segments/1659882570651.49/wet/CC-MAIN-20220807150925-20220807180925-00000.warc.wet.gz
+             wget -O res/shards/1.txt.gz https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/segments/1659882570651.49/wet/CC-MAIN-20220807150925-20220807180925-00001.warc.wet.gz
+  build:
+
+    runs-on: ubuntu-latest
+    needs: cache_test_data
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: cargo build --verbose
+
+    #- name: Fetch identification bin
+    #  run: wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
+    - name: Run tests
+      run: cargo test --verbose
+      
+    - name: Run cargo-tarpaulin
+      uses: actions-rs/tarpaulin@v0.1
+      continue-on-error: true
+      
+    - name: Upload to codecov.io
+      uses: codecov/codecov-action@v1
+    
