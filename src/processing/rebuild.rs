@@ -30,6 +30,7 @@ use log::error;
 use rayon::iter::ParallelBridge;
 use rayon::iter::ParallelIterator;
 use warc::RecordIter;
+use warc::WarcHeader;
 
 use crate::error::Error;
 use crate::lang::Lang;
@@ -111,7 +112,7 @@ where
             }
 
             // separate raw parts
-            let (headers, body) = record.into_raw_parts();
+            let (mut headers, body) = record.into_raw_parts();
 
             // compute line bounds and get them
             let nb_skip = rb_info.line_start();
@@ -124,6 +125,12 @@ where
                 .skip(nb_skip)
                 .take(nb_take)
                 .join("\n");
+
+            // compute body length to update content-length
+            *headers
+                .headers
+                .entry(WarcHeader::ContentLength)
+                .or_default() = body.len().to_string().as_bytes().to_owned(); //convert usize to its string repr, then in a vec of bytes.
 
             // create document and update prev_loc
             let document = Document::new(body, headers.headers, rb_info.metadata().clone());
