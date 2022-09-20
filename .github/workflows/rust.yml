@@ -25,11 +25,26 @@ jobs:
         with:
           path: res/shards/*.gz
           key: ${{ runner.os }}-shards
+      - name: Cache blocklist
+        id: cache-blocklist
+        uses: actions/cache@v3
+        with:
+          path: res/blocklist
+          key: ${{ runner.os }}-blocklist
       - name: Fetch identification bins
         if: steps.cache-lid.outputs.cache-hit != 'true'
         run: |
              wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
              wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.189.bin
+      - name: Fetch blocklist
+        if: steps.cache-blocklist.outputs.cache-hit != 'true'
+        run: |
+            mkdir -p res/blocklist
+            wget ftp://ftp.ut-capitole.fr/pub/reseau/cache/squidguard_contrib/blacklists.tar.gz
+            tar xvzf blacklists.tar.gz
+            mv blacklists/* res/blocklist
+            rm blacklists.tar.gz
+            rmdir blacklists
       - name: Fetch CC shards
         if: steps.cache-shards.outputs.cache-hit != 'true'
         run: |
@@ -38,6 +53,8 @@ jobs:
              wget -O res/shards/1.txt.gz https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/segments/1659882570651.49/wet/CC-MAIN-20220807150925-20220807180925-00001.warc.wet.gz
       - name: Build
         run: cargo build --verbose
+      - name: Create test directories
+        run: mkdir res/corpus res/rebuilt
       - name: Run tests
         run: cargo test --verbose
       - name: Run cargo-tarpaulin

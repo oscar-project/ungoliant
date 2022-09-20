@@ -30,6 +30,7 @@ use log::error;
 use rayon::iter::ParallelBridge;
 use rayon::iter::ParallelIterator;
 use warc::RecordIter;
+use warc::WarcHeader;
 
 use crate::error::Error;
 use crate::lang::Lang;
@@ -82,8 +83,15 @@ where
             // get loc of current rebuild
             let loc = rb_info.loc_in_shard();
             let rid = rb_info.record_id();
+
             // We skip loc-prev_loc records (since we have absolute loc counts, we need to compute the delta)
-            // let mut record = self.shard_iter.nth(loc - self.prev_loc).unwrap();
+            if loc < self.prev_loc {
+                // technically we could "go back" using the bufreader and rewinding.
+                // TODO: implement this? We could also go from line-based to byte-based offset
+                // to enable faster retrieval.
+                error!("It looks like the rebuild file is not ordered. Rebuilding can't work from there, aborting.");
+                return None;
+            }
             let record = match self.shard_iter.nth(loc - self.prev_loc) {
                 Some(Ok(r)) => r,
                 //uj: should we really "just" return some error or return None (with error logging)
@@ -104,16 +112,25 @@ where
             }
 
             // separate raw parts
-            let (headers, body) = record.into_raw_parts();
+            let (mut headers, body) = record.into_raw_parts();
 
             // compute line bounds and get them
             let nb_skip = rb_info.line_start();
-            let nb_take = rb_info.line_end() - rb_info.line_start();
+
+            // Since bounds are inclusive, for a document that starts at x and ends at y we have to skip to x
+            // and then take y-x+1.
+            let nb_take = rb_info.line_end() - rb_info.line_start() + 1;
             let body = String::from_utf8_lossy(&body)
                 .lines()
                 .skip(nb_skip)
                 .take(nb_take)
                 .join("\n");
+
+            // compute body length to update content-length
+            *headers
+                .headers
+                .entry(WarcHeader::ContentLength)
+                .or_default() = body.len().to_string().as_bytes().to_owned(); //convert usize to its string repr, then in a vec of bytes.
 
             // create document and update prev_loc
             let document = Document::new(body, headers.headers, rb_info.metadata().clone());
@@ -249,6 +266,7 @@ impl<'a> Rebuilder<'a> {
         let errors: Vec<Result<(), Error>> = sr
             .map(|shard| {
                 let shard_id = shard.shard_id();
+                debug!("working on shard {shard_id}");
                 // get records of a given shard
                 let records: Vec<_> = shard.collect::<Result<Vec<Document>, Error>>()?;
 
@@ -269,6 +287,7 @@ impl<'a> Rebuilder<'a> {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -322,8 +341,7 @@ mod tests {
                 Some(Identification::new(
                     LanguageTag::parse("en".to_string()).unwrap(),
                     1.0
-                ))
-                ;
+                ));
                 4
             ],
         );
