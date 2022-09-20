@@ -35,7 +35,8 @@ fn check_rebuild() {
     fn get_record_id(doc: &Document) -> &str {
         doc.warc_headers().get("warc-record-id").unwrap()
     }
-    //gen_corpus();
+    
+    gen_corpus();
 
     // rebuild french corpus
     let src_rebuild = Path::new("res/corpus/rebuild/fr.avro");
