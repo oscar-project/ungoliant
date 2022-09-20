@@ -25,11 +25,26 @@ jobs:
         with:
           path: res/shards/*.gz
           key: ${{ runner.os }}-shards
+      - name: Cache blocklist
+        id: cache-blocklist
+        uses: actions/cache@v3
+        with:
+          path: res/blocklist
+          key: ${{ runner.os }}-blocklist
       - name: Fetch identification bins
         if: steps.cache-lid.outputs.cache-hit != 'true'
         run: |
              wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
              wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.189.bin
+      - name: Fetch blocklist
+        if: steps.cache-blocklist.outputs.cache-hit != 'true'
+        run: |
+            mkdir -p res/blocklist
+            wget ftp://ftp.ut-capitole.fr/pub/reseau/cache/squidguard_contrib/blacklists.tar.gz
+            tar xvzf blacklists.tar.gz
+            mv blacklists/* res/blocklist
+            rm blacklists.tar.gz
+            rmdir blacklists
       - name: Fetch CC shards
         if: steps.cache-shards.outputs.cache-hit != 'true'
         run: |
