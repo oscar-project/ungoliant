@@ -10,15 +10,16 @@ Transformers can either (or both) [Annotate] content or [Transform] it:
 mod annotate;
 mod content_detector;
 mod header;
+mod lsh;
+mod noisy;
 mod sentence_filter;
 mod tiny;
 mod transform;
-
-mod noisy;
 pub use annotate::Annotate;
 pub use annotate::Annotator;
 pub use content_detector::ContentDetector;
 pub use header::Header;
+pub use lsh::LSH;
 pub use noisy::Noisy;
 pub use sentence_filter::Conv;
 pub use sentence_filter::RemoveShortSentences;

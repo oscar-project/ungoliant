@@ -9,10 +9,8 @@ use warc::BufferedBody;
 use warc::Record;
 use warc::WarcHeader;
 
-
 use crate::identifiers::identification::Identification as IdentificationGen;
 // use crate::identifiers::Identification;
-
 
 type Identification = IdentificationGen<String>;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -37,13 +35,16 @@ impl Metadata {
         }
     }
 
-    /// Set the metadata's annotation.
-    pub fn set_annotation(&mut self, annotation: String) {
+    pub fn add_annotation(&mut self, annotation: String) {
         match &mut self.annotation {
             Some(anno) => anno.push(annotation),
             None => self.annotation = Some(vec![annotation]),
         }
     }
+    /// Set the metadata's annotation.
+    // pub fn set_annotation(&mut self, annotation: String) {
+    //     self.annotation = Some(vec![annotation]);
+    // }
 
     /// Get a reference to the metadata's annotation.
     pub fn annotation(&self) -> Option<&Vec<String>> {
