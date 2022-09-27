@@ -52,35 +52,66 @@ impl Default for LSH {
 }
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use tlsh::{BucketKind, ChecksumKind, TlshBuilder};
 
+    use crate::{
+        pipelines::oscardoc::types::{Document, Metadata},
+        transformers::Annotate,
+    };
+
+    use super::LSH;
+
+    #[test]
+    fn test_annotate() {
+        let s = r#"cvqlmd,cpqlzec;)à"ç!(àb"(!uyiuegfbnsoc,)az"à(!ç"#.to_string();
+        let mut doc = Document::new(s, HashMap::new(), Metadata::default());
+        let lsh = LSH::default();
+        lsh.annotate(&mut doc);
+
+        let annotation = &doc.metadata().annotation().unwrap()[0];
+        assert!(annotation.contains("tlsh:"));
+    }
+
+    #[test]
+    fn test_no_hash() {
+        let s = "oooooooooooooooooooooooooooooooooooooooooooooooooo".to_string();
+        let mut doc = Document::new(s, HashMap::new(), Metadata::default());
+        let lsh = LSH::default();
+        lsh.annotate(&mut doc);
+
+        assert!(doc.metadata().annotation().is_none());
+    }
+
+    #[test]
+    fn test_too_short() {
+        let s = "a".to_string();
+        let mut doc = Document::new(s, HashMap::new(), Metadata::default());
+        let lsh = LSH::default();
+        lsh.annotate(&mut doc);
+
+        assert!(doc.metadata().annotation().is_none());
+    }
     #[test]
     fn test_tlsh() {
-        let s1 = "fooooooooooooooooooooooooooooooooooooooooooooooooo";
-        let s1 = r#"cvqlmd,cpqlzec;)à"ç!(àb"(!uyiuegfbnsoc,)az"à(!ç"#;
+        let s1 = "Le Mallorquín ou Majorquin (Cavall Mallorquí en catalan) est une race de chevaux de selle à la robe noire, 
+        autochtone de Majorque, l'une des îles Baléares en Espagne, à laquelle il doit son nom. 
+        Il est très proche du cheval Minorquin, et souvent confondu avec lui. 
+        Vraisemblablement issu de chevaux celtiques et notamment du cheval catalan, il est introduit sur l'île de Majorque avec de nombreux croisements au XIXe siècle.
+        La motorisation ayant raison de son développement, il manque de disparaître dans les années 1970.".to_string();
 
-        let mut builder = TlshBuilder::new(
-            BucketKind::Bucket256,
-            ChecksumKind::ThreeByte,
-            tlsh::Version::Version4,
-        );
-        builder.update(s1.as_bytes());
-        let tlsh1 = builder.build().unwrap();
+        let s2 = s1.clone();
 
-        let s2 = "Le Mallorquín ou Majorquin (Cavall Mallorquí en catalan) est une race de chevaux de selle à la robe noire, autochtone de Majorque, l'une des îles Baléares en Espagne, à laquelle il doit son nom. Il est très proche du cheval Minorquin, et souvent confondu avec lui. Vraisemblablement issu de chevaux celtiques et notamment du cheval catalan, il est introduit sur l'île de Majorque avec de nombreux croisements au XIXe siècle. La motorisation ayant raison de son développement, il manque de disparaître dans les années 1970.
+        let annotator = LSH::default();
+        let mut doc1 = Document::new(s1, HashMap::new(), Metadata::default());
+        let mut doc2 = Document::new(s2, HashMap::new(), Metadata::default());
+        annotator.annotate(&mut doc1);
+        annotator.annotate(&mut doc2);
 
-        aUne association d'éleveurs se mobilise en 1981 pour sauver la race, et obtient l'ouverture d'un stud-book en 1988. Il existe moins de 400 individus Mallorquíns recensés en 2012, mais leur utilisation dans les loisirs équestres les préserve désormais de l'extinction. Sobre et rustique, de taille moyenne et de constitution raffinée, le cheval Mallorquín reste essentiellement élevé à Majorque. ";
-        let mut builder = TlshBuilder::new(
-            BucketKind::Bucket256,
-            ChecksumKind::ThreeByte,
-            tlsh::Version::Version4,
-        );
-        builder.update(s2.as_bytes());
-        let tlsh2 = builder.build().unwrap();
+        let hash1 = &doc1.metadata().annotation().unwrap()[0];
+        let hash2 = &doc2.metadata().annotation().unwrap()[0];
 
-        // Calculate diff between s1 & s2, including length difference.
-        println!("{}", tlsh1.diff(&tlsh2, true));
-        // Calculate diff between s1 & s2, excluding length difference.
-        println!("{}", tlsh1.diff(&tlsh2, false));
+        assert_eq!(hash1, hash2);
     }
 }
