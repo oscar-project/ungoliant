@@ -106,14 +106,14 @@ impl FilterMut<&str> for MeanLength {
         self.update_mean(length);
 
         // ensure that mu-sig<length<mu+sig (eq.to 0<length-mu<sig)
-        (f64::from(length) - self.mean) < self.std
+        (f64::from(length) - self.mean).abs() < self.std
     }
 }
 
 impl Filter<&str> for MeanLength {
     fn detect(&self, sentence: &str) -> bool {
         let length: u32 = sentence.chars().count().try_into().unwrap_or_default();
-        (f64::from(length) - self.mean) < self.std
+        (f64::from(length) - self.mean).abs() < self.std
     }
 }
 
@@ -158,9 +158,10 @@ mod tests {
             f.detect_mut(&sentence);
         }
 
-        // create two obvious examples that are resp. valid and invalid
+        // create three obvious examples that the first is valid and the others invalid
         let valid: String = ['a'].iter().cycle().take(105).collect();
-        let invalid: String = ['a'].iter().cycle().take(130).collect();
+        let long_invalid: String = ['a'].iter().cycle().take(130).collect();
+        let short_invalid: String = ['a'].iter().cycle().take(80).collect();
 
         // in case of failure, this will be printed
         println!("init rng   : mu:{:.3} sig:{:.3}", 100.0, 10.0);
@@ -168,6 +169,7 @@ mod tests {
 
         // ensure distribution is correctly learnt
         assert_eq!(f.detect(&valid), true);
-        assert_eq!(f.detect(&invalid), false);
+        assert_eq!(f.detect(&long_invalid), false);
+        assert_eq!(f.detect(&short_invalid), false);
     }
 }
