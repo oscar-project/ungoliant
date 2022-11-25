@@ -35,8 +35,8 @@ use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{
-    self, Annotate, Annotator, ContentDetector, Header, Noisy, ShortSentences, TinyDocument,
-    Transform,
+    self, AdultDetector, Annotate, Annotator, ContentDetector, Header, Noisy, ShortSentences,
+    TinyDocument, Transform,
 };
 use log::{debug, error, info, log_enabled, warn};
 use oxilangtag::LanguageTag;
@@ -204,6 +204,7 @@ impl OscarDoc {
             .add(Box::new(TinyDocument::default()))
             .add(Box::new(ShortSentences::default()))
             .add(Box::new(Header::default()))
+            .add(Box::new(AdultDetector::default()))
             .add(Box::new(Noisy::default()));
 
         // TODO: Same here, we instantiate it once by shard
