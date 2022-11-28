@@ -199,19 +199,22 @@ impl OscarDoc {
 
         // annotate
         // TODO: Instantiate outside of shard? (We instantiate it once for each shard :/)
-        let mut annotator = Annotator::default();
-        annotator
-            .add(Box::new(TinyDocument::default()))
-            .add(Box::new(ShortSentences::default()))
-            .add(Box::new(Header::default()))
-            .add(Box::new(AdultDetector::default()))
-            .add(Box::new(Noisy::default()));
+        let annotator = {
+            let mut annotator = Annotator::default();
+            annotator
+                .add(Box::new(TinyDocument::default()))
+                .add(Box::new(ShortSentences::default()))
+                .add(Box::new(Header::default()))
+                .add(Box::new(AdultDetector::default()))
+                .add(Box::new(Noisy::default()));
 
-        // TODO: Same here, we instantiate it once by shard
-        if let Some(path) = blocklist {
-            let bl = Blocklist::with_folder("adult", path)?;
-            annotator.add(Box::new(ContentDetector::new(bl)));
-        }
+            // TODO: Same here, we instantiate it once by shard
+            if let Some(path) = blocklist {
+                let bl = Blocklist::with_folder("adult", path)?;
+                annotator.add(Box::new(ContentDetector::new(bl)));
+            }
+            annotator
+        };
 
         let record_iter = record_iter.map(|(loc, mut r)| {
             annotator.annotate(&mut r);
