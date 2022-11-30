@@ -55,6 +55,14 @@ impl Annotate<Document> for AdultDetector {
     }
 }
 
+impl Default for AdultDetectorBuilder {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::from("kenlm_big.binary"),
+        }
+    }
+}
+
 impl Default for AdultDetector {
     fn default() -> Self {
         Self {

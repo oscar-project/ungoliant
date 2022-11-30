@@ -35,8 +35,8 @@ use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{
-    self, AdultDetector, Annotate, Annotator, ContentDetector, Header, Noisy, ShortSentences,
-    TinyDocument, Transform,
+    self, AdultDetector, Annotate, Annotator, ContentDetector, Header, Models, Noisy,
+    ShortSentences, TinyDocument, Transform,
 };
 use log::{debug, error, info, log_enabled, warn};
 use oxilangtag::LanguageTag;
@@ -325,6 +325,31 @@ impl OscarDoc {
         ret
     }
 
+    fn apply_kenlm(
+        models: &Models,
+        documents: &mut HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
+    ) {
+        for (lang, docs) in documents {
+            // create builder if it does not exist
+            if !models.contains(lang) {
+                models.insert_default_builder(lang);
+            }
+            if !models.is_loaded(lang) {
+                models.load(lang);
+            }
+            // TODO: Possible problem here, if between load and get the HM is modified.
+            // Add a way of dealing with that?
+            if let Some(model) = models.models().get(lang.as_ref()) {
+                let model = model.read().unwrap();
+                for (doc, _) in docs {
+                    model.annotate(doc);
+                }
+            } else {
+                error!("Could not annotate using model {lang}");
+            }
+        }
+    }
+
     /// concurrently write documets
     fn write_documents<'a>(
         langfiles: &LangFilesDoc,
@@ -417,6 +442,7 @@ impl Pipeline<()> for OscarDoc {
         let results = results.enumerate().par_bridge();
 
         let langfiles = LangFilesDoc::new(&self.dst, None);
+        let mut kenlms = Models::default();
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 
@@ -433,7 +459,8 @@ impl Pipeline<()> for OscarDoc {
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
-                let hm = Self::sort_by_lang(shard_result);
+                let mut hm = Self::sort_by_lang(shard_result);
+                Self::apply_kenlm(&kenlms, &mut hm);
                 Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
                     .unwrap();
             } else {

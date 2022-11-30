@@ -1,11 +1,5 @@
 //! Annotate trait
 
-
-
-
-
-
-
 /// Annotations provide contextual information about content.
 pub trait Annotate<T> {
     fn annotate(&self, doc: &mut T);
