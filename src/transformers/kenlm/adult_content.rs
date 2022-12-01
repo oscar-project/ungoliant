@@ -15,10 +15,17 @@ impl AdultDetectorBuilder {
         Self { path }
     }
 
-    pub fn build(&self) -> AdultDetector {
-        AdultDetector {
-            kenlm: KenLM::new(self.path.to_string_lossy(), &Dict::new()),
-            pp_thresh: 1000.0,
+    pub fn build(&self) -> Result<AdultDetector, std::io::Error> {
+        if !self.path.exists() {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("{:?} not found.", self.path),
+            ))
+        } else {
+            Ok(AdultDetector {
+                kenlm: KenLM::new(self.path.to_string_lossy(), &Dict::new()),
+                pp_thresh: 1000.0,
+            })
         }
     }
 }
@@ -73,6 +80,14 @@ impl Default for AdultDetector {
 }
 #[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+
+    use super::AdultDetectorBuilder;
 
     // use ctclib::{Dict, KenLM, Model};
+    #[test]
+    fn test_nonexisting() {
+        let adb = AdultDetectorBuilder::new(PathBuf::from("fezlfzej"));
+        adb.build();
+    }
 }

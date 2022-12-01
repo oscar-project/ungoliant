@@ -8,8 +8,21 @@ use oxilangtag::LanguageTag;
 
 use crate::pipelines::oscardoc::types::{Document, Location};
 
-use super::{adult_content::AdultDetectorBuilder, AdultDetector};
+use super::{
+    adult_content::{self, AdultDetectorBuilder},
+    AdultDetector,
+};
 
+#[derive(Debug)]
+pub enum Error {
+    NoBuilder(String),
+    Building(std::io::Error),
+}
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Building(err)
+    }
+}
 /// Model holder.
 /// Internally has two [HashMap]: One with builders and one with the actual models.
 ///
@@ -74,15 +87,17 @@ impl Models {
     }
 
     /// Load a model by using this language's builder.
-    pub fn load(&self, lang: &LanguageTag<String>) {
+    pub fn load(&self, lang: &LanguageTag<String>) -> Result<(), Error> {
         debug!("Loading model {lang} in memory");
         let builders = self.builders.read().unwrap();
         if let Some(builder) = builders.get(lang) {
             let builder = builder.write().unwrap();
             let mut models = self.models.write().unwrap();
-            models.insert(lang.to_owned(), Arc::new(RwLock::new(builder.build())));
+            models.insert(lang.to_owned(), Arc::new(RwLock::new(builder.build()?)));
+            Ok(())
         } else {
             error!("Could not load model for lang {lang}");
+            Err(Error::NoBuilder(format!("No builder found for {lang:?}")))
         }
     }
 

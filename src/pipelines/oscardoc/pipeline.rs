@@ -336,7 +336,9 @@ impl OscarDoc {
                 models.insert_default_builder(lang);
             }
             if !models.is_loaded(lang) {
-                models.load(lang);
+                if let Err(e) = models.load(lang) {
+                    warn!("Couldn't load model for lang {lang:?}: {e:?}");
+                }
             }
             // TODO: Possible problem here, if between load and get the HM is modified.
             // Add a way of dealing with that?
