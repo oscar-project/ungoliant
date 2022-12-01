@@ -46,8 +46,8 @@ oxilangtag = {version="0.1.3", features=["serde"]}
 language-tags = "0.3.2"
 lazy_static = "1.4.0"
 oscar-io = "0.1.3"
-ctclib = {path="../temp/ctclib/"}
-#ctclib = {git="https://github.com/Uinelj/ctclib"}
+# ctclib = {path="../temp/ctclib/"}
+ctclib = {git="https://github.com/Uinelj/ctclib"}
 #ctclib = "*"
 
 [dev-dependencies]

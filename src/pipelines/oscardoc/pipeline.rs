@@ -325,7 +325,8 @@ impl OscarDoc {
         ret
     }
 
-    fn apply_kenlm(
+    /// run kenlm models on data, adding perplexity.
+    fn run_kenlms(
         models: &Models,
         documents: &mut HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
     ) {
@@ -339,6 +340,8 @@ impl OscarDoc {
             }
             // TODO: Possible problem here, if between load and get the HM is modified.
             // Add a way of dealing with that?
+            // possibly creating a scope and then using "direct" method calls rather than
+            // calls that use read/write locks internally.
             if let Some(model) = models.models().get(lang.as_ref()) {
                 let model = model.read().unwrap();
                 for (doc, _) in docs {
@@ -442,7 +445,7 @@ impl Pipeline<()> for OscarDoc {
         let results = results.enumerate().par_bridge();
 
         let langfiles = LangFilesDoc::new(&self.dst, None);
-        let mut kenlms = Models::default();
+        let kenlms = Models::default();
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 
@@ -460,7 +463,11 @@ impl Pipeline<()> for OscarDoc {
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
                 let mut hm = Self::sort_by_lang(shard_result);
-                Self::apply_kenlm(&kenlms, &mut hm);
+
+                // run kenlms after identification so that shard results are already
+                // sorted by language.
+                Self::run_kenlms(&kenlms, &mut hm);
+
                 Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
                     .unwrap();
             } else {

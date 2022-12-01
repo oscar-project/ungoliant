@@ -21,12 +21,14 @@ pub struct Models {
 }
 
 impl Models {
+    /// Get a read lock on loaded models.
     pub fn models(
         &self,
     ) -> RwLockReadGuard<HashMap<LanguageTag<String>, Arc<RwLock<AdultDetector>>>> {
         self.models.read().unwrap()
     }
 
+    /// Check if there is a builder for a given language.
     pub fn contains(&self, lang: &LanguageTag<String>) -> bool {
         self.builders
             .read()
@@ -34,6 +36,12 @@ impl Models {
             .contains_key(lang)
     }
 
+    /// Check if there is a loaded model for a given language.
+    /// Note that the behaviour is similar if:
+    /// - There is no builder for the given language
+    /// - There is no loaded model for the given language.
+    ///
+    /// Use [Models::contains] to check for the presence of a builder specifically.
     pub fn is_loaded(&self, lang: &str) -> bool {
         self.models
             .read()
@@ -51,7 +59,8 @@ impl Models {
         builders_lock.insert(lang.to_owned(), Arc::new(RwLock::new(builder)));
     }
 
-    /// Insert a new builder for a given language.
+    /// Insert the default builder for a given language.
+    /// See [AdultDetectorBuilder::default] to check the default values.
     /// Behaves like [HashMap::insert].
     ///
     /// Be aware that you'll have to call [Models::get] to actually build the model.
@@ -72,9 +81,12 @@ impl Models {
             let builder = builder.write().unwrap();
             let mut models = self.models.write().unwrap();
             models.insert(lang.to_owned(), Arc::new(RwLock::new(builder.build())));
+        } else {
+            error!("Could not load model for lang {lang}");
         }
     }
 
+    /// Unload a model.
     fn unload(&self, lang: &str) {
         debug!("Unloading model {lang} from memory");
         let mut models = self.models.write().unwrap();
