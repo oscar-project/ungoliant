@@ -40,11 +40,9 @@ jobs:
         if: steps.cache-blocklist.outputs.cache-hit != 'true'
         run: |
           mkdir -p res/blocklist
-          wget ftp://ftp.ut-capitole.fr/pub/reseau/cache/squidguard_contrib/blacklists.tar.gz
-          tar xvzf blacklists.tar.gz
-          mv blacklists/* res/blocklist
-          rm blacklists.tar.gz
-          rmdir blacklists
+          git clone https://github.com/olbat/ut1-blacklists 
+          mv ut1-blacklists/blacklists/* res/blocklist
+          rm -r ut1-blacklists
       - name: Fetch CC shards
         if: steps.cache-shards.outputs.cache-hit != 'true'
         run: |
