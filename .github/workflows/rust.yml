@@ -52,7 +52,7 @@ jobs:
           wget -O res/shards/0.txt.gz https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/segments/1659882570651.49/wet/CC-MAIN-20220807150925-20220807180925-00000.warc.wet.gz
           wget -O res/shards/1.txt.gz https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/segments/1659882570651.49/wet/CC-MAIN-20220807150925-20220807180925-00001.warc.wet.gz
       - name: Install KenLM dependencies
-        run: apt install -y libboost-all-dev libeigen3-dev
+        run: sudo apt install -y libboost-all-dev libeigen3-dev
       - name: Build
         run: cargo build --verbose
       - name: Create test directories
