@@ -35,8 +35,8 @@ use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
 use crate::transformers::{
-    self, AdultDetector, Annotate, Annotator, ContentDetector, Header, Models, Noisy,
-    ShortSentences, TinyDocument, Transform,
+    self, AdultDetector, AdultDetectorBuilder, Annotate, Annotator, ContentDetector, Header,
+    Models, Noisy, ShortSentences, TinyDocument, Transform,
 };
 use log::{debug, error, info, log_enabled, warn};
 use oxilangtag::LanguageTag;
@@ -53,10 +53,17 @@ pub struct OscarDoc {
     dst: PathBuf,
     lid_path: PathBuf,
     blocklist: Option<PathBuf>,
+    kenlms_path: Option<PathBuf>,
 }
 
 impl OscarDoc {
-    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf, blocklist: Option<PathBuf>) -> Self {
+    pub fn new(
+        src: PathBuf,
+        dst: PathBuf,
+        lid_path: PathBuf,
+        blocklist: Option<PathBuf>,
+        kenlms_path: Option<PathBuf>,
+    ) -> Self {
         if blocklist.is_none() {
             warn!("No blocklist folder specified! No adult content tagging will be done.");
         }
@@ -67,6 +74,7 @@ impl OscarDoc {
             dst,
             lid_path,
             blocklist,
+            kenlms_path,
         }
     }
 
@@ -328,12 +336,17 @@ impl OscarDoc {
     /// run kenlm models on data, adding perplexity.
     fn run_kenlms(
         models: &Models,
+        base_model_path: &Path,
         documents: &mut HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
     ) {
         for (lang, docs) in documents {
             // create builder if it does not exist
             if !models.contains(lang) {
-                models.insert_default_builder(lang);
+                let mut model_path = base_model_path.to_path_buf();
+                model_path.set_file_name(lang.to_string());
+                model_path.set_extension("binary");
+                let adb = AdultDetectorBuilder::new(model_path);
+                models.insert_builder(lang, adb);
             }
             if !models.is_loaded(lang) {
                 if let Err(e) = models.load(lang) {
@@ -468,7 +481,9 @@ impl Pipeline<()> for OscarDoc {
 
                 // run kenlms after identification so that shard results are already
                 // sorted by language.
-                Self::run_kenlms(&kenlms, &mut hm);
+                if let Some(kenlms_path) = &self.kenlms_path {
+                    Self::run_kenlms(&kenlms, kenlms_path, &mut hm);
+                }
 
                 Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
                     .unwrap();

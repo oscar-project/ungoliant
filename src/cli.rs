@@ -170,4 +170,11 @@ pub struct Pipeline {
         help = "Optional path to blocklist."
     )]
     pub blocklist: Option<PathBuf>,
+
+    #[structopt(
+        parse(from_os_str),
+        long = "kenlms-path",
+        help = "Optional path to kenlm folder. for the language xx, you have to have a xx.binary file."
+    )]
+    pub kenlms_path: Option<PathBuf>,
 }

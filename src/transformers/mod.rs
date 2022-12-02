@@ -21,6 +21,7 @@ pub use annotate::Annotator;
 pub use content_detector::ContentDetector;
 pub use header::Header;
 pub use kenlm::AdultDetector;
+pub use kenlm::AdultDetectorBuilder;
 pub use kenlm::Models;
 pub use noisy::Noisy;
 pub use sentence_filter::Conv;
