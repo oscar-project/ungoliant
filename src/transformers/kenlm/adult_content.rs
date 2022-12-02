@@ -88,6 +88,19 @@ mod test {
     #[test]
     fn test_nonexisting() {
         let adb = AdultDetectorBuilder::new(PathBuf::from("fezlfzej"));
-        adb.build();
+        assert!(adb.build().is_err());
     }
+
+    #[test]
+    fn test_existing_valid() {
+        let adb = AdultDetectorBuilder::new(PathBuf::from("res/kenlm/overfit.arpa"));
+        assert!(adb.build().is_ok());
+    }
+
+    // See https://github.com/Uinelj/ctclib/issues/1
+    // #[test]
+    // fn test_existing_invalid() {
+    //     let adb = AdultDetectorBuilder::new(PathBuf::from("res/kenlm/overfit_bugged.arpa"));
+    //     assert!(adb.build().is_err());
+    // }
 }
