@@ -1,13 +1,16 @@
+use std::path::Path;
+
 use ctclib::{Dict, KenLM, Model, LM};
 
+const MODEL_PATH: &str = "kenlm_mini.arpa";
 fn main() {
     let dict = Dict::new();
-    let mut model = Model::new("kenlm_big.binary");
+    let mut model = Model::new(&Path::new(MODEL_PATH)).unwrap();
     let vocab = model.vocab();
     let kind_sentence = "This is a perfectly valid sentence";
     let total_score = perplexity(&mut model, kind_sentence);
     {
-        let mut model = KenLM::new("kenlm_big.binary", &Dict::new());
+        let mut model = KenLM::new(&Path::new(MODEL_PATH), &Dict::new()).unwrap();
         let total_score = model.perplexity(kind_sentence);
         println!("kind: {total_score}");
     }

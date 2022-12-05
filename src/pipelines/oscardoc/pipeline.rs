@@ -213,7 +213,6 @@ impl OscarDoc {
                 .add(Box::new(TinyDocument::default()))
                 .add(Box::new(ShortSentences::default()))
                 .add(Box::new(Header::default()))
-                .add(Box::new(AdultDetector::default()))
                 .add(Box::new(Noisy::default()));
 
             // TODO: Same here, we instantiate it once by shard
@@ -339,11 +338,12 @@ impl OscarDoc {
         base_model_path: &Path,
         documents: &mut HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
     ) {
+        debug!("Running kenlms");
         for (lang, docs) in documents {
             // create builder if it does not exist
             if !models.contains(lang) {
                 let mut model_path = base_model_path.to_path_buf();
-                model_path.set_file_name(lang.to_string());
+                model_path.push(lang.to_string());
                 model_path.set_extension("binary");
                 let adb = AdultDetectorBuilder::new(model_path);
                 models.insert_builder(lang, adb);

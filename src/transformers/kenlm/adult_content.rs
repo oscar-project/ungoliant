@@ -12,10 +12,12 @@ pub struct AdultDetectorBuilder {
 
 impl AdultDetectorBuilder {
     pub fn new(path: PathBuf) -> AdultDetectorBuilder {
+        debug!("New builder: {:?}", path);
         Self { path }
     }
 
     pub fn build(&self) -> Result<AdultDetector, std::io::Error> {
+        debug!("Building new KenLM from path {:?}", self.path);
         if !self.path.exists() {
             Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -23,7 +25,7 @@ impl AdultDetectorBuilder {
             ))
         } else {
             Ok(AdultDetector {
-                kenlm: KenLM::new(self.path.to_string_lossy(), &Dict::new()),
+                kenlm: KenLM::new(&self.path, &Dict::new())?,
                 pp_thresh: 1000.0,
             })
         }
@@ -35,13 +37,12 @@ pub struct AdultDetector {
 }
 
 impl AdultDetector {
-    pub fn new(model_path: &Path, pp_thresh: f32) -> Self {
+    pub fn new(model_path: &Path, pp_thresh: f32) -> Result<Self, std::io::Error> {
         //TODO: check existencemodel_path.as_os_str().to_str().unwrap() of path
-        let model_path = model_path.as_os_str().to_str().unwrap();
-        Self {
-            kenlm: KenLM::new(model_path, &Dict::new()),
+        Ok(Self {
+            kenlm: KenLM::new(model_path, &Dict::new())?,
             pp_thresh,
-        }
+        })
     }
 }
 
@@ -62,22 +63,6 @@ impl Annotate<Document> for AdultDetector {
     }
 }
 
-impl Default for AdultDetectorBuilder {
-    fn default() -> Self {
-        Self {
-            path: PathBuf::from("kenlm_big.binary"),
-        }
-    }
-}
-
-impl Default for AdultDetector {
-    fn default() -> Self {
-        Self {
-            kenlm: KenLM::new("kenlm_big.binary", &Dict::new()),
-            pp_thresh: 2906f32,
-        }
-    }
-}
 #[cfg(test)]
 mod test {
     use std::path::PathBuf;

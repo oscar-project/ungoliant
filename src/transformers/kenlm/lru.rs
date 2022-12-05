@@ -72,20 +72,6 @@ impl Models {
         builders_lock.insert(lang.to_owned(), Arc::new(RwLock::new(builder)));
     }
 
-    /// Insert the default builder for a given language.
-    /// See [AdultDetectorBuilder::default] to check the default values.
-    /// Behaves like [HashMap::insert].
-    ///
-    /// Be aware that you'll have to call [Models::get] to actually build the model.
-    pub fn insert_default_builder(&self, lang: &LanguageTag<String>) {
-        debug!("Creating default builder for {lang}");
-        let mut builders_lock = self.builders.write().unwrap();
-        builders_lock.insert(
-            lang.to_owned(),
-            Arc::new(RwLock::new(AdultDetectorBuilder::default())),
-        );
-    }
-
     /// Load a model by using this language's builder.
     pub fn load(&self, lang: &LanguageTag<String>) -> Result<(), Error> {
         debug!("Loading model {lang} in memory");
