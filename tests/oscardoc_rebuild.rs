@@ -8,6 +8,7 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
 };
+use test_log::test;
 
 use ungoliant::{
     lang::Lang,

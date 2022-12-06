@@ -56,6 +56,7 @@ sha-1 = "0.9"
 criterion = "0.3"
 serial_test = "0.5.1"
 tempfile="3.2.0"
+test-log = "0.2.11"
 
 [[bench]]
 name = "fasttext_bench"

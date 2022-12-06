@@ -345,6 +345,12 @@ impl OscarDoc {
                 let mut model_path = base_model_path.to_path_buf();
                 model_path.push(lang.to_string());
                 model_path.set_extension("binary");
+
+                // if a binary model does not exist, resort to arpa ones.
+                // loading will be way slower.
+                if !model_path.exists() {
+                    model_path.set_extension("arpa");
+                }
                 let adb = AdultDetectorBuilder::new(model_path);
                 models.insert_builder(lang, adb);
             }

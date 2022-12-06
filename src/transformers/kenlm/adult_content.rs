@@ -78,7 +78,7 @@ mod test {
 
     #[test]
     fn test_existing_valid() {
-        let adb = AdultDetectorBuilder::new(PathBuf::from("res/kenlm/overfit.arpa"));
+        let adb = AdultDetectorBuilder::new(PathBuf::from("res/kenlm/en.arpa"));
         assert!(adb.build().is_ok());
     }
 

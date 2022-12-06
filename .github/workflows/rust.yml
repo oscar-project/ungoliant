@@ -40,9 +40,11 @@ jobs:
         if: steps.cache-blocklist.outputs.cache-hit != 'true'
         run: |
           mkdir -p res/blocklist
-          git clone https://github.com/olbat/ut1-blacklists 
-          mv ut1-blacklists/blacklists/* res/blocklist
-          rm -r ut1-blacklists
+          wget https://github.com/olbat/ut1-blacklists/archive/refs/heads/master.zip
+          unzip master.zip
+          mv ut1-blacklists-master/blacklists/* res/blocklist
+          gzip -d res/blocklist/adult/domains.gz  #adult blocklist is compressed
+          rm -r ut1-blacklists-master
       - name: Fetch CC shards
         if: steps.cache-shards.outputs.cache-hit != 'true'
         run: |
@@ -54,14 +56,17 @@ jobs:
       - name: Get sample KenLM model
         run: |
           mkdir -p res/kenlm
-          wget -O res/kenlm/overfit.arpa https://raw.githubusercontent.com/agatan/ctclib/main/data/overfit.arpa
-          cp res/kenlm/overfit.arpa cp res/kenlm/en.
+          wget -O res/kenlm/en.arpa https://raw.githubusercontent.com/agatan/ctclib/main/data/overfit.arpa
       - name: Build
         run: cargo build --verbose
       - name: Create test directories
-        run: mkdir res/corpus res/rebuilt
+        run: |
+          mkdir res/corpus
+          mkdir res/rebuilt
+          mkdir -p res/corpus/rebuild
+          ls res/
       - name: Run tests
-        run: RUST_BACKTRACE=full cargo test --verbose
+        run: RUST_BACKTRACE=1 cargo test --verbose
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         continue-on-error: true
