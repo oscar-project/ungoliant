@@ -55,12 +55,13 @@ jobs:
         run: |
           mkdir -p res/kenlm
           wget -O res/kenlm/overfit.arpa https://raw.githubusercontent.com/agatan/ctclib/main/data/overfit.arpa
+          cp res/kenlm/overfit.arpa cp res/kenlm/en.
       - name: Build
         run: cargo build --verbose
       - name: Create test directories
         run: mkdir res/corpus res/rebuilt
       - name: Run tests
-        run: cargo test --verbose
+        run: RUST_BACKTRACE=full cargo test --verbose
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         continue-on-error: true
