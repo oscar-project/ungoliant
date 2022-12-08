@@ -34,10 +34,13 @@ use crate::io::writer::WriterTrait;
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
+
 use crate::transformers::{
-    self, AdultDetector, AdultDetectorBuilder, Annotate, Annotator, ContentDetector, Header,
-    Models, Noisy, ShortSentences, TinyDocument, Transform,
+    self, Annotate, Annotator, ContentDetector, Header, Noisy, ShortSentences, TinyDocument,
+    Transform,
 };
+#[cfg(feature = "kenlm")]
+use crate::transformers::{AdultDetector, AdultDetectorBuilder, Models};
 use log::{debug, error, info, log_enabled, warn};
 use oxilangtag::LanguageTag;
 use rayon::prelude::*;
@@ -333,6 +336,7 @@ impl OscarDoc {
     }
 
     /// run kenlm models on data, adding perplexity.
+    #[cfg(feature = "kenlm")]
     fn run_kenlms(
         models: &Models,
         base_model_path: &Path,
@@ -466,6 +470,7 @@ impl Pipeline<()> for OscarDoc {
         let results = results.enumerate().par_bridge();
 
         let langfiles = LangFilesDoc::new(&self.dst, None);
+        #[cfg(feature = "kenlm")]
         let kenlms = Models::default();
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
@@ -487,6 +492,7 @@ impl Pipeline<()> for OscarDoc {
 
                 // run kenlms after identification so that shard results are already
                 // sorted by language.
+                #[cfg(feature = "kenlm")]
                 if let Some(kenlms_path) = &self.kenlms_path {
                     Self::run_kenlms(&kenlms, kenlms_path, &mut hm);
                 }
