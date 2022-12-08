@@ -403,6 +403,7 @@ dependencies = [
 [[package]]
 name = "ctclib"
 version = "0.1.0"
+source = "git+https://github.com/Uinelj/ctclib#698102c94f0d0ee8a2e608110a74374153b7f5c1"
 dependencies = [
  "ctclib-kenlm-sys",
  "libm",
@@ -414,6 +415,7 @@ dependencies = [
 [[package]]
 name = "ctclib-kenlm-sys"
 version = "0.1.0"
+source = "git+https://github.com/Uinelj/ctclib#698102c94f0d0ee8a2e608110a74374153b7f5c1"
 dependencies = [
  "bindgen",
  "cc",
@@ -1850,6 +1852,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-log"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38f0c854faeb68a048f0f2dc410c5ddae3bf83854ef0e4977d58306a5edef50e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2081,6 +2094,7 @@ dependencies = [
  "sha2",
  "structopt",
  "tempfile",
+ "test-log",
  "tokio",
  "tokio-util 0.6.10",
  "twox-hash",
