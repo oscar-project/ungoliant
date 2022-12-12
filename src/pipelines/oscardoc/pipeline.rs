@@ -344,25 +344,14 @@ impl OscarDoc {
     ) {
         debug!("Running kenlms");
         for (lang, docs) in documents {
-            // create builder if it does not exist
-            if !models.contains(lang) {
-                let mut model_path = base_model_path.to_path_buf();
-                model_path.push(lang.to_string());
-                model_path.set_extension("binary");
-
-                // if a binary model does not exist, resort to arpa ones.
-                // loading will be way slower.
-                if !model_path.exists() {
-                    model_path.set_extension("arpa");
-                }
-                let adb = AdultDetectorBuilder::new(model_path);
-                models.insert_builder(lang, adb);
-            }
+            // attempt to load model for provided lang.
+            // It's okay if it's not possible.
             if !models.is_loaded(lang) {
                 if let Err(e) = models.load(lang) {
-                    warn!("Couldn't load model for lang {lang:?}: {e:?}");
+                    debug!("Couldn't load model for lang {lang:?}: {e:?}");
                 }
             }
+
             // TODO: Possible problem here, if between load and get the HM is modified.
             // Add a way of dealing with that?
             // possibly creating a scope and then using "direct" method calls rather than
@@ -373,7 +362,7 @@ impl OscarDoc {
                     model.annotate(doc);
                 }
             } else {
-                error!("Could not annotate using model {lang}");
+                error!("Could not annotate using model {lang}: No model");
             }
         }
     }
@@ -471,7 +460,16 @@ impl Pipeline<()> for OscarDoc {
 
         let langfiles = LangFilesDoc::new(&self.dst, None);
         #[cfg(feature = "kenlm")]
-        let kenlms = Models::default();
+        let kenlms = if let Some(kenlms_path) = &self.kenlms_path {
+            Models::from_dir(kenlms_path)?
+        } else {
+            /*  TODO: Remove panic here.
+                We should either:
+                    - Have an "appendable" switch which enables Models to find binaries at runtime (with write lock cost)
+                    - Crash on no kenlms provided OR have a warning to indicate that no kenlm annotations will be done.
+            */
+            panic!("No kenlms path provided but feature turned on!");
+        };
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 

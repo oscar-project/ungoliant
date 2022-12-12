@@ -16,6 +16,12 @@ impl AdultDetectorBuilder {
         Self { path }
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+    pub fn set_path(&mut self, path: &Path) {
+        self.path = path.to_path_buf()
+    }
     pub fn build(&self) -> Result<AdultDetector, std::io::Error> {
         debug!("Building new KenLM from path {:?}", self.path);
         if !self.path.exists() {

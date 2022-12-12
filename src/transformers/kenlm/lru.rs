@@ -1,9 +1,11 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{hash_map::Entry, HashMap, VecDeque},
+    ffi::OsStr,
+    path::Path,
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
-use log::{debug, error};
+use log::{debug, error, warn};
 use oxilangtag::LanguageTag;
 
 use crate::pipelines::oscardoc::types::{Document, Location};
@@ -12,6 +14,13 @@ use super::{
     adult_content::{self, AdultDetectorBuilder},
     AdultDetector,
 };
+
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref KENLM_EXTS: [Option<&'static OsStr>; 2] =
+        [Some(OsStr::new("arpa")), Some(OsStr::new("binary"))];
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -39,6 +48,78 @@ impl Models {
         &self,
     ) -> RwLockReadGuard<HashMap<LanguageTag<String>, Arc<RwLock<AdultDetector>>>> {
         self.models.read().unwrap()
+    }
+
+    /// Create a new `Models` struct already populated by builders for langs/models present in provided directory.
+    pub fn from_dir(dir: &Path) -> std::io::Result<Self> {
+        let mut builders: HashMap<LanguageTag<_>, AdultDetectorBuilder> = HashMap::new();
+
+        // iterate over entries in kenlms path
+        for direntry in std::fs::read_dir(&dir)? {
+            if let Ok(direntry) = direntry {
+                let model_path = direntry.path();
+                if !model_path.is_file() {
+                    debug!("{model_path:?} is not a file, skipping");
+                    continue;
+                }
+
+                // skip files that are not arpa or binary
+                if !KENLM_EXTS.contains(&model_path.extension()) {
+                    warn!("{model_path:?} is not a KenLM model file, skipping");
+                    continue;
+                }
+
+                //  get model name
+                let model_name = model_path.file_stem();
+
+                if model_name.is_none() {
+                    warn!("Couldn't find a model name for {model_path:?}, skipping");
+                    continue;
+                }
+
+                let model_name = model_name.unwrap().to_string_lossy().to_string();
+
+                // try to parse the model name into a language
+                if let Ok(model_name) = LanguageTag::parse(model_name.to_owned()) {
+                    match builders.entry(model_name) {
+                        // if we already have one, check file extension
+                        Entry::Occupied(mut o) => {
+                            // if we have a builder on arpa model, replace by binary model.
+                            if o.get().path().extension() == KENLM_EXTS[0] {
+                                o.get_mut().set_path(&model_path);
+                            }
+                        }
+
+                        // insert
+                        Entry::Vacant(v) => {
+                            v.insert(AdultDetectorBuilder::new(model_path.to_path_buf()));
+                        }
+                    }
+                } else {
+                    warn!("Couldn't parse {model_name:?} into a proper language tag, skipping");
+                    continue;
+                }
+            }
+        }
+
+        debug!(
+            "Got {} KenLMs for the following languages: {:?}",
+            builders.len(),
+            builders.keys().collect::<Vec<_>>()
+        );
+
+        // wrap into arc+rwlock.
+        // TODO: maybe remove arc+rwlock on the HM and/or on the models, since after this step there's no write access,
+        //       or keep it for LRU cache impl later on.
+        let builders = builders
+            .into_iter()
+            .map(|(name, builder)| (name, Arc::new(RwLock::new(builder))))
+            .collect();
+
+        Ok(Models {
+            builders: Arc::new(RwLock::new(builders)),
+            ..Default::default()
+        })
     }
 
     /// Check if there is a builder for a given language.
@@ -82,7 +163,7 @@ impl Models {
             models.insert(lang.to_owned(), Arc::new(RwLock::new(builder.build()?)));
             Ok(())
         } else {
-            error!("Could not load model for lang {lang}");
+            debug!("Could not load model for lang {lang}");
             Err(Error::NoBuilder(format!("No builder found for {lang:?}")))
         }
     }
