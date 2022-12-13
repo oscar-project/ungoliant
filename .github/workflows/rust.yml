@@ -69,6 +69,8 @@ jobs:
         run: RUST_BACKTRACE=1 cargo test --verbose
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1.3
+        with:
+          timeout: 180
         continue-on-error: true
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
