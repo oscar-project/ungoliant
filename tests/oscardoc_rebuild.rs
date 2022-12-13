@@ -32,6 +32,7 @@ fn gen_corpus() {
 }
 
 #[test]
+#[cfg(not(tarpaulin))]
 fn check_rebuild() {
     #[inline]
     fn get_record_id(doc: &Document) -> &str {
