@@ -10,8 +10,13 @@ Transformers can either (or both) [Annotate] content or [Transform] it:
 mod annotate;
 mod content_detector;
 mod header;
+
 mod lsh;
 mod noisy;
+
+#[cfg(feature = "kenlm")]
+mod kenlm;
+
 mod sentence_filter;
 mod tiny;
 mod transform;
@@ -20,6 +25,12 @@ pub use annotate::Annotator;
 pub use content_detector::ContentDetector;
 pub use header::Header;
 pub use lsh::LSH;
+#[cfg(feature = "kenlm")]
+pub use kenlm::AdultDetector;
+#[cfg(feature = "kenlm")]
+pub use kenlm::AdultDetectorBuilder;
+#[cfg(feature = "kenlm")]
+pub use kenlm::Models;
 pub use noisy::Noisy;
 pub use sentence_filter::Conv;
 pub use sentence_filter::RemoveShortSentences;

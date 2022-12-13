@@ -5,8 +5,6 @@ use std::fs::File;
 use std::io::Write;
 use structopt::StructOpt;
 
-
-
 use crate::pipelines::Pipeline;
 
 #[macro_use]
@@ -62,7 +60,8 @@ async fn main() -> Result<(), error::Error> {
         cli::Ungoliant::Pipeline(p) => {
             let mut schema_filepath = p.dst.clone();
             // let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
-            let p = pipelines::OscarDocNew::new(p.src, p.dst, p.lid_path, p.blocklist);
+            let p =
+                pipelines::OscarDocNew::new(p.src, p.dst, p.lid_path, p.blocklist, p.kenlms_path);
             p.run()?;
 
             schema_filepath.push("metadata_schema.json");

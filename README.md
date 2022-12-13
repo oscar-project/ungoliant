@@ -21,6 +21,18 @@ Ungoliant is a replacement of [goclassy](https://github.com/oscar-corpus/goclass
 
 Ungoliant needs numerous dependencies that should be compiled when installing. However `cmake / gcc` can be needed as the project uses [fasttext-rs](https://github.com/messense/fasttext-rs).
 
+### KenLM feature
+
+The KenLM feature is optional because it relies on unsafe code that can break if the supplied model files are not correct.
+
+To enable it, install KenLM requirements:
+
+```bash
+apt install -y libboost-all-dev libeigen3-dev
+```
+
+and use `cargo install ungoliant --feature kenlm` or `cargo b --features kenlm` if you're building from source.
+
 ### Getting the language identification file (for fastText):
 
 Use `curl https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin -o lid.176.bin`.

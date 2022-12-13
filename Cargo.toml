@@ -47,6 +47,11 @@ language-tags = "0.3.2"
 lazy_static = "1.4.0"
 oscar-io = "0.1.3"
 tlsh = {git="https://github.com/Uinelj/tlsh-rs", branch="fix-q3-panic"}
+ctclib = {git="https://github.com/Uinelj/ctclib", optional=true}
+
+
+[features]
+kenlm = ["dep:ctclib"]
 
 [dev-dependencies]
 rand_distr = "0.4.2"
@@ -54,6 +59,7 @@ sha-1 = "0.9"
 criterion = "0.3"
 serial_test = "0.5.1"
 tempfile="3.2.0"
+test-log = "0.2.11"
 
 [[bench]]
 name = "fasttext_bench"

@@ -19,6 +19,7 @@ type Identification = IdentificationGen<String>;
 /// TODO: make it a HashMap
 pub struct Metadata {
     identification: Identification,
+    harmful_pp: Option<f32>,
     annotation: Option<Vec<String>>,
     sentence_identifications: Vec<Option<Identification>>,
 }
@@ -30,6 +31,7 @@ impl Metadata {
     ) -> Self {
         Metadata {
             identification: identification.clone(),
+            harmful_pp: None,
             annotation: None,
             sentence_identifications: sentence_identifications.to_owned(),
         }
@@ -55,6 +57,10 @@ impl Metadata {
     pub fn sentence_identifications(&self) -> &[Option<Identification>] {
         self.sentence_identifications.as_ref()
     }
+
+    pub fn set_harmful_pp(&mut self, harmful_pp: Option<f32>) {
+        self.harmful_pp = harmful_pp;
+    }
 }
 
 impl Default for Metadata {
@@ -63,6 +69,7 @@ impl Default for Metadata {
     fn default() -> Self {
         Self {
             identification: Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0),
+            harmful_pp: None,
             annotation: None,
             sentence_identifications: vec![Some(Identification::new(
                 LanguageTag::parse("en".to_string()).unwrap(),
