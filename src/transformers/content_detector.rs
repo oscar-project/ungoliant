@@ -52,7 +52,7 @@ impl<'a> Annotate<Document> for ContentDetector<'a> {
             if self.bl.detect_domain(&valid_url) || self.bl.detect_url(&valid_url) {
                 debug!("Document {} flagged as adult", doc.warc_id());
                 doc.metadata_mut()
-                    .set_annotation(self.bl.kind().to_string());
+                    .add_annotation(self.bl.kind().to_string());
             }
         }
     }

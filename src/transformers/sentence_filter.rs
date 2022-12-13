@@ -42,7 +42,7 @@ impl Annotate<Document> for ShortSentences {
         if nb_short_lines > threshold {
             debug!("record {} flagged for short sentences", doc.warc_id());
             doc.metadata_mut()
-                .set_annotation("short_sentences".to_string());
+                .add_annotation("short_sentences".to_string());
         }
     }
 }
@@ -384,7 +384,6 @@ baz
         .to_string();
         let headers = HashMap::new();
         let metadata = Metadata::default();
-        
 
         Document::new(content, headers, metadata)
     }

@@ -37,7 +37,7 @@ use crate::sources::commoncrawl::Wet;
 
 use crate::transformers::{
     self, Annotate, Annotator, ContentDetector, Header, Noisy, ShortSentences, TinyDocument,
-    Transform,
+    Transform, LSH,
 };
 #[cfg(feature = "kenlm")]
 use crate::transformers::{AdultDetector, AdultDetectorBuilder, Models};
@@ -216,6 +216,7 @@ impl OscarDoc {
                 .add(Box::new(TinyDocument::default()))
                 .add(Box::new(ShortSentences::default()))
                 .add(Box::new(Header::default()))
+                .add(Box::new(LSH::default()))
                 .add(Box::new(Noisy::default()));
 
             // TODO: Same here, we instantiate it once by shard

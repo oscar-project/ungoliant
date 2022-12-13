@@ -37,13 +37,16 @@ impl Metadata {
         }
     }
 
-    /// Set the metadata's annotation.
-    pub fn set_annotation(&mut self, annotation: String) {
+    pub fn add_annotation(&mut self, annotation: String) {
         match &mut self.annotation {
             Some(anno) => anno.push(annotation),
             None => self.annotation = Some(vec![annotation]),
         }
     }
+    /// Set the metadata's annotation.
+    // pub fn set_annotation(&mut self, annotation: String) {
+    //     self.annotation = Some(vec![annotation]);
+    // }
 
     /// Get a reference to the metadata's annotation.
     pub fn annotation(&self) -> Option<&Vec<String>> {

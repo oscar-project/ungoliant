@@ -38,7 +38,7 @@ impl Annotate<Document> for Noisy {
 
                 // if count is more than what we consider to be the threshold, stop there
                 if nonletter_count > threshold {
-                    doc.metadata_mut().set_annotation("noisy".to_string());
+                    doc.metadata_mut().add_annotation("noisy".to_string());
                     break;
                 }
             } else {

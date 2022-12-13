@@ -8,7 +8,7 @@ pub struct TinyDocument {
 impl Annotate<Document> for TinyDocument {
     fn annotate(&self, doc: &mut Document) {
         if doc.content().lines().count() < self.threshold {
-            doc.metadata_mut().set_annotation("tiny".to_string())
+            doc.metadata_mut().add_annotation("tiny".to_string())
         }
     }
 }

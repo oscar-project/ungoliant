@@ -42,7 +42,7 @@ impl Annotate<Document> for Header {
         // iterate over the header, counting short lines
         let short_lines_count = self.count_short_lines(doc.content().lines().take(nb_lines_header));
         if short_lines_count > treshold_lines {
-            doc.metadata_mut().set_annotation("header".to_string());
+            doc.metadata_mut().add_annotation("header".to_string());
         }
 
         // do the same in reverse order (to get footer)
@@ -50,7 +50,7 @@ impl Annotate<Document> for Header {
             self.count_short_lines(doc.content().lines().rev().take(nb_lines_header));
 
         if short_lines_count > treshold_lines {
-            doc.metadata_mut().set_annotation("footer".to_string());
+            doc.metadata_mut().add_annotation("footer".to_string());
         }
     }
 }
