@@ -34,10 +34,13 @@ use crate::io::writer::WriterTrait;
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
+
 use crate::transformers::{
     self, Annotate, Annotator, ContentDetector, Header, Noisy, ShortSentences, TinyDocument,
     Transform,
 };
+#[cfg(feature = "kenlm")]
+use crate::transformers::{AdultDetector, AdultDetectorBuilder, Models};
 use log::{debug, error, info, log_enabled, warn};
 use oxilangtag::LanguageTag;
 use rayon::prelude::*;
@@ -53,10 +56,17 @@ pub struct OscarDoc {
     dst: PathBuf,
     lid_path: PathBuf,
     blocklist: Option<PathBuf>,
+    kenlms_path: Option<PathBuf>,
 }
 
 impl OscarDoc {
-    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf, blocklist: Option<PathBuf>) -> Self {
+    pub fn new(
+        src: PathBuf,
+        dst: PathBuf,
+        lid_path: PathBuf,
+        blocklist: Option<PathBuf>,
+        kenlms_path: Option<PathBuf>,
+    ) -> Self {
         if blocklist.is_none() {
             warn!("No blocklist folder specified! No adult content tagging will be done.");
         }
@@ -67,6 +77,7 @@ impl OscarDoc {
             dst,
             lid_path,
             blocklist,
+            kenlms_path,
         }
     }
 
@@ -199,18 +210,21 @@ impl OscarDoc {
 
         // annotate
         // TODO: Instantiate outside of shard? (We instantiate it once for each shard :/)
-        let mut annotator = Annotator::default();
-        annotator
-            .add(Box::new(TinyDocument::default()))
-            .add(Box::new(ShortSentences::default()))
-            .add(Box::new(Header::default()))
-            .add(Box::new(Noisy::default()));
+        let annotator = {
+            let mut annotator = Annotator::default();
+            annotator
+                .add(Box::new(TinyDocument::default()))
+                .add(Box::new(ShortSentences::default()))
+                .add(Box::new(Header::default()))
+                .add(Box::new(Noisy::default()));
 
-        // TODO: Same here, we instantiate it once by shard
-        if let Some(path) = blocklist {
-            let bl = Blocklist::with_folder("adult", path)?;
-            annotator.add(Box::new(ContentDetector::new(bl)));
-        }
+            // TODO: Same here, we instantiate it once by shard
+            if let Some(path) = blocklist {
+                let bl = Blocklist::with_folder("adult", path)?;
+                annotator.add(Box::new(ContentDetector::new(bl)));
+            }
+            annotator
+        };
 
         let record_iter = record_iter.map(|(loc, mut r)| {
             annotator.annotate(&mut r);
@@ -321,6 +335,38 @@ impl OscarDoc {
         ret
     }
 
+    /// run kenlm models on data, adding perplexity.
+    #[cfg(feature = "kenlm")]
+    fn run_kenlms(
+        models: &Models,
+        base_model_path: &Path,
+        documents: &mut HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
+    ) {
+        debug!("Running kenlms");
+        for (lang, docs) in documents {
+            // attempt to load model for provided lang.
+            // It's okay if it's not possible.
+            if !models.is_loaded(lang) {
+                if let Err(e) = models.load(lang) {
+                    debug!("Couldn't load model for lang {lang:?}: {e:?}");
+                }
+            }
+
+            // TODO: Possible problem here, if between load and get the HM is modified.
+            // Add a way of dealing with that?
+            // possibly creating a scope and then using "direct" method calls rather than
+            // calls that use read/write locks internally.
+            if let Some(model) = models.models().get(lang.as_ref()) {
+                let model = model.read().unwrap();
+                for (doc, _) in docs {
+                    model.annotate(doc);
+                }
+            } else {
+                error!("Could not annotate using model {lang}: No model");
+            }
+        }
+    }
+
     /// concurrently write documets
     fn write_documents<'a>(
         langfiles: &LangFilesDoc,
@@ -413,6 +459,17 @@ impl Pipeline<()> for OscarDoc {
         let results = results.enumerate().par_bridge();
 
         let langfiles = LangFilesDoc::new(&self.dst, None);
+        #[cfg(feature = "kenlm")]
+        let kenlms = if let Some(kenlms_path) = &self.kenlms_path {
+            Models::from_dir(kenlms_path)?
+        } else {
+            /*  TODO: Remove panic here.
+                We should either:
+                    - Have an "appendable" switch which enables Models to find binaries at runtime (with write lock cost)
+                    - Crash on no kenlms provided OR have a warning to indicate that no kenlm annotations will be done.
+            */
+            panic!("No kenlms path provided but feature turned on!");
+        };
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 
@@ -429,7 +486,15 @@ impl Pipeline<()> for OscarDoc {
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
-                let hm = Self::sort_by_lang(shard_result);
+                let mut hm = Self::sort_by_lang(shard_result);
+
+                // run kenlms after identification so that shard results are already
+                // sorted by language.
+                #[cfg(feature = "kenlm")]
+                if let Some(kenlms_path) = &self.kenlms_path {
+                    Self::run_kenlms(&kenlms, kenlms_path, &mut hm);
+                }
+
                 Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
                     .unwrap();
             } else {

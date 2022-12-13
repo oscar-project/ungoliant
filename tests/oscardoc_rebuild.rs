@@ -8,6 +8,7 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
 };
+use test_log::test;
 
 use ungoliant::{
     lang::Lang,
@@ -22,8 +23,9 @@ fn gen_corpus() {
     let dst = Path::new("res/corpus/").to_path_buf();
     let lid = Path::new("lid.176.bin").to_path_buf();
     let bl = Path::new("res/blocklist/").to_path_buf();
+    let kenlm = Path::new("res/kenlm/").to_path_buf();
 
-    let pipeline = OscarDoc::new(src, dst, lid, Some(bl));
+    let pipeline = OscarDoc::new(src, dst, lid, Some(bl), Some(kenlm));
     pipeline.run().expect(
         "Ensure to have shards in res/shards, lid.176.bin at root and blocklist at res/blocklist",
     );
@@ -35,7 +37,7 @@ fn check_rebuild() {
     fn get_record_id(doc: &Document) -> &str {
         doc.warc_headers().get("warc-record-id").unwrap()
     }
-    
+
     gen_corpus();
 
     // rebuild french corpus

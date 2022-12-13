@@ -27,6 +27,7 @@ use flate2::read::MultiGzDecoder;
 use itertools::Itertools;
 use log::debug;
 use log::error;
+use log::info;
 use rayon::iter::ParallelBridge;
 use rayon::iter::ParallelIterator;
 use warc::RecordIter;
@@ -254,6 +255,22 @@ impl<'a> Rebuilder<'a> {
         // in parallel
         let sr = SRIterator::new(self.src_rebuild, self.src_shards)?;
         let sr = sr.par_bridge();
+
+        if !self.src_rebuild.is_file() {
+            error!(
+                "src-rebuild has be an existing file. got {:?}",
+                self.src_rebuild
+            );
+        }
+        if !self.src_shards.is_dir() {
+            error!(
+                "src-shards has to be an existing folder. got {:?}",
+                self.src_shards
+            );
+        }
+        if !self.dst.is_dir() {
+            error!("dst-rebuild has be an existing folder. got {:?}", self.dst);
+        }
 
         // create mutex
         let wr = Arc::new(Mutex::new(WriterDoc::new(
