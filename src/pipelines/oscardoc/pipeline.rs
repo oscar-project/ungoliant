@@ -51,11 +51,14 @@ use warc::{Record, WarcHeader};
 use crate::io::LangFilesDoc;
 
 const DOC_THRESHOLD: f32 = 0.6f32;
+
+// TODO: Implement structopt directly here.
 pub struct OscarDoc {
     src: PathBuf,
     dst: PathBuf,
     lid_path: PathBuf,
     blocklist: Option<PathBuf>,
+    domain_blocklists: Option<Vec<PathBuf>>,
     kenlms_path: Option<PathBuf>,
 }
 
@@ -65,6 +68,7 @@ impl OscarDoc {
         dst: PathBuf,
         lid_path: PathBuf,
         blocklist: Option<PathBuf>,
+        domain_blocklists: Option<Vec<PathBuf>>,
         kenlms_path: Option<PathBuf>,
     ) -> Self {
         if blocklist.is_none() {
@@ -77,6 +81,7 @@ impl OscarDoc {
             dst,
             lid_path,
             blocklist,
+            domain_blocklists,
             kenlms_path,
         }
     }
@@ -128,6 +133,7 @@ impl OscarDoc {
         identifier: &FastText,
         filter: Option<record::FilterKind>,
         blocklist: &Option<PathBuf>,
+        domain_blocklists: &Option<Vec<PathBuf>>,
     ) -> Result<(usize, Vec<(Document, Location)>), Error> {
         info!("working on shard: {:?}", shard_path);
 
@@ -220,10 +226,31 @@ impl OscarDoc {
                 .add(Box::new(Noisy::default()));
 
             // TODO: Same here, we instantiate it once by shard
+            // add ut1 blocklist adult annotation
             if let Some(path) = blocklist {
-                let bl = Blocklist::with_folder("adult", path)?;
+                let bl = Blocklist::with_folder("adult".to_string(), path)?;
                 annotator.add(Box::new(ContentDetector::new(bl)));
             }
+
+            // add other (custom) blocklists
+            if let Some(paths) = domain_blocklists {
+                for path in paths {
+                    if path.is_file() {
+                        let annotation = path
+                            .file_name()
+                            .map(|filename| filename.to_string_lossy().to_string());
+                        if let Some(annotation) = annotation {
+                            let bl = Blocklist::from_domains_file(annotation, path)?;
+                            info!("added content detector for annotation from {path:?}");
+                            info!("domains: {:?}", bl.domains());
+                            annotator.add(Box::new(ContentDetector::new(bl)));
+                        } else {
+                            error!("Could not get annotation for blocklist {path:?}, skipping");
+                        }
+                    }
+                }
+            }
+
             annotator
         };
 
@@ -480,7 +507,7 @@ impl Pipeline<()> for OscarDoc {
         let shards_results = results.map(|(idx, shard)| {
             (
                 idx,
-                Self::process_shard(&shard, &cls, None, &self.blocklist),
+                Self::process_shard(&shard, &cls, None, &self.blocklist, &self.domain_blocklists),
             )
         });
 

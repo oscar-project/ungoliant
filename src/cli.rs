@@ -173,6 +173,13 @@ pub struct Pipeline {
 
     #[structopt(
         parse(from_os_str),
+        long = "domain-blocklists",
+        help = "domain-blocklists path. For folders, will treat each file as a different blocklist. For files, filename=annotation. use ut1-blocklist for using ut1 blocklist annotations"
+    )]
+    pub domain_blocklists: Option<Vec<PathBuf>>,
+
+    #[structopt(
+        parse(from_os_str),
         long = "kenlms-path",
         help = "Optional path to kenlm folder. for the language xx, you have to have a xx.binary file."
     )]
