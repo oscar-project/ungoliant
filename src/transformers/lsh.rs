@@ -7,7 +7,7 @@ use crate::pipelines::oscardoc::types::Document;
 use warc::WarcHeader;
 
 use super::Annotate;
-use log::warn;
+use log::{debug, warn};
 pub struct LSH {
     builder: TlshBuilder,
 }
@@ -26,7 +26,7 @@ impl Annotate<Document> for LSH {
                 let annotation = format!("tlsh:{}", hash.hash());
                 doc.metadata_mut().add_annotation(annotation);
             }
-            Err(e) => warn!(
+            Err(e) => debug!(
                 "Could not compute a hash for document {:?}: {:?}",
                 String::from_utf8_lossy(
                     doc.warc_headers()

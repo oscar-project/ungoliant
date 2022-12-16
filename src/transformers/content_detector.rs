@@ -14,13 +14,13 @@ use url::Url;
 
 use super::Annotate;
 
-pub struct ContentDetector<'a> {
-    bl: Blocklist<'a>,
+pub struct ContentDetector {
+    bl: Blocklist,
 }
 
-impl<'a> ContentDetector<'a> {
+impl ContentDetector {
     /// Create a new [ContentDetector] based on a specified [Blocklist].
-    pub fn new(bl: Blocklist<'a>) -> Self {
+    pub fn new(bl: Blocklist) -> Self {
         Self { bl }
     }
 
@@ -40,7 +40,7 @@ impl<'a> ContentDetector<'a> {
     }
 }
 
-impl<'a> Annotate<Document> for ContentDetector<'a> {
+impl Annotate<Document> for ContentDetector {
     /// Checks if domain/url is present in provided blocklist, and adds a tag
     /// corresponding to blocklist kind if true.
     fn annotate(&self, doc: &mut Document) {
@@ -50,7 +50,7 @@ impl<'a> Annotate<Document> for ContentDetector<'a> {
         // if we were successful, detect domain and url
         if let Some(valid_url) = url {
             if self.bl.detect_domain(&valid_url) || self.bl.detect_url(&valid_url) {
-                debug!("Document {} flagged as adult", doc.warc_id());
+                debug!("Document {} flagged as {}", doc.warc_id(), self.bl.kind());
                 doc.metadata_mut()
                     .add_annotation(self.bl.kind().to_string());
             }
@@ -102,7 +102,7 @@ mod tests {
         let mut domains = HashSet::new();
         domains.insert("foo.bar".to_string());
 
-        let bl = Blocklist::new("adult", domains, HashSet::new());
+        let bl = Blocklist::new("adult".to_string(), domains, HashSet::new());
         let cd = ContentDetector::new(bl);
 
         cd.annotate(&mut doc);
@@ -120,7 +120,7 @@ mod tests {
         let mut domains = HashSet::new();
         domains.insert("baz.quux".to_string());
 
-        let bl = Blocklist::new("adult", domains, HashSet::new());
+        let bl = Blocklist::new("adult".to_string(), domains, HashSet::new());
         let cd = ContentDetector::new(bl);
 
         cd.annotate(&mut doc);
