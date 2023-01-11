@@ -44,7 +44,7 @@ use crate::transformers::{AdultDetector, AdultDetectorBuilder, Models};
 use log::{debug, error, info, log_enabled, warn};
 use oxilangtag::LanguageTag;
 use rayon::prelude::*;
-use ut1_blocklist::Blocklist;
+use ut1_blocklist::{Blocklist, MultipleBlocklist};
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
@@ -228,28 +228,29 @@ impl OscarDoc {
             // TODO: Same here, we instantiate it once by shard
             // add ut1 blocklist adult annotation
             if let Some(path) = blocklist {
-                let bl = Blocklist::with_folder("adult".to_string(), path)?;
+                // let bl = Blocklist::with_folder("adult".to_string(), path)?;
+                let bl = MultipleBlocklist::from_dir(path)?;
                 annotator.add(Box::new(ContentDetector::new(bl)));
             }
 
             // add other (custom) blocklists
-            if let Some(paths) = domain_blocklists {
-                for path in paths {
-                    if path.is_file() {
-                        let annotation = path
-                            .file_name()
-                            .map(|filename| filename.to_string_lossy().to_string());
-                        if let Some(annotation) = annotation {
-                            let bl = Blocklist::from_domains_file(annotation, path)?;
-                            info!("added content detector for annotation from {path:?}");
-                            info!("domains: {:?}", bl.domains());
-                            annotator.add(Box::new(ContentDetector::new(bl)));
-                        } else {
-                            error!("Could not get annotation for blocklist {path:?}, skipping");
-                        }
-                    }
-                }
-            }
+            // if let Some(paths) = domain_blocklists {
+            //     for path in paths {
+            //         if path.is_file() {
+            //             let annotation = path
+            //                 .file_name()
+            //                 .map(|filename| filename.to_string_lossy().to_string());
+            //             if let Some(annotation) = annotation {
+            //                 let bl = Blocklist::from_domains_file(annotation, path)?;
+            //                 info!("added content detector for annotation from {path:?}");
+            //                 info!("domains: {:?}", bl.domains());
+            //                 annotator.add(Box::new(ContentDetector::new(bl)));
+            //             } else {
+            //                 error!("Could not get annotation for blocklist {path:?}, skipping");
+            //             }
+            //         }
+            //     }
+            // }
 
             annotator
         };
@@ -489,6 +490,9 @@ impl Pipeline<()> for OscarDoc {
         let langfiles = LangFilesDoc::new(&self.dst, None);
         #[cfg(feature = "kenlm")]
         let kenlms = if let Some(kenlms_path) = &self.kenlms_path {
+            if !kenlms_path.is_dir() {
+                panic!("KenLMs path must exist and be a dir! {kenlms_path:?}");
+            }
             Models::from_dir(kenlms_path)?
         } else {
             /*  TODO: Remove panic here.
@@ -498,6 +502,48 @@ impl Pipeline<()> for OscarDoc {
             */
             panic!("No kenlms path provided but feature turned on!");
         };
+
+        let annotator = {
+            let mut annotator = Annotator::default();
+            annotator
+                .add(Box::new(TinyDocument::default()))
+                .add(Box::new(ShortSentences::default()))
+                .add(Box::new(Header::default()))
+                .add(Box::new(LSH::default()))
+                .add(Box::new(Noisy::default()));
+
+            // TODO: Same here, we instantiate it once by shard
+            // add ut1 blocklist adult annotation
+            if let Some(path) = &self.blocklist {
+                // let bl = MultipleBlocklist::with_folder("adult".to_string(), path)?;
+                // let bl = MultipleBlocklist::from_dir(&path)?;
+                // let bl = Blocklist::from_domains_file("adult".to_string(), &path)?;
+                let bl = MultipleBlocklist::from_dir(&path)?;
+                annotator.add(Box::new(ContentDetector::new(bl)));
+            }
+
+            // add other (custom) blocklists
+            // if let Some(paths) = &self.domain_blocklists {
+            //     for path in paths {
+            //         if path.is_file() {
+            //             let annotation = path
+            //                 .file_name()
+            //                 .map(|filename| filename.to_string_lossy().to_string());
+            //             if let Some(annotation) = annotation {
+            //                 let bl = Blocklist::from_domains_file(annotation, &path)?;
+            //                 info!("added content detector for annotation from {path:?}");
+            //                 info!("domains: {:?}", bl.domains());
+            //                 annotator.add(Box::new(ContentDetector::new(bl)));
+            //             } else {
+            //                 error!("Could not get annotation for blocklist {path:?}, skipping");
+            //             }
+            //         }
+            //     }
+            // }
+
+            annotator
+        };
+
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 
