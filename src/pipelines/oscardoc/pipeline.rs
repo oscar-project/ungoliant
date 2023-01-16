@@ -211,51 +211,12 @@ impl OscarDoc {
             });
 
         // annotate
-        // TODO: Instantiate outside of shard? (We instantiate it once for each shard :/)
-        // let annotator = {
-        //     let mut annotator = Annotator::default();
-        //     annotator
-        //         .add(Box::new(TinyDocument::default()))
-        //         .add(Box::new(ShortSentences::default()))
-        //         .add(Box::new(Header::default()))
-        //         .add(Box::new(LSH::default()))
-        //         .add(Box::new(Noisy::default()));
-
-        //     // TODO: Same here, we instantiate it once by shard
-        //     // add ut1 blocklist adult annotation
-        //     if let Some(path) = blocklist {
-        //         // let bl = Blocklist::with_folder("adult".to_string(), path)?;
-        //         let bl = MultipleBlocklist::from_dir(path)?;
-        //         annotator.add(Box::new(ContentDetector::new(bl)));
-        //     }
-
-        //     // add other (custom) blocklists
-        //     // if let Some(paths) = domain_blocklists {
-        //     //     for path in paths {
-        //     //         if path.is_file() {
-        //     //             let annotation = path
-        //     //                 .file_name()
-        //     //                 .map(|filename| filename.to_string_lossy().to_string());
-        //     //             if let Some(annotation) = annotation {
-        //     //                 let bl = Blocklist::from_domains_file(annotation, path)?;
-        //     //                 info!("added content detector for annotation from {path:?}");
-        //     //                 info!("domains: {:?}", bl.domains());
-        //     //                 annotator.add(Box::new(ContentDetector::new(bl)));
-        //     //             } else {
-        //     //                 error!("Could not get annotation for blocklist {path:?}, skipping");
-        //     //             }
-        //     //         }
-        //     //     }
-        //     // }
-
-        //     annotator
-        // };
-
         let record_iter = record_iter.map(|(loc, mut r)| {
             annotator.annotate(&mut r);
             (r, loc.build().unwrap())
         });
 
+        // remove documents that are both tiny and noisy
         let record_iter = record_iter.filter_map(|(r, loc): (Document, Location)| {
             if r.metadata().annotation() == Some(&vec!["noisy".to_string(), "tiny".to_string()]) {
                 debug!("removed document {:?} for noisy+tiny", r.warc_id());
@@ -508,12 +469,8 @@ impl Pipeline<()> for OscarDoc {
                 .add(Box::new(LSH::default()))
                 .add(Box::new(Noisy::default()));
 
-            // TODO: Same here, we instantiate it once by shard
-            // add ut1 blocklist adult annotation
+            // add ut1 blocklists for categories
             if let Some(path) = &self.blocklist {
-                // let bl = MultipleBlocklist::with_folder("adult".to_string(), path)?;
-                // let bl = MultipleBlocklist::from_dir(&path)?;
-                // let bl = Blocklist::from_domains_file("adult".to_string(), &path)?;
                 let bl = MultipleBlocklist::from_dir(&path)?;
                 annotator.add(Box::new(ContentDetector::new(bl)));
             }
