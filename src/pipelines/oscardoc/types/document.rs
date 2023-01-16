@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use oxilangtag::LanguageTag;
 
@@ -17,10 +18,12 @@ type Identification = IdentificationGen<String>;
 
 /// OSCAR-specific metadata
 /// TODO: make it a HashMap
+/// TODO: make annotation/categories hashmaps
 pub struct Metadata {
     identification: Identification,
     harmful_pp: Option<f32>,
     annotation: Option<Vec<String>>,
+    categories: Option<Vec<String>>,
     sentence_identifications: Vec<Option<Identification>>,
 }
 
@@ -33,6 +36,7 @@ impl Metadata {
             identification: identification.clone(),
             harmful_pp: None,
             annotation: None,
+            categories: None,
             sentence_identifications: sentence_identifications.to_owned(),
         }
     }
@@ -43,10 +47,19 @@ impl Metadata {
             None => self.annotation = Some(vec![annotation]),
         }
     }
-    /// Set the metadata's annotation.
-    // pub fn set_annotation(&mut self, annotation: String) {
-    //     self.annotation = Some(vec![annotation]);
-    // }
+
+    pub fn categories(&self) -> Option<&Vec<String>> {
+        self.categories.as_ref()
+    }
+    pub fn add_category(&mut self, category: String) {
+        match &mut self.categories {
+            Some(cat) => cat.push(category),
+            None => self.categories = Some(vec![category]),
+        }
+    }
+    pub fn set_categories(&mut self, categories: Option<Vec<String>>) {
+        self.categories = categories;
+    }
 
     /// Get a reference to the metadata's annotation.
     pub fn annotation(&self) -> Option<&Vec<String>> {
@@ -71,6 +84,7 @@ impl Default for Metadata {
             identification: Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0),
             harmful_pp: None,
             annotation: None,
+            categories: None,
             sentence_identifications: vec![Some(Identification::new(
                 LanguageTag::parse("en".to_string()).unwrap(),
                 1.0,
@@ -180,6 +194,13 @@ impl Document {
     /// Get a reference to the document's warc headers.
     pub fn warc_headers(&self) -> &WarcHeaders {
         &self.warc_headers
+    }
+
+    /// shorthand to get url as a String
+    pub fn url(&self) -> Option<String> {
+        self.warc_headers()
+            .get(&warc::WarcHeader::TargetURI)
+            .map(|x| String::from_utf8_lossy(x).into_owned())
     }
 
     /// Get a mutable reference to the document's metadata.
