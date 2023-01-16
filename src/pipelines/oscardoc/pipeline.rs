@@ -58,7 +58,6 @@ pub struct OscarDoc {
     dst: PathBuf,
     lid_path: PathBuf,
     blocklist: Option<PathBuf>,
-    domain_blocklists: Option<Vec<PathBuf>>,
     kenlms_path: Option<PathBuf>,
 }
 
@@ -68,7 +67,6 @@ impl OscarDoc {
         dst: PathBuf,
         lid_path: PathBuf,
         blocklist: Option<PathBuf>,
-        domain_blocklists: Option<Vec<PathBuf>>,
         kenlms_path: Option<PathBuf>,
     ) -> Self {
         if blocklist.is_none() {
@@ -81,7 +79,6 @@ impl OscarDoc {
             dst,
             lid_path,
             blocklist,
-            domain_blocklists,
             kenlms_path,
         }
     }
@@ -132,8 +129,6 @@ impl OscarDoc {
         shard_path: &Path,
         identifier: &FastText,
         filter: Option<record::FilterKind>,
-        blocklist: &Option<PathBuf>,
-        domain_blocklists: &Option<Vec<PathBuf>>,
         annotator: &Annotator<Document>,
     ) -> Result<(usize, Vec<(Document, Location)>), Error> {
         info!("working on shard: {:?}", shard_path);
@@ -523,25 +518,6 @@ impl Pipeline<()> for OscarDoc {
                 annotator.add(Box::new(ContentDetector::new(bl)));
             }
 
-            // add other (custom) blocklists
-            // if let Some(paths) = &self.domain_blocklists {
-            //     for path in paths {
-            //         if path.is_file() {
-            //             let annotation = path
-            //                 .file_name()
-            //                 .map(|filename| filename.to_string_lossy().to_string());
-            //             if let Some(annotation) = annotation {
-            //                 let bl = Blocklist::from_domains_file(annotation, &path)?;
-            //                 info!("added content detector for annotation from {path:?}");
-            //                 info!("domains: {:?}", bl.domains());
-            //                 annotator.add(Box::new(ContentDetector::new(bl)));
-            //             } else {
-            //                 error!("Could not get annotation for blocklist {path:?}, skipping");
-            //             }
-            //         }
-            //     }
-            // }
-
             annotator
         };
 
@@ -551,19 +527,8 @@ impl Pipeline<()> for OscarDoc {
         let rebuild_files = RebuildWriters::with_dst(&dst_rebuild)?;
 
         //iterate over shards
-        let shards_results = results.map(|(idx, shard)| {
-            (
-                idx,
-                Self::process_shard(
-                    &shard,
-                    &cls,
-                    None,
-                    &self.blocklist,
-                    &self.domain_blocklists,
-                    &annotator,
-                ),
-            )
-        });
+        let shards_results =
+            results.map(|(idx, shard)| (idx, Self::process_shard(&shard, &cls, None, &annotator)));
 
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {

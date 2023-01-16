@@ -26,7 +26,7 @@ fn gen_corpus() {
     let kenlm = Path::new("res/kenlm/").to_path_buf();
 
     //TODO test with custom blocklists
-    let pipeline = OscarDoc::new(src, dst, lid, Some(bl), None, Some(kenlm));
+    let pipeline = OscarDoc::new(src, dst, lid, Some(bl), Some(kenlm));
     pipeline.run().expect(
         "Ensure to have shards in res/shards, lid.176.bin at root and blocklist at res/blocklist",
     );
