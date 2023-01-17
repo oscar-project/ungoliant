@@ -422,89 +422,89 @@ impl Pipeline<()> for OscarDoc {
     fn run(&self) -> Result<(), Error> {
         // let errors;
 
-        // let cls = FastTextBuilder::default()
-        //     .path(&self.lid_path)
-        //     .k(1)
-        //     .threshold(0.8)
-        //     .build()?;
+        let cls = FastTextBuilder::default()
+            .path(&self.lid_path)
+            .k(1)
+            .threshold(0.8)
+            .build()?;
 
-        // if !self.dst.exists() {
-        //     warn!("Destination file does not exist. Creating");
-        //     std::fs::create_dir(&self.dst)?;
-        // }
+        if !self.dst.exists() {
+            warn!("Destination file does not exist. Creating");
+            std::fs::create_dir(&self.dst)?;
+        }
 
-        // if !self.dst.is_dir() {
-        //     panic!("Destination has to be a directory: {:?}", self.dst);
-        // }
-        // let results = self.get_paths_iter()?;
+        if !self.dst.is_dir() {
+            panic!("Destination has to be a directory: {:?}", self.dst);
+        }
+        let results = self.get_paths_iter()?;
 
-        // // convert to parallel iterator
-        // // /!\: We use par_bridge, that is suboptimal
-        // //      compared to implementing IntoParallelIterator
-        // //      ourselves.
-        // let results = results.enumerate().par_bridge();
+        // convert to parallel iterator
+        // /!\: We use par_bridge, that is suboptimal
+        //      compared to implementing IntoParallelIterator
+        //      ourselves.
+        let results = results.enumerate().par_bridge();
 
-        // let langfiles = LangFilesDoc::new(&self.dst, None);
-        // #[cfg(feature = "kenlm")]
-        // let kenlms = if let Some(kenlms_path) = &self.kenlms_path {
-        //     if !kenlms_path.is_dir() {
-        //         panic!("KenLMs path must exist and be a dir! {kenlms_path:?}");
-        //     }
-        //     Models::from_dir(kenlms_path)?
-        // } else {
-        //     /*  TODO: Remove panic here.
-        //         We should either:
-        //             - Have an "appendable" switch which enables Models to find binaries at runtime (with write lock cost)
-        //             - Crash on no kenlms provided OR have a warning to indicate that no kenlm annotations will be done.
-        //     */
-        //     panic!("No kenlms path provided but feature turned on!");
-        // };
+        let langfiles = LangFilesDoc::new(&self.dst, None);
+        #[cfg(feature = "kenlm")]
+        let kenlms = if let Some(kenlms_path) = &self.kenlms_path {
+            if !kenlms_path.is_dir() {
+                panic!("KenLMs path must exist and be a dir! {kenlms_path:?}");
+            }
+            Models::from_dir(kenlms_path)?
+        } else {
+            /*  TODO: Remove panic here.
+                We should either:
+                    - Have an "appendable" switch which enables Models to find binaries at runtime (with write lock cost)
+                    - Crash on no kenlms provided OR have a warning to indicate that no kenlm annotations will be done.
+            */
+            panic!("No kenlms path provided but feature turned on!");
+        };
 
-        // let annotator = {
-        //     let mut annotator = Annotator::default();
-        //     annotator
-        //         .add(Box::new(TinyDocument::default()))
-        //         .add(Box::new(ShortSentences::default()))
-        //         .add(Box::new(Header::default()))
-        //         .add(Box::new(LSH::default()))
-        //         .add(Box::new(Noisy::default()));
+        let annotator = {
+            let mut annotator = Annotator::default();
+            annotator
+                .add(Box::new(TinyDocument::default()))
+                .add(Box::new(ShortSentences::default()))
+                .add(Box::new(Header::default()))
+                .add(Box::new(LSH::default()))
+                .add(Box::new(Noisy::default()));
 
-        //     // add ut1 blocklists for categories
-        //     if let Some(path) = &self.blocklist {
-        //         let bl = MultipleBlocklist::from_dir(&path)?;
-        //         annotator.add(Box::new(ContentDetector::new(bl)));
-        //     }
+            // add ut1 blocklists for categories
+            if let Some(path) = &self.blocklist {
+                let bl = MultipleBlocklist::from_dir(&path)?;
+                annotator.add(Box::new(ContentDetector::new(bl)));
+            }
 
-        //     annotator
-        // };
+            annotator
+        };
 
-        // let mut dst_rebuild = self.dst.clone();
-        // dst_rebuild.push("rebuild");
+        let mut dst_rebuild = self.dst.clone();
+        dst_rebuild.push("rebuild");
 
-        // let rebuild_files = RebuildWriters::with_dst(&dst_rebuild)?;
+        let rebuild_files = RebuildWriters::with_dst(&dst_rebuild)?;
 
-        // //iterate over shards
-        // let shards_results =
-        //     results.map(|(idx, shard)| (idx, Self::process_shard(&shard, &cls, None, &annotator)));
+        //iterate over shards
+        let shards_results =
+            results.map(|(idx, shard)| (idx, Self::process_shard(&shard, &cls, None, &annotator)));
 
-        // // for each shard result, sort by lang and write concurrently.
-        // shards_results.for_each(|(idx, shard_result)| {
-        //     if let Ok((shard_id, shard_result)) = shard_result {
-        //         let mut hm = Self::sort_by_lang(shard_result);
+        // for each shard result, sort by lang and write concurrently.
+        shards_results.for_each(|(idx, shard_result)| {
+            if let Ok((shard_id, shard_result)) = shard_result {
+                let mut hm = Self::sort_by_lang(shard_result);
 
-        //         // run kenlms after identification so that shard results are already
-        //         // sorted by language.
-        //         #[cfg(feature = "kenlm")]
-        //         if let Some(kenlms_path) = &self.kenlms_path {
-        //             Self::run_kenlms(&kenlms, kenlms_path, &mut hm);
-        //         }
+                // run kenlms after identification so that shard results are already
+                // sorted by language.
+                #[cfg(feature = "kenlm")]
+                if let Some(kenlms_path) = &self.kenlms_path {
+                    Self::run_kenlms(&kenlms, kenlms_path, &mut hm);
+                }
 
-        //         Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
-        //             .unwrap();
-        //     } else {
-        //         error!("Error with shard idx {}:{:?}", idx, shard_result);
-        //     }
-        // });
+                Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
+                    .unwrap();
+            } else {
+                error!("Error with shard idx {}:{:?}", idx, shard_result);
+            }
+        });
 
         Ok(())
     }
