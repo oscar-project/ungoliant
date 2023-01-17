@@ -11,7 +11,6 @@ use std::{
 use test_log::test;
 
 use ungoliant::{
-    lang::Lang,
     pipelines::{OscarDocNew as OscarDoc, Pipeline},
     processing::rebuild::Rebuilder,
 };
@@ -47,7 +46,7 @@ fn check_rebuild() {
     let src_corpus = Path::new("res/corpus/fr_meta.jsonl");
     let src_shards = Path::new("res/shards");
     let mut dst = PathBuf::from("res/rebuilt");
-    let lang = Lang::Fr;
+    let lang = oxilangtag::LanguageTag::parse("fr".to_string()).unwrap();
     let rb = Rebuilder::new(src_rebuild, src_shards, &dst, lang);
     rb.run().unwrap();
 
