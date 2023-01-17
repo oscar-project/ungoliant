@@ -136,8 +136,40 @@ mod tests {
 
         assert_eq!(old.label(), new.label());
     }
+
+    // Uses language tags from fasttext's lid.176.bin
     #[test]
     fn test_bcp47() {
+        let model_codes = [
+            "en", "ru", "de", "fr", "it", "ja", "es", "ceb", "tr", "pt", "uk", "eo", "pl", "sv",
+            "nl", "he", "zh", "hu", "ar", "ca", "fi", "cs", "fa", "sr", "el", "vi", "bg", "ko",
+            "no", "mk", "ro", "id", "th", "hy", "da", "ta", "hi", "hr", "sh", "be", "ka", "te",
+            "kk", "war", "lt", "gl", "sk", "bn", "eu", "sl", "kn", "ml", "mr", "et", "az", "ms",
+            "sq", "la", "bs", "nn", "ur", "lv", "my", "tt", "af", "oc", "nds", "ky", "ast", "tl",
+            "is", "ia", "si", "gu", "km", "br", "ba", "uz", "bo", "pa", "vo", "als", "ne", "cy",
+            "jbo", "fy", "mn", "lb", "ce", "ug", "tg", "sco", "sa", "cv", "jv", "min", "io", "or",
+            "as", "new", "ga", "mg", "an", "ckb", "sw", "bar", "lmo", "yi", "arz", "mhr", "azb",
+            "sah", "pnb", "su", "bpy", "pms", "ilo", "wuu", "ku", "ps", "ie", "xmf", "yue", "gom",
+            "li", "mwl", "kw", "sd", "hsb", "scn", "gd", "pam", "bh", "mai", "vec", "mt", "dv",
+            "wa", "mzn", "am", "qu", "eml", "cbk", "tk", "rm", "os", "vls", "yo", "lo", "lez",
+            "so", "myv", "diq", "mrj", "dsb", "frr", "ht", "gn", "bxr", "kv", "sc", "nah", "krc",
+            "bcl", "nap", "gv", "av", "rue", "xal", "pfl", "dty", "hif", "co", "lrc", "vep", "tyv",
+        ];
+
+        for code in model_codes {
+            let pred = Prediction {
+                label: "__label__".to_string() + code,
+                prob: 1.0f32,
+            };
+
+            let id = Identification::try_from(pred);
+            assert!(id.is_ok());
+        }
+    }
+
+    // Uses language tags from fasttext's other langid model
+    #[test]
+    fn test_bcp47_2() {
         let model_codes = vec![
             "abk", "ace_Arab", "ace_Latn", "ady", "afr", "aka", "alt", "amh", "ara_Arab",
             "ara_Latn", "arn", "asm", "ast", "awa", "ayr", "azb", "azj", "bak", "bam", "ban",
