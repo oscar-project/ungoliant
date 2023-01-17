@@ -1,10 +1,8 @@
 //! Conversion utilities or fasttext tags to standardized BCP47.
 use std::{borrow::Cow, collections::HashMap, convert::TryFrom};
 
-// use language_tags::{LanguageTag, ParseError};
 use lazy_static::lazy_static;
 use oxilangtag::{LanguageTag, LanguageTagParseError};
-
 
 lazy_static! {
     pub static ref NEW_TAG_REPLACE: HashMap<&'static str, &'static str> = [
@@ -13,6 +11,7 @@ lazy_static! {
         ("ace_Latn", "ace-Latn"),
         ("afr", "af"),
         ("aka", "ak"),
+        ("als", "gsw"), //TODO: remove when not using lid.176.bin
         ("amh", "am"),
         ("ara_Arab", "ar-Arab"),
         ("ara_Latn", "ar-Latn"),
@@ -37,6 +36,7 @@ lazy_static! {
         ("deu", "de"),
         ("dzo", "dz"),
         ("ell", "el"),
+        ("eml", "x-eml"), // Quality at a Glance table 10
         ("eng", "en"),
         ("epo", "eo"),
         ("est", "et"),
@@ -201,11 +201,10 @@ impl<'a> TryFrom<Tag<'a>> for LanguageTag<String> {
 }
 #[cfg(test)]
 mod tests {
-    
 
     use oxilangtag::LanguageTag;
 
-    use crate::{identifiers::tag_convert::Tag};
+    use crate::identifiers::tag_convert::Tag;
 
     // use super::{NewTag, OldTag};
 
@@ -217,5 +216,23 @@ mod tests {
         let new_style: LanguageTag<String> = new_style.try_into().unwrap();
 
         assert_eq!(old_style, new_style);
+    }
+
+    #[test]
+    fn quality_at_a_glance_table10() {
+        // table 10: Miscellaneous errors in language codes.
+        // We don't check for sh -> hbs since hbs doesn't seem to be valid bcp47
+        let table_10: [(
+            Result<LanguageTag<String>, _>,
+            Result<LanguageTag<String>, _>,
+        ); 2] = [("eml", "x-eml"), ("als", "gsw") /*("sh", "hbs")*/]
+            .map(|(old, new)| (format!("__label__{old}"), format!("__label__{new}")))
+            .map(|(old, new)| (Tag::new(&old).try_into(), Tag::new(&new).try_into()));
+
+        for (erroneous, correct) in table_10 {
+            let (erroneous, correct) = (erroneous.unwrap(), correct.unwrap());
+            println!("{erroneous:?} {correct:?}");
+            assert_eq!(erroneous, correct);
+        }
     }
 }
