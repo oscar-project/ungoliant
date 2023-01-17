@@ -7,6 +7,8 @@ Identification is checked too, preventing the writing of differently identified 
 use std::io::Write;
 use std::path::Path;
 
+use oxilangtag::LanguageTag;
+
 use crate::pipelines::oscardoc::types::Document;
 
 use crate::{error, io::writer::MetaWriter};
@@ -23,7 +25,11 @@ impl WriterTrait for WriterDoc {
     /// Files will be written at the root of the `dst` file, and shouldn't exceed `size_limit`.
     ///
     /// _See [TextWriter] to have an explanation about the *shouldn't*._
-    fn new(dst: &Path, lang: &'static str, _size_limit: Option<u64>) -> Result<Self, error::Error> {
+    fn new(
+        dst: &Path,
+        lang: LanguageTag<String>,
+        _size_limit: Option<u64>,
+    ) -> Result<Self, error::Error> {
         Ok(Self {
             handle: MetaWriter::new(dst, lang),
         })
@@ -71,14 +77,23 @@ mod tests {
     fn test_init() {
         let dst = Path::new("dst_test_init_writer");
         std::fs::create_dir(dst).unwrap();
-        let _ = WriterDoc::new(dst, "en", Some(1_000_000));
+        let _ = WriterDoc::new(
+            dst,
+            LanguageTag::parse("en".to_string()).unwrap(),
+            Some(1_000_000),
+        );
         std::fs::remove_dir_all(dst).unwrap();
     }
 
     #[test]
     fn write() {
         let dst = tempfile::tempdir().unwrap();
-        let mut wr = WriterDoc::new(dst.path(), "fr", Some(10)).unwrap();
+        let mut wr = WriterDoc::new(
+            dst.path(),
+            LanguageTag::parse("fr".to_string()).unwrap(),
+            Some(10),
+        )
+        .unwrap();
 
         let headers: WarcHeaders =
             vec![(WarcHeader::Filename, Vec::from("filenametest".as_bytes()))]
@@ -96,13 +111,11 @@ Ecoutez ça va plutôt bien.";
         let doc = vec![Document::new(sentences.to_string(), headers, metadata)];
 
         wr.write(doc.clone()).unwrap();
-        // wr.close_meta().unwrap();
 
         // check if content is the same
         let _sentences = String::new();
         let pathd = PathBuf::from(dst.path()).join("fr_meta.jsonl");
         let f = File::open(pathd).unwrap();
-        // f.read_to_string(&mut sentences).unwrap();
 
         let document: Document = serde_json::from_reader(&f).unwrap();
         let sentences = document.content();
@@ -135,7 +148,12 @@ Ecoutez ça va plutôt bien.";
         );
 
         let dst = tempfile::tempdir().unwrap();
-        let mut wr = WriterDoc::new(dst.path(), "fr", Some(10)).unwrap();
+        let mut wr = WriterDoc::new(
+            dst.path(),
+            LanguageTag::parse("fr".to_string()).unwrap(),
+            Some(10),
+        )
+        .unwrap();
 
         wr.write(vec![doc.clone()]).unwrap();
         let pathd = PathBuf::from(dst.path()).join("fr_meta.jsonl");

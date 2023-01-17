@@ -28,13 +28,13 @@ use itertools::Itertools;
 use log::debug;
 use log::error;
 use log::info;
+use oxilangtag::LanguageTag;
 use rayon::iter::ParallelBridge;
 use rayon::iter::ParallelIterator;
 use warc::RecordIter;
 use warc::WarcHeader;
 
 use crate::error::Error;
-use crate::lang::Lang;
 
 /// Iterator over reconstitued documents from a rebuild file, for a single shard and a single language.
 ///
@@ -236,11 +236,16 @@ pub struct Rebuilder<'a> {
     src_rebuild: &'a Path,
     src_shards: &'a Path,
     dst: &'a Path,
-    lang: Lang,
+    lang: LanguageTag<String>,
 }
 
 impl<'a> Rebuilder<'a> {
-    pub fn new(src_rebuild: &'a Path, src_shards: &'a Path, dst: &'a Path, lang: Lang) -> Self {
+    pub fn new(
+        src_rebuild: &'a Path,
+        src_shards: &'a Path,
+        dst: &'a Path,
+        lang: LanguageTag<String>,
+    ) -> Self {
         Self {
             src_rebuild,
             src_shards,
@@ -273,11 +278,7 @@ impl<'a> Rebuilder<'a> {
         }
 
         // create mutex
-        let wr = Arc::new(Mutex::new(WriterDoc::new(
-            self.dst,
-            self.lang.to_static(),
-            None,
-        )?));
+        let wr = Arc::new(Mutex::new(WriterDoc::new(self.dst, self.lang, None)?));
 
         // iterate over shard results
         let errors: Vec<Result<(), Error>> = sr
