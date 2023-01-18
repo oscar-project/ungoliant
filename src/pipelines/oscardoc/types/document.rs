@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use oxilangtag::LanguageTag;
 
@@ -79,6 +78,7 @@ impl Metadata {
 impl Default for Metadata {
     /// default Metadata is English with 1.0 prob,
     /// no annotation and a single english sentence with 1.0 prob.
+    // TODO: Change to empty document with no id and no sentence id?
     fn default() -> Self {
         Self {
             identification: Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0),

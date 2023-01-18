@@ -14,15 +14,15 @@ use std::{
 use log::info;
 use oxilangtag::LanguageTag;
 
-use crate::lang::LANG;
-use crate::{error};
-use crate::{error::Error, io::writer::Writer};
+// use crate::lang::LANG;
+use crate::error;
+use crate::error::Error;
 
 use super::writer::{WriterDoc, WriterTrait};
 /// Holds references to [Writer].
-pub struct LangFiles {
-    writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
-}
+// pub struct LangFiles {
+//     writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
+// }
 
 type LanguageMap = HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>;
 pub struct LangFilesDoc {
@@ -31,40 +31,40 @@ pub struct LangFilesDoc {
     part_size_bytes: Option<u64>,
 }
 
-impl LangFiles {
-    /// Create a new LangFiles. `part_size_bytes` sets an indication of the maximum size
-    /// by part.
-    /// Note that if it is set too low and a unique record can't be stored in an unique part
-    /// then a part will still be created, being larger than the `part_size_bytes`. This is expected behaviour.
-    ///
-    /// Also keep in mind that [Self::close_meta] has to be called once every write is done.
-    ///
-    // [Self::close_meta] could be integrated in an `impl Drop`
-    pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Result<Self, error::Error> {
-        let mut writers = HashMap::with_capacity(LANG.len());
-        let mut w;
-        for lang in LANG.iter() {
-            w = Writer::new(dst, lang, part_size_bytes)?;
-            writers.insert(*lang, Arc::new(Mutex::new(w)));
-        }
+// impl LangFiles {
+//     /// Create a new LangFiles. `part_size_bytes` sets an indication of the maximum size
+//     /// by part.
+//     /// Note that if it is set too low and a unique record can't be stored in an unique part
+//     /// then a part will still be created, being larger than the `part_size_bytes`. This is expected behaviour.
+//     ///
+//     /// Also keep in mind that [Self::close_meta] has to be called once every write is done.
+//     ///
+//     // [Self::close_meta] could be integrated in an `impl Drop`
+//     pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Result<Self, error::Error> {
+//         let mut writers = HashMap::with_capacity(LANG.len());
+//         let mut w;
+//         for lang in LANG.iter() {
+//             w = Writer::new(dst, lang, part_size_bytes)?;
+//             writers.insert(*lang, Arc::new(Mutex::new(w)));
+//         }
 
-        Ok(Self { writers })
-    }
+//         Ok(Self { writers })
+//     }
 
-    /// Get a non-mutable reference to the writers.
-    pub fn writers(&self) -> &HashMap<&'static str, Arc<Mutex<Writer>>> {
-        &self.writers
-    }
+//     /// Get a non-mutable reference to the writers.
+//     pub fn writers(&self) -> &HashMap<&'static str, Arc<Mutex<Writer>>> {
+//         &self.writers
+//     }
 
-    /// Fix open metadata files by removing trailing comma and closing the array.
-    pub fn close_meta(&self) -> Result<(), error::Error> {
-        for writer in self.writers.values() {
-            let mut writer_lock = writer.lock().unwrap();
-            writer_lock.close_meta()?;
-        }
-        Ok(())
-    }
-}
+//     /// Fix open metadata files by removing trailing comma and closing the array.
+//     pub fn close_meta(&self) -> Result<(), error::Error> {
+//         for writer in self.writers.values() {
+//             let mut writer_lock = writer.lock().unwrap();
+//             writer_lock.close_meta()?;
+//         }
+//         Ok(())
+//     }
+// }
 
 impl LangFilesDoc {
     /// Create a new LangFiles. `part_size_bytes` sets an indication of the maximum size
@@ -88,10 +88,6 @@ impl LangFilesDoc {
         lang: LanguageTag<String>,
         part_size_bytes: Option<u64>,
     ) -> Result<Arc<Mutex<WriterDoc>>, Error> {
-        //TODO: remove the box leak?
-        // The idea is that when we encounter a new language we need to keep its
-        // code alive for the rest of the process
-        let lang: &'static str = Box::leak(lang.into_inner().into_boxed_str());
         let w = WriterDoc::new(dst, lang, part_size_bytes)?;
 
         Ok(Arc::new(Mutex::new(w)))
@@ -150,7 +146,6 @@ mod tests {
     use crate::{
         identifiers::identification::Identification,
         pipelines::oscardoc::types::{Document, Metadata},
-        pipelines::oscarmeta::types::MergedPiece,
     };
     use warc::{BufferedBody, Record, WarcHeader};
 
@@ -158,49 +153,6 @@ mod tests {
     use tempfile::tempdir;
 
     type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
-
-    fn create_merged_piece(
-        sentences: String,
-        identification: &'static str,
-        headers: WarcHeaders,
-    ) -> MergedPiece {
-        let nb_sentences = sentences.split('\n').count();
-        MergedPiece {
-            sentences,
-            identification,
-            headers,
-            nb_sentences,
-        }
-    }
-    #[test]
-    fn init() {
-        let dst = Path::new("dst_langfiles_init");
-        std::fs::create_dir(dst).unwrap();
-        let _ = LangFiles::new(dst, Some(10));
-        std::fs::remove_dir_all(dst).unwrap();
-    }
-
-    #[test]
-    fn write_one() {
-        let dst = Path::new("dst_langfiles_write_one");
-        std::fs::create_dir(dst).unwrap();
-        let langfiles = LangFiles::new(dst, Some(10)).unwrap();
-
-        let sentences = "essai d'écriture
-de trois lignes
-hehe :)"
-            .to_string();
-        let headers = vec![(WarcHeader::ContentType, Vec::from("blogpost".as_bytes()))]
-            .into_iter()
-            .collect();
-        let mp = vec![create_merged_piece(sentences, "fr", headers)];
-        // lock mutex and acquire writer
-        let fr_writer = langfiles.writers().get("fr").unwrap().clone();
-        let mut fr_writer_locked = fr_writer.lock().unwrap();
-
-        fr_writer_locked.write(mp).unwrap();
-        std::fs::remove_dir_all(dst).unwrap();
-    }
 
     #[test]
     fn init_doc() {

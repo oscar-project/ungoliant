@@ -11,15 +11,15 @@ pub enum Ungoliant {
     Download(Download),
     #[structopt(about = "Run pipeline")]
     Pipeline(Pipeline),
-    #[structopt(about = "Deduplicate a generated, not split corpus.")]
-    Dedup(Dedup),
-    #[structopt(about = "Split a not split corpus")]
-    Split(Split),
-    #[structopt(about = "Compress")]
-    Compress(Compress),
-    #[structopt(about = "package")]
-    Package(Package),
-    #[structopt(about = "rebuild the corpus for a given language")]
+    // #[structopt(about = "Deduplicate a generated, not split corpus.")]
+    // Dedup(Dedup),
+    // #[structopt(about = "Split a not split corpus")]
+    // Split(Split),
+    // #[structopt(about = "Compress")]
+    // Compress(Compress),
+    // #[structopt(about = "package")]
+    // Package(Package),
+    // #[structopt(about = "rebuild the corpus for a given language")]
     Rebuild(Rebuild),
     #[structopt(about = "check for corpus validity")]
     Check(Check),

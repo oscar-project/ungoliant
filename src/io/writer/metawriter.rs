@@ -1,6 +1,7 @@
 //! Rotating file writer for metadata.
 use crate::error;
 use log::{debug, warn};
+use oxilangtag::LanguageTag;
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::{fs::File, io::Write, path::PathBuf};
@@ -11,7 +12,7 @@ use std::{fs::File, io::Write, path::PathBuf};
 ///
 /// *Note:* Contrary to TextWriter, [MetaWriter] has no limit and new file creation has to be triggered manually by invoking [MetaWriter::create_next_file].
 pub struct MetaWriter {
-    lang: &'static str,
+    lang: LanguageTag<String>,
     dst: PathBuf,
     pub file: Option<File>,
     nb_files: u64,
@@ -21,7 +22,7 @@ impl MetaWriter {
     /// Create a new [MetaWriter].
     /// Note that nothing is created/written unless a write is performed.
     /// size_limit is in bytes.
-    pub fn new(dst: &Path, lang: &'static str) -> Self {
+    pub fn new(dst: &Path, lang: LanguageTag<String>) -> Self {
         Self {
             lang,
             dst: dst.to_path_buf(),

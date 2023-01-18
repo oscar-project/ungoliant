@@ -16,7 +16,6 @@ mod error;
 mod filtering;
 mod identifiers;
 mod io;
-mod lang;
 mod pipelines;
 mod processing;
 mod sources;
@@ -69,18 +68,18 @@ async fn main() -> Result<(), error::Error> {
             // f.write_all(Document::get_schema().unwrap().as_bytes())?;
             // f.write_all(Metadata::get_schema()?.as_bytes())?;
         }
-        cli::Ungoliant::Dedup(d) => {
-            processing::dedup::dedup(&d.src, &d.dst, Some(d.bufsize))?;
-        }
-        cli::Ungoliant::Split(s) => {
-            processing::split::split(&s.src, &s.dst, s.part_size, Some(s.bufsize));
-        }
-        cli::Ungoliant::Compress(c) => {
-            processing::compress::compress_corpus(&c.src, &c.dst)?;
-        }
-        cli::Ungoliant::Package(p) => {
-            processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
-        }
+        // cli::Ungoliant::Dedup(d) => {
+        //     processing::dedup::dedup(&d.src, &d.dst, Some(d.bufsize))?;
+        // }
+        // cli::Ungoliant::Split(s) => {
+        //     processing::split::split(&s.src, &s.dst, s.part_size, Some(s.bufsize));
+        // }
+        // cli::Ungoliant::Compress(c) => {
+        //     processing::compress::compress_corpus(&c.src, &c.dst)?;
+        // }
+        // cli::Ungoliant::Package(p) => {
+        //     processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
+        // }
         cli::Ungoliant::Rebuild(r) => {
             let l = r.lang.parse().expect("unexpected language");
             let rb = processing::rebuild::Rebuilder::new(&r.src_rebuild, &r.src_shards, &r.dst, l);

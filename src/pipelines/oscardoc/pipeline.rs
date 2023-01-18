@@ -44,7 +44,7 @@ use crate::transformers::{AdultDetector, AdultDetectorBuilder, Models};
 use log::{debug, error, info, log_enabled, warn};
 use oxilangtag::LanguageTag;
 use rayon::prelude::*;
-use ut1_blocklist::{Blocklist, MultipleBlocklist};
+use ut1_blocklist::MultipleBlocklist;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
@@ -136,7 +136,7 @@ impl OscarDoc {
         // get shard number
         let shard_id = Self::get_shard_number(shard_path)?;
 
-        let shard = Wet::from_path_gzip(&shard_path)?;
+        let shard = Wet::from_path_gzip(shard_path)?;
         let record_iter = shard.iter.enumerate().par_bridge();
 
         // only get valid records, print errors
@@ -490,7 +490,7 @@ impl Pipeline<()> for OscarDoc {
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
-                let mut hm = Self::sort_by_lang(shard_result);
+                let hm = Self::sort_by_lang(shard_result);
 
                 // run kenlms after identification so that shard results are already
                 // sorted by language.
