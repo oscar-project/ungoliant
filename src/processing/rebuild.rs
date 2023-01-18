@@ -27,7 +27,6 @@ use flate2::read::MultiGzDecoder;
 use itertools::Itertools;
 use log::debug;
 use log::error;
-use log::info;
 use oxilangtag::LanguageTag;
 use rayon::iter::ParallelBridge;
 use rayon::iter::ParallelIterator;

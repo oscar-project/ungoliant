@@ -4,13 +4,11 @@ Adds an `annotation` tag in [Document] depending on possibly harmful/specific co
 
 Currently the approach is to use the [UT1 blocklist](https://dsi.ut-capitole.fr/blacklists/) and to annotate flagged URLs.
  * !*/
-use std::str::FromStr;
 
-use log::{debug, info};
+use log::info;
 use ut1_blocklist::MultipleBlocklist as Blocklist;
 
-use crate::{error::Error, pipelines::oscardoc::types::Document};
-use url::Url;
+use crate::pipelines::oscardoc::types::Document;
 
 use super::Annotate;
 
@@ -23,15 +21,6 @@ impl ContentDetector {
     pub fn new(bl: Blocklist) -> Self {
         info!("Creating a new ContentDetector");
         Self { bl }
-    }
-
-    /// Attempt to extract url from [Document].
-    /// Returns [None] if no valid URL is found.
-    fn parse_url(doc: &Document) -> Option<Url> {
-        doc.warc_headers()
-            .get(&warc::WarcHeader::TargetURI)
-            .map(|x| String::from_utf8_lossy(x))
-            .and_then(|x| Url::from_str(&x).ok())
     }
 }
 

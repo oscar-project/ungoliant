@@ -60,13 +60,6 @@ pub struct FastText {
     pub threshold: f32,
 }
 
-impl FastText {
-    /// removes __label__ from identification start
-    fn clean_label(label: &str) -> String {
-        label[..9].to_string()
-    }
-}
-
 /// Prediction for new tags/model
 impl Predict<String> for FastText {
     fn predict_one(&self, line: &str) -> Result<Option<Identification<String>>, Error> {
@@ -215,11 +208,11 @@ impl<'a> FastTextBuilder<'a> {
     }
 
     pub fn build(&self) -> Result<FastText, Error> {
-        let error = if self.path == None {
+        let error = if self.path.is_none() {
             Some("No path provided")
-        } else if self.k == None {
+        } else if self.k.is_none() {
             Some("No k provided")
-        } else if self.threshold == None {
+        } else if self.threshold.is_none() {
             Some("No threshold provided")
         } else {
             None

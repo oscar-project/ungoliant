@@ -1,13 +1,12 @@
 /*! Locality sensitive hashing !*/
 
-use oscar_io::oscar_doc::WarcHeaders;
 use tlsh::{BucketKind, ChecksumKind, TlshBuilder};
 
 use crate::pipelines::oscardoc::types::Document;
 use warc::WarcHeader;
 
 use super::Annotate;
-use log::{debug, warn};
+use log::debug;
 pub struct LSH {
     builder: TlshBuilder,
 }
@@ -41,7 +40,7 @@ impl Annotate<Document> for LSH {
 
 impl Default for LSH {
     fn default() -> Self {
-        let mut builder = TlshBuilder::new(
+        let builder = TlshBuilder::new(
             BucketKind::Bucket256,
             ChecksumKind::ThreeByte,
             tlsh::Version::Version4,
