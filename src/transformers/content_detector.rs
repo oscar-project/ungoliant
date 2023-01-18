@@ -8,7 +8,8 @@ Currently the approach is to use the [UT1 blocklist](https://dsi.ut-capitole.fr/
 use log::info;
 use ut1_blocklist::MultipleBlocklist as Blocklist;
 
-use crate::pipelines::oscardoc::types::Document;
+// use crate::pipelines::oscardoc::types::Document;
+use oscar_io::v3::Document;
 
 use super::Annotate;
 

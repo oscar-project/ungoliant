@@ -26,8 +26,9 @@ use crate::filtering::{record, Filter};
 use crate::identifiers::identification::Identification;
 use crate::identifiers::model::{FastText, FastTextBuilder, Predict};
 use crate::identifiers::StrictMultilingual;
+use crate::pipelines::oscardoc::types::Location;
 use crate::pipelines::oscardoc::types::RebuildWriters;
-use crate::pipelines::oscardoc::types::{Document, Location, Metadata};
+use oscar_io::v3::{Document, Metadata};
 
 use crate::io::writer::WriterTrait;
 

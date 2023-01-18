@@ -93,7 +93,7 @@ impl Default for Metadata {
     }
 }
 pub type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
-pub type WarchHeadersSer = HashMap<WarcHeader, String>;
+pub type WarcHeadersSer = HashMap<WarcHeader, String>;
 
 /// A Document is a structure holding content, WARC headers and OSCAR-specific metadata.
 /// - TODO: Change warc_headers from [RawRecordHeader] to [warc::Record] with [warc::EmptyBody]?
@@ -110,7 +110,7 @@ pub struct Document {
 /// Serializable version of [Document].
 struct DocumentSer {
     content: String,
-    warc_headers: WarchHeadersSer,
+    warc_headers: WarcHeadersSer,
     metadata: Metadata,
 }
 

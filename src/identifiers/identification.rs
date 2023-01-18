@@ -9,56 +9,26 @@ use fasttext::Prediction;
 
 use oxilangtag::{LanguageTag, LanguageTagParseError};
 
+use oscar_io::common::Identification as IdentificationExternal;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Identification<T: Deref<Target = str> + Clone> {
-    label: LanguageTag<T>,
-    prob: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct IdentificationSer {
-    label: String,
-    prob: f32,
-}
-
-impl<T> From<Identification<T>> for IdentificationSer
-where
-    T: Deref<Target = str> + Clone,
-{
-    fn from(i: Identification<T>) -> Self {
-        Self {
-            label: i.label.to_string(),
-            prob: i.prob,
-        }
-    }
-}
-impl TryFrom<IdentificationSer> for Identification<String> {
-    type Error = LanguageTagParseError;
-    fn try_from(i: IdentificationSer) -> Result<Self, Self::Error> {
-        Ok(Self {
-            label: LanguageTag::parse(i.label)?,
-            prob: i.prob,
-        })
-    }
-}
-
+/// newtype idiom over [oscar_io::Identification]
+#[derive(Debug, Clone)]
+pub struct Identification<T: Deref<Target = str> + Clone>(IdentificationExternal<T>);
 impl<T: Deref<Target = str> + Clone> Identification<T> {
-    pub fn new(label: LanguageTag<T>, prob: f32) -> Self {
-        Self { label, prob }
-    }
-    /// Get a reference to the identification's label.
-    pub fn label(&self) -> &LanguageTag<T> {
-        &self.label
-    }
-
-    /// Get a reference to the identification's prob.
-    pub fn prob(&self) -> &f32 {
-        &self.prob
+    pub(crate) fn new(label: LanguageTag<T>, prob: f32) -> Identification<T> {
+        Self(IdentificationExternal { label, prob })
     }
 }
 
+impl<T: Deref<Target = str> + Clone> Deref for Identification<T> {
+    type Target = IdentificationExternal<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 /// for fasttext2 predictions
 impl TryFrom<Prediction> for Identification<String> {
     type Error = LanguageTagParseError;
@@ -69,10 +39,10 @@ impl TryFrom<Prediction> for Identification<String> {
         //convert to valid bcp47
         let label = label.replace('_', "-");
 
-        Ok(Self {
+        Ok(Self(IdentificationExternal {
             prob: prediction.prob,
             label: LanguageTag::parse_and_normalize(&label)?,
-        })
+        }))
         // debug!("{prediction:?}");
         // Self {
         //     prob: prediction.prob,
@@ -81,21 +51,7 @@ impl TryFrom<Prediction> for Identification<String> {
     }
 }
 
-// impl From<fasttext2::Prediction> for Identification {
-//     fn from(prediction: fasttext2::Prediction) -> Self {
-//         let label = prediction
-//             .label()
-//             .chars()
-//             .skip(9)
-//             .collect::<String>(())
-//             .unwrap();
-//         todo!()
-//     }
-// }
-pub trait Identifier<T: Deref<Target = str> + Clone> {
-    /// returns a language identification token (from [crate::lang::LANG]).
-    fn identify(&self, sentence: T) -> Result<Option<Identification<T>>, Error>;
-}
+//
 
 #[cfg(test)]
 mod tests {
@@ -106,6 +62,7 @@ mod tests {
     use crate::identifiers::tag_convert::Tag;
 
     use super::Identification;
+    // use oscar_io::common::Identification;
 
     #[test]
     fn test_from_pred() {
@@ -126,7 +83,7 @@ mod tests {
 
         let old: Identification<String> =
             Identification::new(Tag::new(&old.label).try_into().unwrap(), old.prob);
-        Identification::new(Tag::new(&old.label).try_into().unwrap(), old.prob);
+        Identification::new(Tag::new(&old.label()).try_into().unwrap(), *old.prob());
 
         let prob = 1.0f32;
         let label = "__label__eng".to_string();
