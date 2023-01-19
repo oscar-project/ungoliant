@@ -15,8 +15,7 @@ use ungoliant::{
     processing::rebuild::Rebuilder,
 };
 
-use oscar_io::{self, oscar_doc::Document};
-
+use oscar_io::{self, v3::Document};
 fn gen_corpus() {
     let src = Path::new("res/shards/").to_path_buf();
     let dst = Path::new("res/corpus/").to_path_buf();
@@ -35,8 +34,9 @@ fn gen_corpus() {
 #[cfg(not(tarpaulin))]
 fn check_rebuild() {
     #[inline]
-    fn get_record_id(doc: &Document) -> &str {
-        doc.warc_headers().get("warc-record-id").unwrap()
+    fn get_record_id(doc: &Document) -> String {
+        let rid_bytes = doc.warc_headers().get(&warc::WarcHeader::RecordID).unwrap();
+        String::from_utf8_lossy(rid_bytes).to_string()
     }
 
     gen_corpus();
@@ -64,8 +64,5 @@ fn check_rebuild() {
 
     for (ds, dr) in docs_source.iter().zip(&docs_rebuild) {
         assert_eq!(ds, dr);
-        // assert_eq!(ds.content(), dr.content());
-        // assert_eq!(ds.metadata(), dr.metadata());
-        // assert_eq!(ds.warc_headers(), dr.warc_headers());
     }
 }

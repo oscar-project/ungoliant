@@ -315,11 +315,9 @@ mod tests {
     use oxilangtag::LanguageTag;
     use warc::WarcReader;
 
-    use crate::{
-        identifiers::identification::Identification,
-        pipelines::oscardoc::types::{Document, Metadata},
-    };
+    use crate::pipelines::oscardoc::types::{Document, Metadata};
 
+    use oscar_io::common::Identification;
     fn test_from_loc_meta() {
         let raw = b"\
             WARC/1.0\r\n\

@@ -22,6 +22,7 @@ use log::debug;
 use crate::filtering::Filter;
 
 use super::identification::Identification;
+// use oscar_io::common::Identification;
 
 /// Strict Multilingual detector
 ///
@@ -303,6 +304,7 @@ mod tests {
         },
     };
     use lazy_static::lazy_static;
+    // use oscar_io::common::Identification;
     use oxilangtag::LanguageTag;
 
     lazy_static! {

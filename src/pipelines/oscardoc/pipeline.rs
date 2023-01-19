@@ -255,12 +255,17 @@ impl OscarDoc {
         // see if the record meets multilingual criteria
         let multilingual = StrictMultilingual::default().detect(ids);
 
+        let ids: Vec<_> = ids
+            .into_iter()
+            .map(|id| id.clone().map(|_id| _id.into_inner()))
+            .collect();
+
         if multilingual {
             //TODO: fix prob on multilingual documents
             let document_identification =
                 Identification::new(LanguageTag::parse("multi".to_string())?, 0.5);
 
-            let metadata = Metadata::new(&document_identification, ids);
+            let metadata = Metadata::new(&document_identification, ids.as_slice());
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
             return Ok(Some(doc));
@@ -286,7 +291,7 @@ impl OscarDoc {
             let document_identification = Identification::new(id.clone(), *confidence);
 
             // create doc and metadata
-            let metadata = Metadata::new(&document_identification, ids);
+            let metadata = Metadata::new(&document_identification, ids.as_slice());
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
             debug!("{} : {:?}", doc.warc_id(), doc.identification());

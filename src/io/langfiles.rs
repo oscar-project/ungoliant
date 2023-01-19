@@ -143,13 +143,11 @@ mod tests {
 
     use std::{fs::File, path::PathBuf};
 
-    use crate::{
-        identifiers::identification::Identification,
-        pipelines::oscardoc::types::{Document, Metadata},
-    };
+    use crate::pipelines::oscardoc::types::{Document, Metadata};
     use warc::{BufferedBody, Record, WarcHeader};
 
     use super::*;
+    use oscar_io::common::Identification;
     use tempfile::tempdir;
 
     type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;

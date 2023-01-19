@@ -64,12 +64,10 @@ mod tests {
     use oxilangtag::LanguageTag;
     use warc::WarcHeader;
 
-    use crate::{
-        identifiers::identification::Identification,
-        pipelines::oscardoc::types::{Document, Metadata},
-    };
+    use crate::pipelines::oscardoc::types::{Document, Metadata};
 
     use super::*;
+    use oscar_io::common::Identification;
 
     type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 

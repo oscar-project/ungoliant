@@ -18,7 +18,11 @@ use serde::{Deserialize, Serialize};
 pub struct Identification<T: Deref<Target = str> + Clone>(IdentificationExternal<T>);
 impl<T: Deref<Target = str> + Clone> Identification<T> {
     pub(crate) fn new(label: LanguageTag<T>, prob: f32) -> Identification<T> {
-        Self(IdentificationExternal { label, prob })
+        Self(IdentificationExternal::new(label, prob))
+    }
+
+    pub fn into_inner(self) -> IdentificationExternal<T> {
+        self.0
     }
 }
 
@@ -39,10 +43,10 @@ impl TryFrom<Prediction> for Identification<String> {
         //convert to valid bcp47
         let label = label.replace('_', "-");
 
-        Ok(Self(IdentificationExternal {
-            prob: prediction.prob,
-            label: LanguageTag::parse_and_normalize(&label)?,
-        }))
+        Ok(Self(IdentificationExternal::new(
+            LanguageTag::parse_and_normalize(&label)?,
+            prediction.prob,
+        )))
         // debug!("{prediction:?}");
         // Self {
         //     prob: prediction.prob,
