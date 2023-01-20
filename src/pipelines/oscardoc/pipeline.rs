@@ -28,9 +28,7 @@ use crate::identifiers::model::{FastText, FastTextBuilder, Predict};
 use crate::identifiers::StrictMultilingual;
 use crate::pipelines::oscardoc::types::Location;
 use crate::pipelines::oscardoc::types::RebuildWriters;
-use oscar_io::v3::{Document, Metadata};
-
-use crate::io::writer::WriterTrait;
+use oscar_io::v3::{Document, Metadata, WriterTrait};
 
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;

@@ -57,15 +57,6 @@ impl Annotate<Document> for AdultDetector {
         let content = doc.content().replace('\n', " ");
         doc.metadata_mut()
             .set_harmful_pp(Some(self.kenlm.perplexity(&content)));
-        // if self.kenlm.perplexity(&content) > self.pp_thresh {
-        //     //TODO: add_annotation rather than set
-        //     info!(
-        //         "Document is adult! {}",
-        //         String::from_utf8_lossy(doc.warc_headers().get(&WarcHeader::RecordID).unwrap())
-        //     );
-        //     debug!("{}", doc.content());
-        //     doc.metadata_mut().set_annotation("adult_pp".to_string());
-        // }
     }
 }
 

@@ -8,12 +8,12 @@
  * [SRIterator] iteratively returns [RecordIterator]s from a **single** avro file (which corresponds to several shards).
  * [todo] calls [Iterator::next] on [SRIterator] and uses `n` threads to retrieve [Document]s and do IO to recreate the corpus.
 * !*/
-use crate::io::writer::WriterDoc;
-use crate::io::writer::WriterTrait;
 use crate::pipelines::oscardoc::types::Document;
 use crate::pipelines::oscardoc::types::RebuildInformation;
 use crate::pipelines::oscardoc::types::ShardResult;
 use crate::sources::commoncrawl::Wet;
+use oscar_io::v3::Writer;
+use oscar_io::v3::WriterTrait;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -277,7 +277,7 @@ impl<'a> Rebuilder<'a> {
         }
 
         // create mutex
-        let wr = Arc::new(Mutex::new(WriterDoc::new(self.dst, self.lang, None)?));
+        let wr = Arc::new(Mutex::new(Writer::new(self.dst, self.lang, None)?));
 
         // iterate over shard results
         let errors: Vec<Result<(), Error>> = sr

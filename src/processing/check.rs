@@ -4,8 +4,8 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::io::reader::docreader::DocReader;
 use itertools::Itertools;
+use oscar_io::v3::Reader as DocReader;
 use serde::Serialize;
 
 use unicode_segmentation::UnicodeSegmentation;
