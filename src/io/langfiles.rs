@@ -18,13 +18,14 @@ use oxilangtag::LanguageTag;
 use crate::error;
 use crate::error::Error;
 
-use super::writer::{WriterDoc, WriterTrait};
+// use super::writer::{WriterDoc, WriterTrait};
+use oscar_io::v3::{Writer, WriterTrait};
 /// Holds references to [Writer].
 // pub struct LangFiles {
 //     writers: HashMap<&'static str, Arc<Mutex<Writer>>>,
 // }
 
-type LanguageMap = HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>;
+type LanguageMap = HashMap<LanguageTag<String>, Arc<Mutex<Writer>>>;
 pub struct LangFilesDoc {
     writers: Arc<RwLock<LanguageMap>>,
     dst: PathBuf,
@@ -87,8 +88,8 @@ impl LangFilesDoc {
         dst: &Path,
         lang: LanguageTag<String>,
         part_size_bytes: Option<u64>,
-    ) -> Result<Arc<Mutex<WriterDoc>>, Error> {
-        let w = WriterDoc::new(dst, lang, part_size_bytes)?;
+    ) -> Result<Arc<Mutex<Writer>>, Error> {
+        let w = Writer::new(dst, lang, part_size_bytes)?;
 
         Ok(Arc::new(Mutex::new(w)))
     }
@@ -123,7 +124,7 @@ impl LangFilesDoc {
     // pub fn writers(&self) -> Arc<HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>> {
     pub fn writers(
         &self,
-    ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<WriterDoc>>>> {
+    ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<Writer>>>> {
         self.writers.read().unwrap()
     }
 
@@ -143,13 +144,11 @@ mod tests {
 
     use std::{fs::File, path::PathBuf};
 
-    use crate::{
-        identifiers::identification::Identification,
-        pipelines::oscardoc::types::{Document, Metadata},
-    };
+    use crate::pipelines::oscardoc::types::{Document, Metadata};
     use warc::{BufferedBody, Record, WarcHeader};
 
     use super::*;
+    use oscar_io::common::Identification;
     use tempfile::tempdir;
 
     type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
