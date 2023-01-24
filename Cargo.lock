@@ -201,11 +201,11 @@ dependencies = [
 
 [[package]]
 name = "cfasttext-sys"
-version = "0.7.0"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "023355ef1b0ad75ce31884b3c08161f29b991d8bac7b9e5747962ef9dbe1a35d"
+checksum = "b3215952ee792ae7c67d58b222868bc685186b7d640c05bfb8cba5c66eb7d62a"
 dependencies = [
- "cmake",
+ "cc",
 ]
 
 [[package]]
@@ -489,9 +489,9 @@ dependencies = [
 
 [[package]]
 name = "fasttext"
-version = "0.7.0"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "742843120e27db721777f887ad9fd94a28e9c2c55d34a0a1bf3f6b560322eab7"
+checksum = "48fe8887a6ee5eb11f3f85cf8de7eca15bf926874d0216db85000e45b275f5ff"
 dependencies = [
  "cfasttext-sys",
 ]
@@ -1090,13 +1090,14 @@ dependencies = [
 
 [[package]]
 name = "oscar-io"
-version = "0.1.3"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08bf1edf98688037a1e1252a642fda3c7dd8b830d460dd1f4ad58efba77d3fc6"
+checksum = "5d5b2919bbd30de9f4adffb0c42525ec3c6cce2a3154d140a82f7fa172ce7734"
 dependencies = [
  "avro-rs",
  "flate2",
  "log",
+ "oxilangtag",
  "schemars",
  "serde",
  "serde_json",
@@ -1928,6 +1929,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
+name = "tlsh"
+version = "0.1.0"
+source = "git+https://github.com/Uinelj/tlsh-rs?branch=fix-q3-panic#e40a47d9d8c9c97860709d4e211fe8f746e55751"
+
+[[package]]
 name = "tokio"
 version = "1.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2095,6 +2101,7 @@ dependencies = [
  "structopt",
  "tempfile",
  "test-log",
+ "tlsh",
  "tokio",
  "tokio-util 0.6.10",
  "twox-hash",
@@ -2353,10 +2360,11 @@ dependencies = [
 
 [[package]]
 name = "ut1_blocklist"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e247b5777ea951dd46aeabab4f650cd534c1a14acd4ee8334222e5fecfc5ed9"
+checksum = "ce3b12e766ad6dd5007e0c317ab044493c53e99f5539512f0db5faf2bce44ae0"
 dependencies = [
+ "log",
  "tempfile",
  "thiserror",
  "url",
