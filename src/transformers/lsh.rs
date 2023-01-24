@@ -23,7 +23,7 @@ impl Annotate<Document> for LSH {
         match builder.build() {
             Ok(hash) => {
                 let annotation = format!("tlsh:{}", hash.hash());
-                doc.metadata_mut().add_annotation(annotation);
+                doc.metadata_mut().set_tlsh(Some(annotation));
             }
             Err(e) => debug!(
                 "Could not compute a hash for document {:?}: {:?}",
@@ -53,8 +53,6 @@ impl Default for LSH {
 mod tests {
     use std::collections::HashMap;
 
-    use tlsh::{BucketKind, ChecksumKind, TlshBuilder};
-
     use crate::{
         pipelines::oscardoc::types::{Document, Metadata},
         transformers::Annotate,
@@ -69,8 +67,8 @@ mod tests {
         let lsh = LSH::default();
         lsh.annotate(&mut doc);
 
-        let annotation = &doc.metadata().annotation().unwrap()[0];
-        assert!(annotation.contains("tlsh:"));
+        let tlsh = &doc.metadata().tlsh().unwrap();
+        assert!(tlsh.contains("tlsh:"));
     }
 
     #[test]
@@ -80,7 +78,7 @@ mod tests {
         let lsh = LSH::default();
         lsh.annotate(&mut doc);
 
-        assert!(doc.metadata().annotation().is_none());
+        assert!(doc.metadata().tlsh().is_none());
     }
 
     #[test]
@@ -90,7 +88,7 @@ mod tests {
         let lsh = LSH::default();
         lsh.annotate(&mut doc);
 
-        assert!(doc.metadata().annotation().is_none());
+        assert!(doc.metadata().tlsh().is_none());
     }
     #[test]
     fn test_tlsh() {
@@ -108,8 +106,8 @@ mod tests {
         annotator.annotate(&mut doc1);
         annotator.annotate(&mut doc2);
 
-        let hash1 = &doc1.metadata().annotation().unwrap()[0];
-        let hash2 = &doc2.metadata().annotation().unwrap()[0];
+        let hash1 = &doc1.metadata().tlsh().unwrap();
+        let hash2 = &doc2.metadata().tlsh().unwrap();
 
         assert_eq!(hash1, hash2);
     }
