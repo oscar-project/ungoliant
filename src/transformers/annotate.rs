@@ -31,6 +31,10 @@ impl<T> Default for Annotator<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use oscar_io::v3::Metadata;
+
     use crate::{pipelines::oscardoc::types::Document, transformers::Annotate};
 
     use super::Annotator;
@@ -45,12 +49,19 @@ mod tests {
     fn test_add() {
         struct MockAnnotate {}
         impl Annotate<Document> for MockAnnotate {
-            fn annotate(&self, _: &mut Document) {}
+            fn annotate(&self, doc: &mut Document) {
+                doc.metadata_mut().add_annotation("foo".to_string());
+            }
         }
 
         let mut a = Annotator::default();
         a.add(Box::new(MockAnnotate {}));
 
         assert_eq!(a.0.len(), 1);
+
+        let mut d = Document::new(String::new(), HashMap::new(), Metadata::default());
+        a.annotate(&mut d);
+
+        assert_eq!(d.metadata().annotation(), Some(&vec!["foo".to_string()]));
     }
 }
