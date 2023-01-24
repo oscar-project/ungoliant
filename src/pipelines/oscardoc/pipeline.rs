@@ -494,7 +494,7 @@ impl Pipeline<()> for OscarDoc {
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
-                let hm = Self::sort_by_lang(shard_result);
+                let mut hm = Self::sort_by_lang(shard_result);
 
                 // run kenlms after identification so that shard results are already
                 // sorted by language.
