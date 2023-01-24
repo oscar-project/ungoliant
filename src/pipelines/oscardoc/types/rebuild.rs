@@ -50,7 +50,7 @@ lazy_static! {
   "fields":[
     {"name":"identification", "type":"identification"},
     {"name":"harmful_pp", "type":["null", "float"]},
-    {"name":"annotation", "type":["null", {"type": "array", "items":"string"}]},
+    {"name":"quality_warnings", "type":["null", {"type": "array", "items":"string"}]},
     {"name":"categories", "type":["null", {"type": "array", "items":"string"}]},
     {"name": "sentence_identifications", "type":"array", "items":[
       "null",
