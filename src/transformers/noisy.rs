@@ -64,33 +64,33 @@ mod tests {
 
     use super::Noisy;
 
-    // #[test]
-    // fn test_full_noise() {
-    //     let content = "/////////////////////////".to_string();
-    //     let mut d = Document::new(content, HashMap::new(), Metadata::default());
-    //     let a = Noisy::default();
-    //     a.annotate(&mut d);
+    #[test]
+    fn test_full_noise() {
+        let content = "/////////////////////////".to_string();
+        let mut d = Document::new(content, HashMap::new(), Metadata::default());
+        let a = Noisy::default();
+        a.annotate(&mut d);
 
-    //     assert!(d
-    //         .metadata()
-    //         .annotation()
-    //         .unwrap()
-    //         .contains(&"noisy".to_string()));
-    // }
+        assert!(d
+            .metadata()
+            .annotation()
+            .unwrap()
+            .contains(&"noisy".to_string()));
+    }
 
-    // #[test]
-    // fn almost_full_noise() {
-    //     let content = "/a//a////a////a/a//a////a///a/a//a/".to_string();
-    //     let mut d = Document::new(content, HashMap::new(), Metadata::default());
-    //     let a = Noisy::default();
-    //     a.annotate(&mut d);
+    #[test]
+    fn almost_full_noise() {
+        let content = "/a//a////a////a/a//a////a///a/a//a/".to_string();
+        let mut d = Document::new(content, HashMap::new(), Metadata::default());
+        let a = Noisy::default();
+        a.annotate(&mut d);
 
-    //     assert!(d
-    //         .metadata()
-    //         .annotation()
-    //         .unwrap()
-    //         .contains(&"noisy".to_string()));
-    // }
+        assert!(d
+            .metadata()
+            .annotation()
+            .unwrap()
+            .contains(&"noisy".to_string()));
+    }
 
     #[test]
     fn standard_punctuation() {

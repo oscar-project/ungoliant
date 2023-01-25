@@ -127,16 +127,6 @@ impl LangFilesDoc {
     ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<Writer>>>> {
         self.writers.read().unwrap()
     }
-
-    /// Fix open metadata files by removing trailing comma and closing the array.
-    pub fn close_meta(&self) -> Result<(), error::Error> {
-        let writers = self.writers.read().unwrap();
-        for writer in writers.values() {
-            let mut writer_lock = writer.lock().unwrap();
-            writer_lock.close_meta()?;
-        }
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -157,6 +147,19 @@ mod tests {
     fn init_doc() {
         let dst = tempdir().unwrap();
         let _: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
+    }
+
+    #[test]
+    fn test_contains() {
+        let dst = tempdir().unwrap();
+        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
+        let language = LanguageTag::parse("fr".to_string()).unwrap();
+
+        assert!(!lf.contains(&language));
+
+        lf.insert_writer(language.clone()).unwrap();
+
+        assert!(lf.contains(&language));
     }
 
     #[test]
