@@ -72,6 +72,7 @@ jobs:
         with:
           version: 0.22.0
           timeout: 180
+          args: "--avoid-cfg-tarpaulin"
         continue-on-error: true
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
