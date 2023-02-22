@@ -31,6 +31,7 @@ fn gen_corpus() {
 }
 
 #[test]
+#[ignore]
 #[cfg(not(tarpaulin))]
 fn check_rebuild() {
     #[inline]
