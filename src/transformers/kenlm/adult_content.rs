@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use ctclib::{Dict, KenLM};
+use ctclib_pp::{Dict, KenLM};
 
 use crate::{pipelines::oscardoc::types::Document, transformers::Annotate};
 use log::{debug, info};
