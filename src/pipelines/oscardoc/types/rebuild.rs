@@ -101,7 +101,7 @@ lazy_static! {
 /// Holds the same fields as [Location], adding [Metadata].
 ///
 /// Should be transformed into a struct that holds two attributes rather than copying some.
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RebuildInformation {
     shard_id: usize,
     record_id: String,
@@ -169,7 +169,7 @@ impl RebuildInformation {
 }
 
 /// Holds multiple [RebuildInformation] for a single shard.
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ShardResult {
     shard_id: i64,
     rebuild_info: Vec<RebuildInformation>,
@@ -336,9 +336,17 @@ impl<'a> RebuildWriters<'a, File> {
 #[cfg(test)]
 mod tests {
 
+    use std::{
+        collections::HashMap,
+        fs::File,
+        sync::{Arc, RwLock},
+    };
+
+    use oxilangtag::LanguageTag;
+
     use crate::pipelines::oscardoc::types::{Location, Metadata};
 
-    use super::{RebuildInformation, RebuildWriter, ShardResult};
+    use super::{RebuildInformation, RebuildWriter, RebuildWriters, ShardResult};
 
     #[test]
     fn rebuild_information_into_raw_parts() {
@@ -361,6 +369,70 @@ mod tests {
     }
 
     #[test]
+    fn test_sort() {
+        let record_ids = ["record1", "record2", "record3"];
+        let locs_in_shard: [usize; 3] = [3, 0, 4];
+
+        let mut locs = Vec::with_capacity(record_ids.len());
+        for (loc, id) in locs_in_shard.into_iter().zip(record_ids) {
+            let loc = Location::new(1, id.to_string(), 0, 10, loc);
+            locs.push(loc);
+        }
+        let metas = vec![Metadata::default(); 3];
+
+        let mut sr = ShardResult::new(1, locs, metas);
+
+        // unsorted, will be sorted manually
+        let mut locs_unsorted: Vec<_> = sr
+            .rebuild_info()
+            .iter()
+            .map(|rb| rb.loc_in_shard())
+            .collect();
+
+        // call sorting
+        sr.sort();
+
+        // these ones should be sorted now
+        let locs_sorted: Vec<_> = sr
+            .rebuild_info()
+            .iter()
+            .map(|rb| rb.loc_in_shard())
+            .collect();
+
+        // ensure inequality before sorting, in case of empty or 1 sized vectors
+        assert_ne!(locs_unsorted, locs_sorted);
+
+        // sort manually, ground truth
+        locs_unsorted.sort();
+
+        assert_eq!(locs_unsorted, locs_sorted);
+    }
+
+    #[test]
+    fn test_into_raw_parts() {
+        let record_ids = ["record1", "record2", "record3"];
+        let locs_in_shard: [usize; 3] = [3, 0, 4];
+
+        let mut locs = Vec::with_capacity(record_ids.len());
+        for (loc, id) in locs_in_shard.into_iter().zip(record_ids) {
+            let loc = Location::new(1, id.to_string(), 0, 10, loc);
+            locs.push(loc);
+        }
+        let metas = vec![Metadata::default(); 3];
+
+        let mut sr = ShardResult::new(1, locs, metas);
+
+        let (shard_id, rebuild_info) = sr.clone().into_raw_parts();
+
+        let from_raw_parts = ShardResult {
+            shard_id,
+            rebuild_info,
+        };
+
+        assert_eq!(sr, from_raw_parts)
+    }
+
+    #[test]
     fn test_ser() {
         let meta = vec![Metadata::default()];
         let loc = vec![Location::default()];
@@ -379,5 +451,31 @@ mod tests {
             .collect();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], sr);
+    }
+
+    #[test]
+    fn test_rebuild_writers_contains() {
+        let rbw = RebuildWriters::<usize> {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        assert!(!rbw.contains(&LanguageTag::parse("fr".to_string()).unwrap()));
+
+        // ensure no panic here
+        rbw.writers();
+    }
+
+    #[test]
+    fn test_rebuild_writers_insert() {
+        let rbw = RebuildWriters::<File> {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        let lang = LanguageTag::parse("fr".to_string()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let rbw = RebuildWriters::with_dst(dir.path()).unwrap();
+        assert!(!rbw.contains(&lang));
+        rbw.insert(dir.path(), &lang).unwrap();
+        assert!(rbw.contains(&lang));
     }
 }
