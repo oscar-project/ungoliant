@@ -65,16 +65,22 @@ mod tests {
 
     use super::Wet;
 
-    // #[test]
-    // fn test_folder() {
-    //     let _ = Wet::from_path_gzip("/dev/").unwrap();
-    // }
+    const SHARD_PATH: &str = "res/shards/0.txt.gz";
+    const SHARD_DIR: &str = "res/shards/";
+    #[test]
+    fn test_folder() {
+        let r = Wet::from_path_gzip(SHARD_DIR);
+
+        assert!(r.is_ok());
+    }
 
     #[test]
-    #[ignore]
     fn test_init() {
-        let _ = Wet::from_path_gzip("results/0.txt.gz").unwrap();
+        let w = Wet::from_path_gzip(SHARD_PATH);
+
+        assert!(w.is_ok());
     }
+
     #[test]
     #[ignore]
     fn test_metadata() {
@@ -84,21 +90,10 @@ mod tests {
         // although records are marked warc/1.0, they follow 1.1 spec
         // See https://iipc.github.io/warc-specifications/specifications/warc-format/warc-1.1/#named-fields
         // for a better explanation of fields
-        let shard = Wet::from_path_gzip("results/0.txt.gz").unwrap();
+        let shard = Wet::from_path_gzip(SHARD_PATH).unwrap();
 
         for (_, record) in shard.iter.enumerate().skip(1).take(4) {
-            let record = record.unwrap();
-            println!("{:#?}", record);
-            // let headers: HashMap<WarcHeader, String> = record
-            //     .headers
-            //     .into_iter()
-            //     .map(|(k, v)| (k, String::from_utf8_lossy(&v).to_string()))
-            //     .collect();
-            // println!("record {}", idx);
-            // println!(
-            //     "headers: {}",
-            //     serde_json::to_string_pretty(&headers).unwrap()
-            // );
+            assert!(record.is_ok());
         }
     }
 
@@ -116,8 +111,8 @@ mod tests {
             "warc-record-id": "<urn:uuid:c7f19cbd-e348-48ff-9a92-4852b114b6db>"
           }"#;
 
-        let headers: HashMap<WarcHeader, String> = serde_json::from_str(&headers_json).unwrap();
-        println!("{:?}", headers);
+        let headers: Result<HashMap<WarcHeader, String>, _> = serde_json::from_str(headers_json);
+        assert!(headers.is_ok());
     }
 
     #[test]

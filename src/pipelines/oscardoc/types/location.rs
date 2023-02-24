@@ -26,7 +26,7 @@ pub enum LocationKind {
 /// Each field shouldn't be filled more than once to
 /// guarantee some integrity.
 // TODO: Add methods to ensure that we add only once?
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LocationBuilder {
     shard_id: Option<usize>,
     record_id: Option<String>,
@@ -122,7 +122,7 @@ impl<'a> TryFrom<LocationBuilder> for Location {
 /// If we're working on the 10th record of a shard that is shard 100,
 /// that the record has 10 lines and we only keep the first 5,
 /// We'd get `line_start=0, line_end=4, loc_in_shard=99`.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Location {
     shard_id: usize,
     record_id: String,
@@ -191,6 +191,9 @@ impl Default for Location {
 
 #[cfg(test)]
 mod tests {
+    
+    
+
     use super::Location;
     use super::LocationBuilder;
 

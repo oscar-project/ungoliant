@@ -29,7 +29,7 @@ impl Default for Header {
     }
 }
 
-impl Annotate for Header {
+impl Annotate<Document> for Header {
     /// checks lines and adds annotations if applicable.
     fn annotate(&self, doc: &mut Document) {
         let nb_lines = doc.content().lines().count();
@@ -42,7 +42,7 @@ impl Annotate for Header {
         // iterate over the header, counting short lines
         let short_lines_count = self.count_short_lines(doc.content().lines().take(nb_lines_header));
         if short_lines_count > treshold_lines {
-            doc.metadata_mut().set_annotation("header".to_string());
+            doc.metadata_mut().add_annotation("header".to_string());
         }
 
         // do the same in reverse order (to get footer)
@@ -50,7 +50,7 @@ impl Annotate for Header {
             self.count_short_lines(doc.content().lines().rev().take(nb_lines_header));
 
         if short_lines_count > treshold_lines {
-            doc.metadata_mut().set_annotation("footer".to_string());
+            doc.metadata_mut().add_annotation("footer".to_string());
         }
     }
 }
@@ -151,7 +151,7 @@ This is a lengthy enough sentence! Or at least I hope :)";
         annotator.annotate(&mut doc);
         assert_eq!(
             doc.metadata().annotation(),
-            Some(&vec!["header".to_string()])
+            Some(vec!["header".to_string()]).as_ref()
         );
     }
 
@@ -182,7 +182,7 @@ This is a lengthy enough sentence! Or at least I hope :)";
         annotator.annotate(&mut doc);
         assert_eq!(
             doc.metadata().annotation(),
-            Some(&vec!["footer".to_string()])
+            Some(vec!["footer".to_string()]).as_ref()
         );
     }
 
@@ -213,7 +213,7 @@ This is a lengthy enough sentence! Or at least I hope :)";
         annotator.annotate(&mut doc);
         assert_eq!(
             doc.metadata().annotation(),
-            Some(&vec!["header".to_string(), "footer".to_string()])
+            Some(vec!["header".to_string(), "footer".to_string()]).as_ref()
         );
     }
 

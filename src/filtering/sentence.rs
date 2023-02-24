@@ -3,12 +3,6 @@ use super::filter::FilterMut;
 use super::Filter;
 use std::convert::TryInto;
 
-/// regroups sentence filter kinds
-enum FilterKind {
-    Length(Length),
-    MeanLength(MeanLength),
-}
-
 /// Simple length filter.
 /// Returns `false` if provided sentence is less than [Length::min_size] unicode codepoints.
 ///

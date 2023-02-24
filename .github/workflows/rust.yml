@@ -1,32 +1,78 @@
-name: Rust
+name: get_test_data
 
 on:
   push:
-    branches: [ master, dev ]
+    branches: [master, dev]
   pull_request:
-    branches: [ master, dev ]
-
+    branches: [master, dev]
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  cache_test_data:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose
-
-    - name: Fetch identification bin
-      run: wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
-    - name: Run tests
-      run: cargo test --verbose
-      
-    - name: Run cargo-tarpaulin
-      uses: actions-rs/tarpaulin@v0.1
-      continue-on-error: true
-      
-    - name: Upload to codecov.io
-      uses: codecov/codecov-action@v1
+      - uses: actions/checkout@v2
+      - name: Cache language identification models
+        id: cache-lid
+        uses: actions/cache@v3
+        with:
+          path: lid.*.bin
+          key: ${{ runner.os }}-lids
+      - name: Cache CC shards
+        id: cache-shards
+        uses: actions/cache@v3
+        with:
+          path: res/shards/*.gz
+          key: ${{ runner.os }}-shards
+      - name: Cache blocklist
+        id: cache-blocklist
+        uses: actions/cache@v3
+        with:
+          path: res/blocklist
+          key: ${{ runner.os }}-blocklist
+      - name: Fetch identification bins
+        if: steps.cache-lid.outputs.cache-hit != 'true'
+        run: |
+          wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
+          wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.189.bin
+      - name: Fetch blocklist
+        if: steps.cache-blocklist.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p res/blocklist
+          wget https://github.com/olbat/ut1-blacklists/archive/refs/heads/master.zip
+          unzip master.zip
+          mv ut1-blacklists-master/blacklists/* res/blocklist
+          gzip -d res/blocklist/adult/domains.gz  #adult blocklist is compressed
+          rm -r ut1-blacklists-master
+      - name: Fetch CC shards
+        if: steps.cache-shards.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p res/shards
+          wget -O res/shards/0.txt.gz https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/segments/1659882570651.49/wet/CC-MAIN-20220807150925-20220807180925-00000.warc.wet.gz
+          wget -O res/shards/1.txt.gz https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/segments/1659882570651.49/wet/CC-MAIN-20220807150925-20220807180925-00001.warc.wet.gz
+      - name: Install KenLM dependencies
+        run: sudo apt install -y libboost-all-dev libeigen3-dev
+      - name: Get sample KenLM model
+        run: |
+          mkdir -p res/kenlm
+          wget -O res/kenlm/en.arpa https://raw.githubusercontent.com/agatan/ctclib/main/data/overfit.arpa
+      - name: Build
+        run: cargo build --verbose
+      - name: Create test directories
+        run: |
+          mkdir res/corpus
+          mkdir res/rebuilt
+          mkdir -p res/corpus/rebuild
+          ls res/
+      - name: Run tests
+        run: RUST_BACKTRACE=1 cargo test --verbose
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: 0.22.0
+          timeout: 180
+          args: "--avoid-cfg-tarpaulin"
+        continue-on-error: true
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v3

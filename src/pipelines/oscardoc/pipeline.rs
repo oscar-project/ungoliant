@@ -18,41 +18,56 @@
 //! [^1]: We should do this after step 1: better efficiency.
 use std::fs::File;
 use std::path::Path;
-use std::str::Lines;
+
 use std::{collections::HashMap, path::PathBuf};
 
-use super::types::{Document, Location, Metadata, RebuildWriters};
 use crate::error::Error;
 use crate::filtering::{record, Filter};
-use crate::identifiers::{self, Identification, Identifier};
-use crate::identifiers::{FastText, StrictMultilingual};
-use crate::io::writer::WriterTrait;
-use crate::lang::Lang;
+use crate::identifiers::identification::Identification;
+use crate::identifiers::model::{FastText, FastTextBuilder, Predict};
+use crate::identifiers::StrictMultilingual;
+use crate::pipelines::oscardoc::types::Location;
+use crate::pipelines::oscardoc::types::RebuildWriters;
+use oscar_io::v3::{Document, Metadata, WriterTrait};
+
 use crate::pipelines::oscardoc::types::{LocationBuilder, ShardResult};
 use crate::pipelines::pipeline::Pipeline;
 use crate::sources::commoncrawl::Wet;
+
 use crate::transformers::{
     self, Annotate, Annotator, ContentDetector, Header, Noisy, ShortSentences, TinyDocument,
-    Transform,
+    Transform, LSH,
 };
+#[cfg(feature = "kenlm")]
+use crate::transformers::{AdultDetector, AdultDetectorBuilder, Models};
 use log::{debug, error, info, log_enabled, warn};
+use oxilangtag::LanguageTag;
 use rayon::prelude::*;
-use ut1_blocklist::Blocklist;
+use ut1_blocklist::MultipleBlocklist;
 use warc::BufferedBody;
 use warc::{Record, WarcHeader};
 
 use crate::io::LangFilesDoc;
 
 const DOC_THRESHOLD: f32 = 0.6f32;
+
+// TODO: Implement structopt directly here.
 pub struct OscarDoc {
     src: PathBuf,
     dst: PathBuf,
     lid_path: PathBuf,
     blocklist: Option<PathBuf>,
+    kenlms_path: Option<PathBuf>,
 }
 
 impl OscarDoc {
-    pub fn new(src: PathBuf, dst: PathBuf, lid_path: PathBuf, blocklist: Option<PathBuf>) -> Self {
+    pub fn new(
+        src: PathBuf,
+        dst: PathBuf,
+        lid_path: PathBuf,
+        blocklist: Option<PathBuf>,
+        kenlms_path: Option<PathBuf>,
+    ) -> Self {
         if blocklist.is_none() {
             warn!("No blocklist folder specified! No adult content tagging will be done.");
         }
@@ -63,6 +78,7 @@ impl OscarDoc {
             dst,
             lid_path,
             blocklist,
+            kenlms_path,
         }
     }
 
@@ -86,6 +102,7 @@ impl OscarDoc {
         Ok(results)
     }
 
+    /// Extract shard number from a CC shard path.
     fn get_shard_number(shard_path: &Path) -> Result<usize, Error> {
         let shard_number = shard_path.file_stem();
         let shard_number = shard_number
@@ -103,19 +120,22 @@ impl OscarDoc {
         }
     }
 
-    /// Process a shard, returning a [Vec] of [Document].
+    /// Process a shard.
+    ///
+    /// This opens the shard, filters/identifies all documents and then
+    /// returns the shard id, along with a [Vec] of documents and their relative location (for rebuilding)
     fn process_shard(
         shard_path: &Path,
-        identifier: &identifiers::FastText,
+        identifier: &FastText,
         filter: Option<record::FilterKind>,
-        blocklist: &Option<PathBuf>,
+        annotator: &Annotator<Document>,
     ) -> Result<(usize, Vec<(Document, Location)>), Error> {
         info!("working on shard: {:?}", shard_path);
 
         // get shard number
         let shard_id = Self::get_shard_number(shard_path)?;
 
-        let shard = Wet::from_path_gzip(&shard_path)?;
+        let shard = Wet::from_path_gzip(shard_path)?;
         let record_iter = shard.iter.enumerate().par_bridge();
 
         // only get valid records, print errors
@@ -190,23 +210,12 @@ impl OscarDoc {
             });
 
         // annotate
-        let mut annotator = Annotator::default();
-        annotator
-            .add(Box::new(TinyDocument::default()))
-            .add(Box::new(ShortSentences::default()))
-            .add(Box::new(Header::default()))
-            .add(Box::new(Noisy::default()));
-
-        if let Some(path) = blocklist {
-            let bl = Blocklist::with_folder("adult", path)?;
-            annotator.add(Box::new(ContentDetector::new(bl)));
-        }
-
         let record_iter = record_iter.map(|(loc, mut r)| {
             annotator.annotate(&mut r);
             (r, loc.build().unwrap())
         });
 
+        // remove documents that are both tiny and noisy
         let record_iter = record_iter.filter_map(|(r, loc): (Document, Location)| {
             if r.metadata().annotation() == Some(&vec!["noisy".to_string(), "tiny".to_string()]) {
                 debug!("removed document {:?} for noisy+tiny", r.warc_id());
@@ -227,7 +236,7 @@ impl OscarDoc {
     /// then compute the most present identification
     fn process_record(
         record: Record<BufferedBody>,
-        identifier: &identifiers::FastText,
+        identifier: &FastText,
     ) -> Result<Option<Document>, Error> {
         // get lines
         let (headers, body) = record.into_raw_parts();
@@ -235,16 +244,26 @@ impl OscarDoc {
         let lines = body.lines();
 
         // get the id for each line, the byte/prob count and the total byte count of the document
-        let (ids, lang_count, total_count) = identifier.get_weighted_ids(lines)?;
+        let w_ids = identifier.weighted_ids(lines)?;
+        let ids = w_ids.line_ids();
+        let lang_count = w_ids.lang_bins();
+        let total_count = w_ids.total_size();
 
+        //TODO fix multilingual
         // see if the record meets multilingual criteria
-        let multilingual = StrictMultilingual::default().detect(&ids[..]);
+        let multilingual = StrictMultilingual::default().detect(ids);
+
+        let ids: Vec<_> = ids
+            .into_iter()
+            .map(|id| id.clone().map(|_id| _id.into_inner()))
+            .collect();
 
         if multilingual {
             //TODO: fix prob on multilingual documents
-            let document_identification = Identification::new(Lang::Multi, 0.5);
+            let document_identification =
+                Identification::new(LanguageTag::parse("multi".to_string())?, 0.5);
 
-            let metadata = Metadata::new(&document_identification, &ids);
+            let metadata = Metadata::new(&document_identification, ids.as_slice());
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
             return Ok(Some(doc));
@@ -267,10 +286,10 @@ impl OscarDoc {
             }
 
             // create id
-            let document_identification = Identification::new(*id, *confidence);
+            let document_identification = Identification::new(id.clone(), *confidence);
 
             // create doc and metadata
-            let metadata = Metadata::new(&document_identification, &ids);
+            let metadata = Metadata::new(&document_identification, ids.as_slice());
             let doc = Document::new(body.into_owned(), headers.headers, metadata);
 
             debug!("{} : {:?}", doc.warc_id(), doc.identification());
@@ -294,11 +313,11 @@ impl OscarDoc {
     /// Gets a vector of documents and outputs a hashmap listing the documents per language
     fn sort_by_lang(
         documents: Vec<(Document, Location)>,
-    ) -> HashMap<Lang, Vec<(Document, Location)>> {
+    ) -> HashMap<LanguageTag<String>, Vec<(Document, Location)>> {
         let mut ret = HashMap::new();
-        for (document, location) in documents {
+        for (document, location) in documents.into_iter() {
             let e = ret
-                .entry(*document.identification().label())
+                .entry(document.identification().label().clone()) //TODO: since we take ownership of documents, we could avoid cloning and taking value itself.
                 .or_insert_with(Vec::new);
             e.push((document, location));
         }
@@ -306,21 +325,63 @@ impl OscarDoc {
         ret
     }
 
+    /// run kenlm models on data, adding perplexity.
+    #[cfg(feature = "kenlm")]
+    fn run_kenlms(
+        models: &Models,
+        base_model_path: &Path,
+        documents: &mut HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
+    ) {
+        debug!("Running kenlms");
+        for (lang, docs) in documents {
+            // attempt to load model for provided lang.
+            // It's okay if it's not possible.
+            if !models.is_loaded(lang) {
+                if let Err(e) = models.load(lang) {
+                    debug!("Couldn't load model for lang {lang:?}: {e:?}");
+                }
+            }
+
+            // TODO: Possible problem here, if between load and get the HM is modified.
+            // Add a way of dealing with that?
+            // possibly creating a scope and then using "direct" method calls rather than
+            // calls that use read/write locks internally.
+            if let Some(model) = models.models().get(lang.as_ref()) {
+                let model = model.read().unwrap();
+                for (doc, _) in docs {
+                    model.annotate(doc);
+                }
+            } else {
+                error!("Could not annotate using model {lang}: No model");
+            }
+        }
+    }
+
     /// concurrently write documets
     fn write_documents<'a>(
         langfiles: &LangFilesDoc,
         avrowriters: &'a RebuildWriters<'a, File>,
+        rebuild_root_dir: &Path,
         shard_id: usize,
-        documents: HashMap<Lang, Vec<(Document, Location)>>,
+        documents: HashMap<LanguageTag<String>, Vec<(Document, Location)>>,
     ) -> Result<(), Error> {
         let errors: Vec<Error> = documents
             .into_par_iter()
             .map(|(lang, docs)| {
-                debug!("[{}]: {} documents", lang, docs.len());
+                info!("[{}]: {} documents", lang, docs.len());
 
-                // get mutexes on writers
-                let writer = langfiles.writers().get(&lang).unwrap();
-                let avrowriter = avrowriters.get(&lang).unwrap();
+                // check if langfiles has an opened file for provided language
+                if !langfiles.contains(&lang) {
+                    langfiles.insert_writer(lang.clone())?;
+                };
+                let writers = langfiles.writers();
+                let writer = writers.get(&lang).unwrap();
+
+                if !avrowriters.contains(&lang) {
+                    avrowriters.insert(rebuild_root_dir, &lang)?;
+                }
+                let avrowriters_lock = avrowriters.writers();
+                let avrowriter = avrowriters_lock.get(&lang).unwrap();
                 let mut writer_lock = writer.lock().unwrap();
                 let mut avrowriter_lock = avrowriter.lock().unwrap();
 
@@ -330,7 +391,8 @@ impl OscarDoc {
 
                 // clone metadata
                 let metadata_cloned = docs.iter().map(|doc| doc.metadata().clone()).collect();
-                let sr = ShardResult::new(shard_id as i64, locations, metadata_cloned);
+                let mut sr = ShardResult::new(shard_id as i64, locations, metadata_cloned);
+                sr.sort();
 
                 // write docs and rebuild files
                 writer_lock.write(docs)?;
@@ -364,10 +426,11 @@ impl Pipeline<()> for OscarDoc {
     fn run(&self) -> Result<(), Error> {
         // let errors;
 
-        let cls = FastText::new(&self.lid_path, 1, 0.8).expect(&format!(
-            "Could not load language identifier at {:?}",
-            self.lid_path
-        ));
+        let cls = FastTextBuilder::default()
+            .path(&self.lid_path)
+            .k(1)
+            .threshold(0.8)
+            .build()?;
 
         if !self.dst.exists() {
             warn!("Destination file does not exist. Creating");
@@ -385,25 +448,63 @@ impl Pipeline<()> for OscarDoc {
         //      ourselves.
         let results = results.enumerate().par_bridge();
 
-        let langfiles = LangFilesDoc::new(&self.dst, None)?;
+        let langfiles = LangFilesDoc::new(&self.dst, None);
+        #[cfg(feature = "kenlm")]
+        let kenlms = if let Some(kenlms_path) = &self.kenlms_path {
+            if !kenlms_path.is_dir() {
+                panic!("KenLMs path must exist and be a dir! {kenlms_path:?}");
+            }
+            Models::from_dir(kenlms_path)?
+        } else {
+            /*  TODO: Remove panic here.
+                We should either:
+                    - Have an "appendable" switch which enables Models to find binaries at runtime (with write lock cost)
+                    - Crash on no kenlms provided OR have a warning to indicate that no kenlm annotations will be done.
+            */
+            panic!("No kenlms path provided but feature turned on!");
+        };
+
+        let annotator = {
+            let mut annotator = Annotator::default();
+            annotator
+                .add(Box::new(TinyDocument::default()))
+                .add(Box::new(ShortSentences::default()))
+                .add(Box::new(Header::default()))
+                .add(Box::new(LSH::default()))
+                .add(Box::new(Noisy::default()));
+
+            // add ut1 blocklists for categories
+            if let Some(path) = &self.blocklist {
+                let bl = MultipleBlocklist::from_dir(&path)?;
+                annotator.add(Box::new(ContentDetector::new(bl)));
+            }
+
+            annotator
+        };
+
         let mut dst_rebuild = self.dst.clone();
         dst_rebuild.push("rebuild");
 
         let rebuild_files = RebuildWriters::with_dst(&dst_rebuild)?;
 
         //iterate over shards
-        let shards_results = results.map(|(idx, shard)| {
-            (
-                idx,
-                Self::process_shard(&shard, &cls, None, &self.blocklist),
-            )
-        });
+        let shards_results =
+            results.map(|(idx, shard)| (idx, Self::process_shard(&shard, &cls, None, &annotator)));
 
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
-                let hm = Self::sort_by_lang(shard_result);
-                Self::write_documents(&langfiles, &rebuild_files, shard_id, hm).unwrap();
+                let mut hm = Self::sort_by_lang(shard_result);
+
+                // run kenlms after identification so that shard results are already
+                // sorted by language.
+                #[cfg(feature = "kenlm")]
+                if let Some(kenlms_path) = &self.kenlms_path {
+                    Self::run_kenlms(&kenlms, kenlms_path, &mut hm);
+                }
+
+                Self::write_documents(&langfiles, &rebuild_files, &dst_rebuild, shard_id, hm)
+                    .unwrap();
             } else {
                 error!("Error with shard idx {}:{:?}", idx, shard_result);
             }

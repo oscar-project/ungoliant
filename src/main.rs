@@ -4,9 +4,7 @@ use log::LevelFilter;
 use std::fs::File;
 use std::io::Write;
 use structopt::StructOpt;
-use ungoliant::pipelines::oscardoc::types::Document;
 
-use crate::pipelines::oscarmeta::types::Metadata;
 use crate::pipelines::Pipeline;
 
 #[macro_use]
@@ -18,7 +16,6 @@ mod error;
 mod filtering;
 mod identifiers;
 mod io;
-mod lang;
 mod pipelines;
 mod processing;
 mod sources;
@@ -61,34 +58,33 @@ async fn main() -> Result<(), error::Error> {
 
         cli::Ungoliant::Pipeline(p) => {
             let mut schema_filepath = p.dst.clone();
-            // let p = pipeline::OscarMetadata::new(p.src, p.dst, p.lid_path);
-            let p = pipelines::OscarDoc::new(p.src, p.dst, p.lid_path, p.blocklist);
+            let p =
+                pipelines::OscarDocNew::new(p.src, p.dst, p.lid_path, p.blocklist, p.kenlms_path);
             p.run()?;
 
             schema_filepath.push("metadata_schema.json");
             info!("creating json schema file {:?}", schema_filepath);
-            let mut f = File::create(schema_filepath)?;
-            f.write_all(Document::get_schema().unwrap().as_bytes())?;
+            let _f = File::create(schema_filepath)?;
+            // f.write_all(Document::get_schema().unwrap().as_bytes())?;
             // f.write_all(Metadata::get_schema()?.as_bytes())?;
         }
-        cli::Ungoliant::Dedup(d) => {
-            processing::dedup::dedup(&d.src, &d.dst, Some(d.bufsize))?;
-        }
-        cli::Ungoliant::Split(s) => {
-            processing::split::split(&s.src, &s.dst, s.part_size, Some(s.bufsize));
-        }
-        cli::Ungoliant::Compress(c) => {
-            processing::compress::compress_corpus(&c.src, &c.dst)?;
-        }
-        cli::Ungoliant::Package(p) => {
-            processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
-        }
+        // cli::Ungoliant::Dedup(d) => {
+        //     processing::dedup::dedup(&d.src, &d.dst, Some(d.bufsize))?;
+        // }
+        // cli::Ungoliant::Split(s) => {
+        //     processing::split::split(&s.src, &s.dst, s.part_size, Some(s.bufsize));
+        // }
+        // cli::Ungoliant::Compress(c) => {
+        //     processing::compress::compress_corpus(&c.src, &c.dst)?;
+        // }
+        // cli::Ungoliant::Package(p) => {
+        //     processing::package::package(&p.src, p.dst.as_deref(), p.move_files)?;
+        // }
         cli::Ungoliant::Rebuild(r) => {
             let l = r.lang.parse().expect("unexpected language");
             let rb = processing::rebuild::Rebuilder::new(&r.src_rebuild, &r.src_shards, &r.dst, l);
             rb.run()?;
-        }
-        cli::Ungoliant::Check(c) => processing::check::check(c.src, c.dst)?,
+        } //cli::Ungoliant::Check(c) => processing::check::check(c.src, c.dst)?,
     };
     Ok(())
 }

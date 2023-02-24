@@ -18,7 +18,7 @@ use sha2::Digest;
 use sha2::Sha256;
 
 use crate::error::Error;
-use crate::lang::LANG;
+// use crate::lang::LANG;
 
 /// Create checksum file for given lang.
 /// Note that the `src` path supplied is the source path of the **whole** corpus, not the language dependent one.

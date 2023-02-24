@@ -1,25 +1,36 @@
 /*! Rebuild file writer/schema
 Each (avro) record is an  `(shard_id, array of (shard) records)`.
+
+# Rebuild files
+
+Each lang has its avro file.
+Each record corresponds to a shard, and contains a list of "slimmed" documents.
+
+Those slim documents contain:
+- language identification related metadata,
+- record id,
+- line start/end for each WARC Record. Note that `line_start and line_end` are _included_,
+so a document that has `(line_start, line_end) == (10, 10)` has a single line that is at offset 10.
+
 !*/
 
 use std::{
     collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
-    str::FromStr,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use avro_rs::{AvroResult, Codec, Schema, Writer};
 use log::error;
+use oxilangtag::LanguageTag;
 use serde::Deserialize;
 use serde::Serialize;
 use structopt::lazy_static::lazy_static;
 
-use crate::lang::LANG;
-use crate::{error::Error, lang::Lang};
+use crate::error::Error;
 
-use super::{Location, Metadata};
+use crate::pipelines::oscardoc::types::{Location, Metadata};
 
 lazy_static! {
     static ref SCHEMA: Schema = {
@@ -38,7 +49,10 @@ lazy_static! {
   "name":"metadata_record",
   "fields":[
     {"name":"identification", "type":"identification"},
-    {"name":"annotation", "type":["null", {"type": "array", "items":"string"}]},
+    {"name":"harmful_pp", "type":["null", "float"]},
+    {"name":"tlsh", "type":["null", "string"]},
+    {"name":"quality_warnings", "type":["null", {"type": "array", "items":"string"}]},
+    {"name":"categories", "type":["null", {"type": "array", "items":"string"}]},
     {"name": "sentence_identifications", "type":"array", "items":[
       "null",
       "identification"
@@ -87,7 +101,7 @@ lazy_static! {
 /// Holds the same fields as [Location], adding [Metadata].
 ///
 /// Should be transformed into a struct that holds two attributes rather than copying some.
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct RebuildInformation {
     shard_id: usize,
     record_id: String,
@@ -155,7 +169,7 @@ impl RebuildInformation {
 }
 
 /// Holds multiple [RebuildInformation] for a single shard.
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ShardResult {
     shard_id: i64,
     rebuild_info: Vec<RebuildInformation>,
@@ -173,6 +187,14 @@ impl ShardResult {
             shard_id,
             rebuild_info,
         }
+    }
+
+    /// order by location in shard.
+    /// This destroys the order of document, but is necessary for the rebuilding process to be efficient.
+    #[inline]
+    pub fn sort(&mut self) {
+        self.rebuild_info
+            .sort_unstable_by(|a, b| a.loc_in_shard.cmp(&b.loc_in_shard))
     }
 
     /// extract owned parts of struct: (`shard_id`, `Vec<RebuildInformation>`)
@@ -242,31 +264,48 @@ impl<'a> RebuildWriter<'a, File> {
 }
 
 /// Holds mutex-protected [RebuildWriter] for each [Lang].
-pub struct RebuildWriters<'a, T>(HashMap<Lang, Arc<Mutex<RebuildWriter<'a, T>>>>);
+// pub struct RebuildWriters<'a, T>(HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, T>>>>);
+pub struct RebuildWriters<'a, T> {
+    inner: Arc<RwLock<HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, T>>>>>>,
+}
 
 impl<'a, T> RebuildWriters<'a, T> {
-    /// Maps to [HashMap::get].
-    pub fn get(&'a self, k: &Lang) -> Option<&Arc<Mutex<RebuildWriter<T>>>> {
-        self.0.get(k)
+    pub fn writers(
+        &'a self,
+    ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<RebuildWriter<T>>>>>
+    {
+        self.inner.read().unwrap()
+    }
+
+    pub fn contains(&'a self, k: &LanguageTag<String>) -> bool {
+        let r_lock = self.inner.read().unwrap();
+        r_lock.contains_key(k)
     }
 }
 
 impl<'a> RebuildWriters<'a, File> {
     #[inline]
-    fn forge_dst(dst: &Path, lang: &Lang) -> PathBuf {
+    fn forge_dst(dst: &Path, lang: &LanguageTag<String>) -> PathBuf {
         let mut p = PathBuf::from(dst);
-        p.push(format!("{}.avro", lang));
+        p.push(format!("{}.avro", lang.as_str()));
 
         p
+    }
+
+    pub fn insert(&'a self, root_dir: &Path, k: &LanguageTag<String>) -> Result<(), Error> {
+        let mut wlock = self.inner.write().unwrap();
+        let (lang, new_writer) = Self::new_writer_mutex(root_dir, k.clone())?;
+        wlock.entry(lang).or_insert(new_writer);
+        Ok(())
     }
 
     #[inline]
     /// Convinience function that creates a new ([Lang], `Arc<Mutex<RebuildWriter>>`]) pair.
     fn new_writer_mutex(
         dst: &Path,
-        lang: &str,
-    ) -> Result<(Lang, Arc<Mutex<RebuildWriter<'a, File>>>), Error> {
-        let lang = Lang::from_str(lang).unwrap();
+        lang: LanguageTag<String>,
+    ) -> Result<(LanguageTag<String>, Arc<Mutex<RebuildWriter<'a, File>>>), Error> {
+        // let lang = Lang::from_str(lang).unwrap();
         let path = Self::forge_dst(dst, &lang);
         let rw = RebuildWriter::from_path(&path)?;
         let rw_mutex = Arc::new(Mutex::new(rw));
@@ -284,25 +323,30 @@ impl<'a> RebuildWriters<'a, File> {
             error!("rebuild destination must be an empty folder!");
         };
 
-        if !dst.read_dir()?.next().is_none() {
+        if dst.read_dir()?.next().is_some() {
             error!("rebuild destination folder must be empty!");
         }
 
-        let ret: Result<HashMap<Lang, Arc<Mutex<RebuildWriter<'_, File>>>>, Error> = LANG
-            .iter()
-            .map(|lang| Self::new_writer_mutex(dst, lang))
-            .collect();
-
-        Ok(RebuildWriters(ret?))
+        Ok(RebuildWriters {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
 
+    use std::{
+        collections::HashMap,
+        fs::File,
+        sync::{Arc, RwLock},
+    };
+
+    use oxilangtag::LanguageTag;
+
     use crate::pipelines::oscardoc::types::{Location, Metadata};
 
-    use super::{RebuildInformation, RebuildWriter, ShardResult};
+    use super::{RebuildInformation, RebuildWriter, RebuildWriters, ShardResult};
 
     #[test]
     fn rebuild_information_into_raw_parts() {
@@ -325,6 +369,70 @@ mod tests {
     }
 
     #[test]
+    fn test_sort() {
+        let record_ids = ["record1", "record2", "record3"];
+        let locs_in_shard: [usize; 3] = [3, 0, 4];
+
+        let mut locs = Vec::with_capacity(record_ids.len());
+        for (loc, id) in locs_in_shard.into_iter().zip(record_ids) {
+            let loc = Location::new(1, id.to_string(), 0, 10, loc);
+            locs.push(loc);
+        }
+        let metas = vec![Metadata::default(); 3];
+
+        let mut sr = ShardResult::new(1, locs, metas);
+
+        // unsorted, will be sorted manually
+        let mut locs_unsorted: Vec<_> = sr
+            .rebuild_info()
+            .iter()
+            .map(|rb| rb.loc_in_shard())
+            .collect();
+
+        // call sorting
+        sr.sort();
+
+        // these ones should be sorted now
+        let locs_sorted: Vec<_> = sr
+            .rebuild_info()
+            .iter()
+            .map(|rb| rb.loc_in_shard())
+            .collect();
+
+        // ensure inequality before sorting, in case of empty or 1 sized vectors
+        assert_ne!(locs_unsorted, locs_sorted);
+
+        // sort manually, ground truth
+        locs_unsorted.sort();
+
+        assert_eq!(locs_unsorted, locs_sorted);
+    }
+
+    #[test]
+    fn test_into_raw_parts() {
+        let record_ids = ["record1", "record2", "record3"];
+        let locs_in_shard: [usize; 3] = [3, 0, 4];
+
+        let mut locs = Vec::with_capacity(record_ids.len());
+        for (loc, id) in locs_in_shard.into_iter().zip(record_ids) {
+            let loc = Location::new(1, id.to_string(), 0, 10, loc);
+            locs.push(loc);
+        }
+        let metas = vec![Metadata::default(); 3];
+
+        let mut sr = ShardResult::new(1, locs, metas);
+
+        let (shard_id, rebuild_info) = sr.clone().into_raw_parts();
+
+        let from_raw_parts = ShardResult {
+            shard_id,
+            rebuild_info,
+        };
+
+        assert_eq!(sr, from_raw_parts)
+    }
+
+    #[test]
     fn test_ser() {
         let meta = vec![Metadata::default()];
         let loc = vec![Location::default()];
@@ -343,5 +451,31 @@ mod tests {
             .collect();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], sr);
+    }
+
+    #[test]
+    fn test_rebuild_writers_contains() {
+        let rbw = RebuildWriters::<usize> {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        assert!(!rbw.contains(&LanguageTag::parse("fr".to_string()).unwrap()));
+
+        // ensure no panic here
+        rbw.writers();
+    }
+
+    #[test]
+    fn test_rebuild_writers_insert() {
+        let rbw = RebuildWriters::<File> {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        let lang = LanguageTag::parse("fr".to_string()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let rbw = RebuildWriters::with_dst(dir.path()).unwrap();
+        assert!(!rbw.contains(&lang));
+        rbw.insert(dir.path(), &lang).unwrap();
+        assert!(rbw.contains(&lang));
     }
 }

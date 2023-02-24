@@ -7,22 +7,22 @@ use structopt::StructOpt;
 #[structopt(name = "ungoliant", about = "corpus generation tool.")]
 /// Holds every command that is callable by the `oscar-tools` command.
 pub enum Ungoliant {
-    #[structopt(about = "Downloading of CommonCrawl")]
+    #[structopt(about = "Download a CommonCrawl release")]
     Download(Download),
     #[structopt(about = "Run pipeline")]
     Pipeline(Pipeline),
-    #[structopt(about = "Deduplicate a generated, not split corpus.")]
-    Dedup(Dedup),
-    #[structopt(about = "Split a not split corpus")]
-    Split(Split),
-    #[structopt(about = "Compress")]
-    Compress(Compress),
-    #[structopt(about = "package")]
-    Package(Package),
-    #[structopt(about = "rebuild the corpus for a given language")]
+    // #[structopt(about = "Deduplicate a generated, not split corpus.")]
+    // Dedup(Dedup),
+    // #[structopt(about = "Split a not split corpus")]
+    // Split(Split),
+    // #[structopt(about = "Compress")]
+    // Compress(Compress),
+    // #[structopt(about = "package")]
+    // Package(Package),
+    #[structopt(about = "Rebuild the corpus for a given language.")]
     Rebuild(Rebuild),
-    #[structopt(about = "check for corpus validity")]
-    Check(Check),
+    //#[structopt(about = "check for corpus validity. This is under construction and shouldn't be used. ")]
+    //Check(Check),
 }
 
 #[derive(Debug, StructOpt)]
@@ -170,4 +170,18 @@ pub struct Pipeline {
         help = "Optional path to blocklist."
     )]
     pub blocklist: Option<PathBuf>,
+
+    #[structopt(
+        parse(from_os_str),
+        long = "domain-blocklists",
+        help = "domain-blocklists path. For folders, will treat each file as a different blocklist. For files, filename=annotation. use ut1-blocklist for using ut1 blocklist annotations"
+    )]
+    pub domain_blocklists: Option<Vec<PathBuf>>,
+
+    #[structopt(
+        parse(from_os_str),
+        long = "kenlms-path",
+        help = "Optional path to kenlm folder. for the language xx, you have to have a xx.binary file."
+    )]
+    pub kenlms_path: Option<PathBuf>,
 }
