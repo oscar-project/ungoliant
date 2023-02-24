@@ -1,6 +1,6 @@
 /*! Locality sensitive hashing !*/
 
-use tlsh::{BucketKind, ChecksumKind, TlshBuilder};
+use tlsh_fixed::{BucketKind, ChecksumKind, TlshBuilder};
 
 use crate::pipelines::oscardoc::types::Document;
 use warc::WarcHeader;
@@ -43,7 +43,7 @@ impl Default for LSH {
         let builder = TlshBuilder::new(
             BucketKind::Bucket256,
             ChecksumKind::ThreeByte,
-            tlsh::Version::Version4,
+            tlsh_fixed::Version::Version4,
         );
 
         Self::new(builder)
