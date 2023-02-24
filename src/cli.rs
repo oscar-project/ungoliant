@@ -7,7 +7,7 @@ use structopt::StructOpt;
 #[structopt(name = "ungoliant", about = "corpus generation tool.")]
 /// Holds every command that is callable by the `oscar-tools` command.
 pub enum Ungoliant {
-    #[structopt(about = "Downloading of CommonCrawl")]
+    #[structopt(about = "Download a CommonCrawl release")]
     Download(Download),
     #[structopt(about = "Run pipeline")]
     Pipeline(Pipeline),
@@ -19,10 +19,10 @@ pub enum Ungoliant {
     // Compress(Compress),
     // #[structopt(about = "package")]
     // Package(Package),
-    // #[structopt(about = "rebuild the corpus for a given language")]
+    #[structopt(about = "Rebuild the corpus for a given language.")]
     Rebuild(Rebuild),
-    #[structopt(about = "check for corpus validity")]
-    Check(Check),
+    //#[structopt(about = "check for corpus validity. This is under construction and shouldn't be used. ")]
+    //Check(Check),
 }
 
 #[derive(Debug, StructOpt)]

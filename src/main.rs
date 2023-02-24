@@ -84,8 +84,7 @@ async fn main() -> Result<(), error::Error> {
             let l = r.lang.parse().expect("unexpected language");
             let rb = processing::rebuild::Rebuilder::new(&r.src_rebuild, &r.src_shards, &r.dst, l);
             rb.run()?;
-        }
-        cli::Ungoliant::Check(c) => processing::check::check(c.src, c.dst)?,
+        } //cli::Ungoliant::Check(c) => processing::check::check(c.src, c.dst)?,
     };
     Ok(())
 }
