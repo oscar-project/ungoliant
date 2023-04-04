@@ -71,7 +71,6 @@ impl Predict<String> for FastText {
             // We might have a better way of doing this.
             // The idea is to move out of pred, since we won't need it afterwards.
             let pred = pred.into_iter().next().unwrap();
-
             // convert prediction to newtag
             let pred_to_languagetag: Result<LanguageTag<String>, _> =
                 Tag::new(&pred.label).try_into();
@@ -82,7 +81,7 @@ impl Predict<String> for FastText {
                     Ok(Some(id))
                 }
                 Err(e) => {
-                    error!("Couldn't find a proper label: {e:?}");
+                    error!("Couldn't parse label {}: {e:?}", &pred.label);
                     Err(e.into())
                 }
             }
