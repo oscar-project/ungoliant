@@ -174,15 +174,23 @@ impl<'a> Tag<'a> {
     pub fn new(tag: &'a str) -> Self {
         Self {
             // attempt to remove first nine chars or pass the whole thing.
-            inner: Tag::fix(tag.get(9..).unwrap_or(tag)),
+            inner: Tag::fix(&tag.get(9..).unwrap_or(tag)),
         }
     }
 
     #[inline]
     fn fix(tag: &'a str) -> Cow<'a, str> {
-        match NEW_TAG_REPLACE.get(&tag) {
+        // go from __label__foo_bar to foo_bar
+        let tag = match NEW_TAG_REPLACE.get(&tag) {
             None => Cow::from(tag),
             Some(x) => Cow::from(x.to_string()),
+        };
+
+        // go from foo_bar to foo-bar
+        if tag.contains("_") {
+            Cow::from(tag.replace("_", "-"))
+        } else {
+            tag
         }
     }
 
@@ -218,6 +226,13 @@ mod tests {
         assert_eq!(old_style, new_style);
     }
 
+    #[test]
+    fn test_langcode_script() {
+        let langcode = "__label__fra_Latn";
+        let parsed: LanguageTag<String> = Tag::new(langcode).try_into().unwrap();
+        let expected = "fra-Latn";
+        assert_eq!(parsed, expected);
+    }
     #[test]
     fn quality_at_a_glance_table10() {
         // table 10: Miscellaneous errors in language codes.
