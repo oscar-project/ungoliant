@@ -51,7 +51,7 @@ async fn main() -> Result<(), error::Error> {
                 //     _ => (),
                 // };
                 if let download::Error::Download(e) = failure.as_ref().unwrap_err() {
-                    write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
+                    write!(error_file, "{}\t{}\n", e.err.url().unwrap(), e.id)?;
                 }
             }
         }
