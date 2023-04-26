@@ -2,9 +2,9 @@ name: get_test_data
 
 on:
   push:
-    branches: [master, dev]
+    branches: [main, dev]
   pull_request:
-    branches: [master, dev]
+    branches: [main, dev]
 env:
   CARGO_TERM_COLOR: always
 
