@@ -31,7 +31,7 @@ To enable it, install KenLM requirements:
 apt install -y libboost-all-dev libeigen3-dev
 ```
 
-and use `cargo install ungoliant --feature kenlm` or `cargo b --features kenlm` if you're building from source.
+and use `cargo install ungoliant --features kenlm` or `cargo b --features kenlm` if you're building from source.
 
 ### Getting the language identification file (for fastText):
 
