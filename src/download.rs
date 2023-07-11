@@ -29,6 +29,7 @@ pub enum Error {
     Download(DownloadError),
     ParseUrl(url::ParseError),
     ParseInt(std::num::ParseIntError),
+    Custom(String),
 }
 
 /// wraps a reqwest::Error
@@ -62,6 +63,12 @@ impl From<ParseError> for Error {
 impl From<std::num::ParseIntError> for Error {
     fn from(err: std::num::ParseIntError) -> Self {
         Error::ParseInt(err)
+    }
+}
+
+impl From<String> for Error {
+    fn from(s: String) -> Error {
+        Error::Custom(s)
     }
 }
 
@@ -207,15 +214,33 @@ impl Downloader {
         // in the same fashion, attempt to parse urls
         // and collect failures
         // unwrap() is deemed safe because we filtered failures previously
-        let mut failures = vec![];
+        let mut failures: Vec<Error> = vec![];
         let mut urls: Vec<reqwest::Url> = vec![];
         let mut offsets = vec![];
 
         for line in lines {
-            let line = line.unwrap();
+            let line = line.unwrap(); // safe because we filtered failures previously
             let mut split = line.split("\t");
-            let url = split.next().unwrap();
-            let offset = split.next().unwrap();
+            let url = match split.next() {
+                Some(url) => url,
+                None => {
+                    failures.push(Error::Custom(format!(
+                        "Could not parse url from line: {}",
+                        line
+                    )));
+                    continue;
+                }
+            };
+            let offset = match split.next() {
+                Some(url) => url,
+                None => {
+                    failures.push(Error::Custom(format!(
+                        "Could not parse filename from line: {}",
+                        line
+                    )));
+                    continue;
+                }
+            };
             let url = match Url::parse(url) {
                 Ok(url) => url,
                 Err(e) => {
