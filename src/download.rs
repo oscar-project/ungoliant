@@ -271,7 +271,7 @@ impl Downloader {
         };
 
         // skipping urls to offset
-        let counter: Vec<usize> = (1..=self.urls.len()).collect();
+        let counter: Vec<usize> = (0..self.urls.len()).collect();
         let urls = if let Some(offsets) = &self.offsets {
             offsets.iter().zip(self.urls.iter()).skip(0)
         } else if let Some(offset) = idx_offset {
