@@ -36,10 +36,15 @@ async fn main() -> Result<(), error::Error> {
     match opt {
         cli::Ungoliant::Download(e) => {
             let paths = File::open(e.paths_file)?;
-            let mut dl = Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?;
+
+            let mut dl = if e.error {
+                Downloader::from_errors_file(&paths, e.n_tasks.unwrap_or(4))?
+            } else {
+                Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?
+            };
             let results = dl.download(&e.dst, e.offset).await;
 
-            let mut error_file = File::create("errors.txt")?;
+            let mut error_file = File::create("download_errors.tsv")?;
 
             // write eventual download errors
             for failure in results.iter().filter(|result| result.is_err()) {

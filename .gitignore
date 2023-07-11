@@ -8,3 +8,4 @@ Cargo.lock
 /result*
 lid*
 res/
+test_download/
