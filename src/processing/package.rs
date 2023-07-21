@@ -2,7 +2,7 @@
 
 Packaging is in two steps:
 - First, we create a folder for each present language, and we move language files (text and metadata) into them
-- Then, we compute a sha256sum for each file, and write them into language independent files, _usually_ compatible with `sha256sum -c` implementations.
+- Then, we compute a sha384sum for each file, and write them into language independent files, _usually_ compatible with `sha384sum -c` implementations.
 !*/
 use log::warn;
 use rayon::prelude::*;
@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use log::error;
 use log::{debug, info};
 use sha2::Digest;
-use sha2::Sha256;
+use sha2::Sha384;
 
 use crate::error::Error;
 // use crate::lang::LANG;
@@ -27,7 +27,7 @@ pub fn gen_checksum_file(src: &Path, lang: &'static str) -> Result<(), Error> {
     src_lang.push(lang);
 
     debug!("gen checksum on folder {:?}", src_lang);
-    let mut hasher = Sha256::new();
+    let mut hasher = Sha384::new();
     let files: Vec<_> = std::fs::read_dir(&src_lang)?.collect();
 
     debug!("files to hash: {:#?}", files);
@@ -46,7 +46,7 @@ pub fn gen_checksum_file(src: &Path, lang: &'static str) -> Result<(), Error> {
     // forge filepath of checksum file
     let checksum_filepath: PathBuf = [
         src_lang,
-        Path::new(&format!("{}_sha256.txt", lang)).to_path_buf(),
+        Path::new(&format!("{}_sha384.txt", lang)).to_path_buf(),
     ]
     .iter()
     .collect();
@@ -55,7 +55,7 @@ pub fn gen_checksum_file(src: &Path, lang: &'static str) -> Result<(), Error> {
     // open it
     let mut checksum_file = File::create(checksum_filepath)?;
 
-    // write filenames and hashes in sha256sum -c compatible format.
+    // write filenames and hashes in sha384sum -c compatible format.
     for (filename, hash) in filenames.iter().zip(hashes) {
         writeln!(&mut checksum_file, "{} {}", hash, filename)?;
     }
@@ -67,7 +67,7 @@ pub fn gen_checksum_file(src: &Path, lang: &'static str) -> Result<(), Error> {
 /// As such, it shouldn't make the program go OOM with big files, but it has not been tested.
 /// Can return an error if there has been problems regarding IO.
 #[inline]
-fn get_hash(filepath: &Path, hasher: &mut Sha256) -> Result<String, Error> {
+fn get_hash(filepath: &Path, hasher: &mut Sha384) -> Result<String, Error> {
     let mut f = File::open(filepath)?;
     io::copy(&mut f, hasher)?;
     let result = format!("{:x}", hasher.finalize_reset());
@@ -104,7 +104,7 @@ fn put_in_lang_folder(
 }
 
 /// Iteratively moves each file corresponding to `lang` into a proper folder named by the language id,
-/// then computes sha256sum for each file.
+/// then computes sha384sum for each file.
 ///
 /// - `src` is the corpus location, containing language files in compressed format.
 /// - `dst` is the packaged corpus location.
@@ -184,7 +184,7 @@ fn package_lang(
 }
 
 /// concurrently package all the languages present in `src` (split and compressed) to `dst`
-/// in separate language folders along with a `sha256sum -c`-able file.
+/// in separate language folders along with a `sha384sum -c`-able file.
 pub fn package(src: &Path, dst: Option<&Path>, move_files: bool) -> Result<(), Error> {
     let langs = LANG.clone().into_par_iter();
     let results: Vec<Error> = langs

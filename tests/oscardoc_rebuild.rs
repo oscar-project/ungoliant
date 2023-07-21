@@ -1,7 +1,7 @@
 // gen a tiny corpus from one shard
 // get the rebuild files
 // regen the corpus from the rebuild files
-// ensure that the rebuilt corpus files are similar to the original ones (to the sha256sum)
+// ensure that the rebuilt corpus files are similar to the original ones (to the sha384sum)
 
 use std::{
     fs::File,
