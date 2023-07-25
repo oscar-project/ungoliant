@@ -33,9 +33,18 @@ apt install -y libboost-all-dev libeigen3-dev
 
 and use `cargo install ungoliant --features kenlm` or `cargo b --features kenlm` if you're building from source.
 
-### Getting the language identification file (for fastText):
+### Getting a language identification file (for fastText):
 
-Use `curl https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin -o lid.176.bin`.
+By default, `ungoliant` expects the `lid.176.bin` model by meta. 
+Use `curl https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin -o lid.176.bin` to get it.
+
+However, you can use the model you want: just point to its path using `ungoliant download --lid-path <path to lid>`.
+
+Other options include:
+
+- NLLB model (https://huggingface.co/facebook/fasttext-language-identification)
+- OpenLID model (https://github.com/laurieburchell/open-lid-dataset)
+
 
 ## Usage 
 
