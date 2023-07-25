@@ -16,6 +16,7 @@ use std::{
     path::Path,
 };
 use tokio_util::compat::FuturesAsyncReadCompatExt;
+use url::ParseError;
 
 /// Base url for commoncrawl downloading.
 const BASE_URL: &str = "https://data.commoncrawl.org/";
@@ -26,6 +27,9 @@ pub enum Error {
     Io(std::io::Error),
     Join(tokio::task::JoinError),
     Download(DownloadError),
+    ParseUrl(url::ParseError),
+    ParseInt(std::num::ParseIntError),
+    Custom(String),
 }
 
 /// wraps a reqwest::Error
@@ -47,6 +51,24 @@ impl From<std::io::Error> for Error {
 impl From<reqwest::Error> for Error {
     fn from(err: reqwest::Error) -> Self {
         Error::Reqwest(err)
+    }
+}
+
+impl From<ParseError> for Error {
+    fn from(err: ParseError) -> Self {
+        Error::ParseUrl(err)
+    }
+}
+
+impl From<std::num::ParseIntError> for Error {
+    fn from(err: std::num::ParseIntError) -> Self {
+        Error::ParseInt(err)
+    }
+}
+
+impl From<String> for Error {
+    fn from(s: String) -> Error {
+        Error::Custom(s)
     }
 }
 
@@ -102,6 +124,7 @@ impl<'a> Download<'a> {
 pub struct Downloader {
     urls: Vec<reqwest::Url>,
     n_tasks: usize,
+    offsets: Option<Vec<usize>>,
 }
 
 impl Downloader {
@@ -156,7 +179,104 @@ impl Downloader {
         // unwrap successful paths
         let urls = urls.into_iter().map(Result::unwrap).collect();
 
-        Ok(Downloader { urls, n_tasks })
+        let offsets = None;
+
+        Ok(Downloader {
+            urls,
+            n_tasks,
+            offsets,
+        })
+    }
+
+    pub fn from_errors_file(
+        errors_file: &std::fs::File,
+        n_tasks: usize,
+    ) -> Result<Self, std::io::Error> {
+        debug!("Downloader using {:#?}", errors_file);
+        let f = BufReader::new(errors_file);
+
+        // get all lines and partition by result state
+        let (lines, failures): (Vec<_>, Vec<_>) = f.lines().partition(Result::is_ok);
+
+        if log_enabled!(Level::Debug) {
+            debug!(
+                "Got {valid}/{total} valid lines",
+                valid = lines.len(),
+                total = lines.len() + failures.len()
+            )
+        }
+
+        //print failed lines
+        for failure in failures {
+            error!("{:?}", failure.unwrap_err());
+        }
+
+        // in the same fashion, attempt to parse urls
+        // and collect failures
+        // unwrap() is deemed safe because we filtered failures previously
+        let mut failures: Vec<Error> = vec![];
+        let mut urls: Vec<reqwest::Url> = vec![];
+        let mut offsets = vec![];
+
+        for line in lines {
+            let line = line.unwrap(); // safe because we filtered failures previously
+            let mut split = line.split("\t");
+            let url = match split.next() {
+                Some(url) => url,
+                None => {
+                    failures.push(Error::Custom(format!(
+                        "Could not parse url from line: {}",
+                        line
+                    )));
+                    continue;
+                }
+            };
+            let offset = match split.next() {
+                Some(url) => url,
+                None => {
+                    failures.push(Error::Custom(format!(
+                        "Could not parse filename from line: {}",
+                        line
+                    )));
+                    continue;
+                }
+            };
+            let url = match Url::parse(url) {
+                Ok(url) => url,
+                Err(e) => {
+                    failures.push(Error::ParseUrl(e));
+                    continue;
+                }
+            };
+            let offset = match offset.parse::<usize>() {
+                Ok(offset) => offset,
+                Err(e) => {
+                    failures.push(Error::ParseInt(e));
+                    continue;
+                }
+            };
+            urls.push(url);
+            offsets.push(offset);
+        }
+
+        if log_enabled!(Level::Debug) {
+            debug!(
+                "Got {valid}/{total} valid URLs",
+                valid = urls.len(),
+                total = urls.len() + failures.len()
+            )
+        }
+
+        // print failures
+        for failure in failures {
+            error!("{:?}", failure);
+        }
+
+        Ok(Downloader {
+            urls,
+            n_tasks,
+            offsets: Some(offsets),
+        })
     }
 
     /// launch downloading of urls
@@ -176,14 +296,17 @@ impl Downloader {
         };
 
         // skipping urls to offset
-        let urls = if let Some(offset) = idx_offset {
-            self.urls.iter().enumerate().skip(offset)
+        let counter: Vec<usize> = (0..self.urls.len()).collect();
+        let urls = if let Some(offsets) = &self.offsets {
+            offsets.iter().zip(self.urls.iter()).skip(0)
+        } else if let Some(offset) = idx_offset {
+            counter.iter().zip(self.urls.iter()).skip(offset)
         } else {
             // we use skip(0) to have the same types
             // at if and else blocks.
-            self.urls.iter().enumerate().skip(0)
+            counter.iter().zip(self.urls.iter()).skip(0)
         }
-        .map(|(i, url)| (url, i, to_pathbuf(i)));
+        .map(|(i, url)| (url, *i, to_pathbuf(i)));
 
         let urls = stream::iter(urls);
         // create reqwests client.

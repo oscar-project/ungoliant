@@ -123,7 +123,9 @@ pub struct Split {
 ///     <dst>           download destination
 /// ```
 pub struct Download {
-    #[structopt(parse(from_os_str), help = "path to wet.paths file")]
+    #[structopt(short, long, help = "is an error file passed to the command.")]
+    pub error: bool,
+    #[structopt(parse(from_os_str), help = "path to wet.paths or error file")]
     pub paths_file: PathBuf,
     #[structopt(parse(from_os_str), help = "download destination")]
     pub dst: PathBuf,
