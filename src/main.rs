@@ -58,8 +58,17 @@ async fn main() -> Result<(), error::Error> {
 
         cli::Ungoliant::Pipeline(p) => {
             let mut schema_filepath = p.dst.clone();
-            let p =
-                pipelines::OscarDocNew::new(p.src, p.dst, p.lid_path, p.blocklist, p.kenlms_path);
+
+            // todo: oscardocnew implements from?
+            let p = pipelines::OscarDocNew::new(
+                p.src,
+                p.dst,
+                p.lid_path,
+                p.blocklist,
+                p.kenlms_path,
+                p.split.map(|size_mbytes| size_mbytes * 1_000_000),
+                p.comp,
+            );
             p.run()?;
 
             schema_filepath.push("metadata_schema.json");

@@ -28,6 +28,7 @@ use oscar_io::v3::{Writer, WriterTrait};
 type LanguageMap = HashMap<LanguageTag<String>, Arc<Mutex<Writer>>>;
 pub struct LangFilesDoc {
     writers: Arc<RwLock<LanguageMap>>,
+    comp: bool,
     dst: PathBuf,
     part_size_bytes: Option<u64>,
 }
@@ -76,11 +77,12 @@ impl LangFilesDoc {
     /// Also keep in mind that [Self::close_meta] has to be called once every write is done.
     ///
     // [Self::close_meta] could be integrated in an `impl Drop`
-    pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Self {
+    pub fn new(dst: &Path, part_size_bytes: Option<u64>, comp: bool) -> Self {
         Self {
             writers: Arc::new(RwLock::new(HashMap::new())),
             dst: dst.to_path_buf(),
             part_size_bytes,
+            comp,
         }
     }
 
@@ -88,8 +90,14 @@ impl LangFilesDoc {
         dst: &Path,
         lang: LanguageTag<String>,
         part_size_bytes: Option<u64>,
+        comp: bool,
     ) -> Result<Arc<Mutex<Writer>>, Error> {
-        let w = Writer::new(dst, lang, part_size_bytes)?;
+        let comp = if comp {
+            Some(oscar_io::v3::Comp::Zstd { level: 0 })
+        } else {
+            None
+        };
+        let w = Writer::new(dst, lang, part_size_bytes, comp)?;
 
         Ok(Arc::new(Mutex::new(w)))
     }
@@ -115,6 +123,7 @@ impl LangFilesDoc {
             &self.dst,
             k.clone(),
             self.part_size_bytes,
+            self.comp,
         )?);
 
         info!("{k}: Done");
@@ -126,6 +135,16 @@ impl LangFilesDoc {
         &self,
     ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<Writer>>>> {
         self.writers.read().unwrap()
+    }
+
+    /// Flushes all writers.
+    pub fn flush_all(&self) -> Result<(), Error> {
+        for writer in self.writers.read().unwrap().values() {
+            let mut lock = writer.try_lock().unwrap();
+            lock.flush()?;
+        }
+
+        Ok(())
     }
 }
 
@@ -146,13 +165,13 @@ mod tests {
     #[test]
     fn init_doc() {
         let dst = tempdir().unwrap();
-        let _: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
+        let _: LangFilesDoc = LangFilesDoc::new(dst.path(), None, false);
     }
 
     #[test]
     fn test_contains() {
         let dst = tempdir().unwrap();
-        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
+        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None, false);
         let language = LanguageTag::parse("fr".to_string()).unwrap();
 
         assert!(!lf.contains(&language));
@@ -165,7 +184,7 @@ mod tests {
     #[test]
     fn write_one_doc() {
         let dst = tempdir().unwrap();
-        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
+        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None, false);
 
         let content = "Hello!".to_string();
 
@@ -194,10 +213,10 @@ mod tests {
 
         if let Ok(mut w) = w.try_lock() {
             w.write(docs.to_vec()).unwrap();
+            w.flush().unwrap();
         }
-
         let mut read_path = PathBuf::from(dst.path());
-        read_path.push("en_meta.jsonl");
+        read_path.push("en.jsonl");
 
         let b = File::open(read_path).unwrap();
         let doc_from_file: Document = serde_json::from_reader(b).unwrap();

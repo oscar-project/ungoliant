@@ -24,7 +24,7 @@ fn gen_corpus() {
     let kenlm = Path::new("res/kenlm/").to_path_buf();
 
     //TODO test with custom blocklists
-    let pipeline = OscarDoc::new(src, dst, lid, Some(bl), Some(kenlm));
+    let pipeline = OscarDoc::new(src, dst, lid, Some(bl), Some(kenlm), None, false);
     pipeline.run().expect(
         "Ensure to have shards in res/shards, lid.176.bin at root and blocklist at res/blocklist",
     );
@@ -52,14 +52,12 @@ fn check_rebuild() {
     rb.run().unwrap();
 
     // open source corpus, store documents and order them by record id
-    let f = File::open(&src_corpus).unwrap();
-    let doc_reader_source = oscar_io::oscar_doc::Reader::new(BufReader::new(f));
+    let doc_reader_source = oscar_io::v3::Reader::from_path(&src_corpus).unwrap();
     let mut docs_source = doc_reader_source.map(|x| x.unwrap()).collect::<Vec<_>>();
     docs_source.sort_unstable_by(|a, b| get_record_id(a).cmp(&get_record_id(b)));
     // open rebuilt corpus
     dst.push("fr_meta.jsonl");
-    let f = File::open(&dst).unwrap();
-    let doc_reader_rebuild = oscar_io::oscar_doc::Reader::new(BufReader::new(f));
+    let doc_reader_rebuild = oscar_io::v3::Reader::from_path(&dst).unwrap();
     let mut docs_rebuild = doc_reader_rebuild.map(|x| x.unwrap()).collect::<Vec<_>>();
     docs_rebuild.sort_unstable_by(|a, b| get_record_id(a).cmp(&get_record_id(b)));
 
