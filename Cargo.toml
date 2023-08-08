@@ -67,6 +67,7 @@ criterion = "0.3"
 serial_test = "0.5.1"
 tempfile = "3.2.0"
 test-log = "0.2.11"
+zstd = "0.12.4"
 
 [[bench]]
 name = "fasttext_bench"
