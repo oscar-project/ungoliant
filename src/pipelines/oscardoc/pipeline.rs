@@ -58,6 +58,8 @@ pub struct OscarDoc {
     lid_path: PathBuf,
     blocklist: Option<PathBuf>,
     kenlms_path: Option<PathBuf>,
+    split: Option<u64>, // in bytes
+    comp: bool,
 }
 
 impl OscarDoc {
@@ -67,6 +69,8 @@ impl OscarDoc {
         lid_path: PathBuf,
         blocklist: Option<PathBuf>,
         kenlms_path: Option<PathBuf>,
+        split: Option<u64>,
+        comp: bool,
     ) -> Self {
         if blocklist.is_none() {
             warn!("No blocklist folder specified! No adult content tagging will be done.");
@@ -79,6 +83,8 @@ impl OscarDoc {
             lid_path,
             blocklist,
             kenlms_path,
+            split,
+            comp,
         }
     }
 
@@ -448,7 +454,7 @@ impl Pipeline<()> for OscarDoc {
         //      ourselves.
         let results = results.enumerate().par_bridge();
 
-        let langfiles = LangFilesDoc::new(&self.dst, None);
+        let langfiles = LangFilesDoc::new(&self.dst, self.split, self.comp);
         #[cfg(feature = "kenlm")]
         let kenlms = if let Some(kenlms_path) = &self.kenlms_path {
             if !kenlms_path.is_dir() {
@@ -510,6 +516,10 @@ impl Pipeline<()> for OscarDoc {
             }
         });
 
+        // flush writers
+        info!("Flushing writers");
+        langfiles.flush_all()?;
+        info!("Done");
         Ok(())
     }
 }

@@ -277,7 +277,7 @@ impl<'a> Rebuilder<'a> {
         }
 
         // create mutex
-        let wr = Arc::new(Mutex::new(Writer::new(self.dst, self.lang, None)?));
+        let wr = Arc::new(Mutex::new(Writer::new(self.dst, self.lang, None, None)?));
 
         // iterate over shard results
         let errors: Vec<Result<(), Error>> = sr

@@ -4,6 +4,8 @@ Each language (provided by [crate::lang::LANG]) is given a [self::Writer] wrappe
 
 ## Warning
 
+When using compression, ensue that you **drop** [LangFilesDoc] before trying to read written data. This is because [zstd] finishes things up at reader drop.
+
 !*/
 use std::{
     collections::HashMap,
@@ -28,6 +30,7 @@ use oscar_io::v3::{Writer, WriterTrait};
 type LanguageMap = HashMap<LanguageTag<String>, Arc<Mutex<Writer>>>;
 pub struct LangFilesDoc {
     writers: Arc<RwLock<LanguageMap>>,
+    comp: bool,
     dst: PathBuf,
     part_size_bytes: Option<u64>,
 }
@@ -76,11 +79,12 @@ impl LangFilesDoc {
     /// Also keep in mind that [Self::close_meta] has to be called once every write is done.
     ///
     // [Self::close_meta] could be integrated in an `impl Drop`
-    pub fn new(dst: &Path, part_size_bytes: Option<u64>) -> Self {
+    pub fn new(dst: &Path, part_size_bytes: Option<u64>, comp: bool) -> Self {
         Self {
             writers: Arc::new(RwLock::new(HashMap::new())),
             dst: dst.to_path_buf(),
             part_size_bytes,
+            comp,
         }
     }
 
@@ -88,8 +92,14 @@ impl LangFilesDoc {
         dst: &Path,
         lang: LanguageTag<String>,
         part_size_bytes: Option<u64>,
+        comp: bool,
     ) -> Result<Arc<Mutex<Writer>>, Error> {
-        let w = Writer::new(dst, lang, part_size_bytes)?;
+        let comp = if comp {
+            Some(oscar_io::v3::Comp::Zstd { level: 0 })
+        } else {
+            None
+        };
+        let w = Writer::new(dst, lang, part_size_bytes, comp)?;
 
         Ok(Arc::new(Mutex::new(w)))
     }
@@ -115,6 +125,7 @@ impl LangFilesDoc {
             &self.dst,
             k.clone(),
             self.part_size_bytes,
+            self.comp,
         )?);
 
         info!("{k}: Done");
@@ -127,12 +138,22 @@ impl LangFilesDoc {
     ) -> std::sync::RwLockReadGuard<HashMap<LanguageTag<String>, Arc<Mutex<Writer>>>> {
         self.writers.read().unwrap()
     }
+
+    /// Flushes all writers.
+    pub fn flush_all(&self) -> Result<(), Error> {
+        for writer in self.writers.read().unwrap().values() {
+            let mut lock = writer.try_lock().unwrap();
+            lock.flush()?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use std::{fs::File, path::PathBuf};
+    use std::{fs::File, io::Read, path::PathBuf};
 
     use crate::pipelines::oscardoc::types::{Document, Metadata};
     use warc::{BufferedBody, Record, WarcHeader};
@@ -143,16 +164,32 @@ mod tests {
 
     type WarcHeaders = HashMap<WarcHeader, Vec<u8>>;
 
+    fn get_docs() -> Vec<Document> {
+        let content = "Hello!".to_string();
+
+        let record = Record::default();
+        let record: Record<BufferedBody> = record.add_body(content.clone());
+
+        let record_id = Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0);
+        let sentences_id = vec![Some(record_id.clone())];
+
+        let metadata = Metadata::new(&record_id, &sentences_id);
+        let (headers, _) = record.into_raw_parts();
+
+        let docs = vec![Document::new(content, headers.headers, metadata)];
+        docs
+    }
+
     #[test]
     fn init_doc() {
         let dst = tempdir().unwrap();
-        let _: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
+        let _: LangFilesDoc = LangFilesDoc::new(dst.path(), None, false);
     }
 
     #[test]
     fn test_contains() {
         let dst = tempdir().unwrap();
-        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
+        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None, false);
         let language = LanguageTag::parse("fr".to_string()).unwrap();
 
         assert!(!lf.contains(&language));
@@ -165,24 +202,9 @@ mod tests {
     #[test]
     fn write_one_doc() {
         let dst = tempdir().unwrap();
-        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None);
+        let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None, false);
 
-        let content = "Hello!".to_string();
-
-        let record = Record::default();
-        let record: Record<BufferedBody> = record.add_body(content);
-
-        let record_id = Identification::new(LanguageTag::parse("en".to_string()).unwrap(), 1.0);
-        let sentences_id = vec![Some(record_id.clone())];
-
-        let metadata = Metadata::new(&record_id, &sentences_id);
-        let (headers, content) = record.into_raw_parts();
-
-        let docs = vec![Document::new(
-            String::from_utf8_lossy(&content).to_string(),
-            headers.headers,
-            metadata,
-        )];
+        let docs = get_docs();
 
         lf.insert_writer(docs[0].identification().label().clone())
             .unwrap();
@@ -194,13 +216,45 @@ mod tests {
 
         if let Ok(mut w) = w.try_lock() {
             w.write(docs.to_vec()).unwrap();
+            w.flush().unwrap();
         }
-
         let mut read_path = PathBuf::from(dst.path());
-        read_path.push("en_meta.jsonl");
+        read_path.push("en.jsonl");
 
         let b = File::open(read_path).unwrap();
         let doc_from_file: Document = serde_json::from_reader(b).unwrap();
+
+        assert_eq!(doc_from_file, docs[0]);
+    }
+
+    #[test]
+    fn write_one_doc_comp() {
+        let dst = tempdir().unwrap();
+        let docs = get_docs();
+
+        {
+            let lf: LangFilesDoc = LangFilesDoc::new(dst.path(), None, true);
+
+            lf.insert_writer(docs[0].identification().label().clone())
+                .unwrap();
+            let w = lf
+                .writers()
+                .get(docs[0].identification().label())
+                .unwrap()
+                .clone();
+
+            if let Ok(mut w) = w.try_lock() {
+                w.write(docs.to_vec()).unwrap();
+                w.flush().unwrap();
+            };
+        }
+        // lf.flush_all().unwrap();
+        let mut read_path = PathBuf::from(dst.path());
+        read_path.push("en.jsonl.zstd");
+
+        let b = File::open(&read_path).unwrap();
+        let dec = zstd::decode_all(b).unwrap();
+        let doc_from_file: Document = serde_json::from_slice(&dec).unwrap();
 
         assert_eq!(doc_from_file, docs[0]);
     }

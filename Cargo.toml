@@ -1,7 +1,9 @@
 [package]
 name = "ungoliant"
 version = "2.0.0"
-authors = ["Julien Abadji <julien.e.abadji@gmail.com>, Pedro J. Ortiz <pedro@pjortiz.com>"]
+authors = [
+    "Julien Abadji <julien.e.abadji@gmail.com>, Pedro J. Ortiz <pedro@pjortiz.com>",
+]
 edition = "2021"
 description = "The pipeline for the OSCAR corpus."
 license = "Apache-2.0"
@@ -11,8 +13,12 @@ repository = "https://github.com/oscar-project/ungoliant"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.11", default-features=false, features = ["rustls-tls", "blocking", "stream"] }
-flate2 = { version = "1.0.20"}
+reqwest = { version = "0.11", default-features = false, features = [
+    "rustls-tls",
+    "blocking",
+    "stream",
+] }
+flate2 = { version = "1.0.20" }
 futures-core = "0.3"
 futures-util = "0.3"
 futures = "0.3"
@@ -21,8 +27,8 @@ env_logger = "0.8.3"
 log = "0.4.14"
 itertools = "0.10.0"
 tokio = { version = "1", features = ["full"] }
-tokio-util = {version="0.6.6", features=["compat"]}
-warc = {version="0.3.0", features=["with_serde"]}
+tokio-util = { version = "0.6.6", features = ["compat"] }
+warc = { version = "0.3.0", features = ["with_serde"] }
 ut1_blocklist = "0.3.0"
 fasttext = "0.7.6"
 bytes = "1"
@@ -42,14 +48,13 @@ unicode-script = "0.5.4"
 unicode-segmentation = "1.8.0"
 csv = "1.1.6"
 unic-ucd = "0.9.0"
-oxilangtag = {version="0.1.3", features=["serde"]}
+oxilangtag = { version = "0.1.3", features = ["serde"] }
 language-tags = "0.3.2"
 lazy_static = "1.4.0"
-oscar-io = "0.2.2"
-#tlsh = {git="https://github.com/Uinelj/tlsh-rs", branch="fix-q3-panic"}
+oscar-io = "0.4.0"
 tlsh-fixed = "0.1.1"
 
-ctclib-pp = {version="0.2.0", optional=true}
+ctclib-pp = { version = "0.2.0", optional = true }
 
 
 [features]
@@ -60,8 +65,9 @@ rand_distr = "0.4.2"
 sha-1 = "0.9"
 criterion = "0.3"
 serial_test = "0.5.1"
-tempfile="3.2.0"
+tempfile = "3.2.0"
 test-log = "0.2.11"
+zstd = "0.12.4"
 
 [[bench]]
 name = "fasttext_bench"

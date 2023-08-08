@@ -186,4 +186,13 @@ pub struct Pipeline {
         help = "Optional path to kenlm folder. for the language xx, you have to have a xx.binary file."
     )]
     pub kenlms_path: Option<PathBuf>,
+
+    #[structopt(
+        help = "Split size (in MBytes). Default: No splitting",
+        long = "split_size"
+    )]
+    pub split: Option<u64>,
+
+    #[structopt(short = "c", long = "comp", help = "Enables zstd compression")]
+    pub comp: bool,
 }
