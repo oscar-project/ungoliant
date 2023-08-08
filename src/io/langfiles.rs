@@ -247,8 +247,10 @@ mod tests {
                 w.write(docs.to_vec()).unwrap();
                 w.flush().unwrap();
             };
+
+            lf.flush_all().unwrap();
         }
-        // lf.flush_all().unwrap();
+
         let mut read_path = PathBuf::from(dst.path());
         read_path.push("en.jsonl.zstd");
 
