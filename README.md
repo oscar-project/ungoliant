@@ -15,6 +15,13 @@ Ungoliant is a replacement of [goclassy](https://github.com/oscar-corpus/goclass
 
 ## Installation
 
+### Docker
+
+WIP: 
+
+/!\\: Be sure to have a properly set `ulimit`: `ulimit -n 10000`
+Command :`docker run --rm -v <path_to_shards>:/shards -v ./output:/output --ulimit nofile=10000:10000 ungo:latest`
+
 ### Installing/Compiling the binary
 * Via `cargo`: `cargo install ungoliant`
 * Via `git`: `cargo install --git https://github.com/oscar-corpus/ungoliant`
