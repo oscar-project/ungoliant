@@ -60,7 +60,14 @@ pub struct OscarDoc {
     kenlms_path: Option<PathBuf>,
     split: Option<u64>, // in bytes
     comp: bool,
+    #[cfg(feature = "checksum")]
+    checksum: bool,
 }
+
+#[cfg(feature = "checksum")]
+use oscar_tools::Checksum;
+#[cfg(feature = "checksum")]
+impl Checksum for OscarDoc {}
 
 impl OscarDoc {
     pub fn new(
@@ -71,6 +78,7 @@ impl OscarDoc {
         kenlms_path: Option<PathBuf>,
         split: Option<u64>,
         comp: bool,
+        #[cfg(feature = "checksum")] checksum: bool,
     ) -> Self {
         if blocklist.is_none() {
             warn!("No blocklist folder specified! No adult content tagging will be done.");
@@ -85,6 +93,8 @@ impl OscarDoc {
             kenlms_path,
             split,
             comp,
+            #[cfg(feature = "checksum")]
+            checksum,
         }
     }
 
@@ -519,6 +529,16 @@ impl Pipeline<()> for OscarDoc {
         // flush writers
         info!("Flushing writers");
         langfiles.flush_all()?;
+        std::mem::drop(langfiles);
+        //compute checksums
+        #[cfg(feature = "checksum")]
+        {
+            if self.checksum {
+                info!("Checksumming");
+                Self::checksum_folder(&self.dst, 1).unwrap();
+            }
+        }
+
         info!("Done");
         Ok(())
     }
