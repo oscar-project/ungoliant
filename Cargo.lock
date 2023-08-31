@@ -1292,7 +1292,9 @@ dependencies = [
 
 [[package]]
 name = "oscar-tools"
-version = "0.3.0"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a24217c5cd1e8f14679e5999d296074a0f063767783730e8641996ddffaf6139"
 dependencies = [
  "clap 3.2.25",
  "env_logger 0.9.3",
