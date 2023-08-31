@@ -254,7 +254,7 @@ impl OscarDoc {
         let multilingual = StrictMultilingual::default().detect(ids);
 
         let ids: Vec<_> = ids
-            .into_iter()
+            .iter()
             .map(|id| id.clone().map(|_id| _id.into_inner()))
             .collect();
 
