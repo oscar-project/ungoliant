@@ -187,8 +187,8 @@ impl<'a> Tag<'a> {
         };
 
         // go from foo_bar to foo-bar
-        if tag.contains("_") {
-            Cow::from(tag.replace("_", "-"))
+        if tag.contains('_') {
+            Cow::from(tag.replace('_', "-"))
         } else {
             tag
         }
