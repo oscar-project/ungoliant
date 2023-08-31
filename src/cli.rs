@@ -195,4 +195,8 @@ pub struct Pipeline {
 
     #[structopt(short = "c", long = "comp", help = "Enables zstd compression")]
     pub comp: bool,
+
+    #[cfg(feature = "checksum")]
+    #[structopt(long = "checksum", help = "compute checksums")]
+    pub checksum: bool,
 }

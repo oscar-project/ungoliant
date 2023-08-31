@@ -191,8 +191,6 @@ impl Default for Location {
 
 #[cfg(test)]
 mod tests {
-    
-    
 
     use super::Location;
     use super::LocationBuilder;

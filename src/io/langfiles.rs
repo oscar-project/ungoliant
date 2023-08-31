@@ -99,7 +99,13 @@ impl LangFilesDoc {
         } else {
             None
         };
-        let w = Writer::new(dst, lang, part_size_bytes, comp)?;
+
+        // add lang subfolder
+        let mut subfolder = dst.to_path_buf();
+        subfolder.push(lang.to_string());
+        std::fs::create_dir(&subfolder)?;
+
+        let w = Writer::new(&subfolder, lang, part_size_bytes, comp)?;
 
         Ok(Arc::new(Mutex::new(w)))
     }
@@ -219,7 +225,7 @@ mod tests {
             w.flush().unwrap();
         }
         let mut read_path = PathBuf::from(dst.path());
-        read_path.push("en.jsonl");
+        read_path.push("en/en.jsonl");
 
         let b = File::open(read_path).unwrap();
         let doc_from_file: Document = serde_json::from_reader(b).unwrap();
@@ -252,7 +258,7 @@ mod tests {
         }
 
         let mut read_path = PathBuf::from(dst.path());
-        read_path.push("en.jsonl.zstd");
+        read_path.push("en/en.jsonl.zstd");
 
         let b = File::open(&read_path).unwrap();
         let dec = zstd::decode_all(b).unwrap();

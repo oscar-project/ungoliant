@@ -73,6 +73,8 @@ async fn main() -> Result<(), error::Error> {
                 p.kenlms_path,
                 p.split.map(|size_mbytes| size_mbytes * 1_000_000),
                 p.comp,
+                #[cfg(feature = "checksum")]
+                p.checksum,
             );
             p.run()?;
 
