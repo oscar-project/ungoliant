@@ -467,11 +467,11 @@ impl Pipeline<()> for OscarDoc {
         let annotator = {
             let mut annotator = Annotator::default();
             annotator
-                .add(Box::new(TinyDocument::default()))
-                .add(Box::new(ShortSentences::default()))
-                .add(Box::new(Header::default()))
-                .add(Box::new(LSH::default()))
-                .add(Box::new(Noisy::default()));
+                .add(Box::<TinyDocument>::default())
+                .add(Box::<ShortSentences>::default())
+                .add(Box::<Header>::default())
+                .add(Box::<LSH>::default())
+                .add(Box::<Noisy>::default());
 
             // add ut1 blocklists for categories
             if let Some(path) = &self.blocklist {
