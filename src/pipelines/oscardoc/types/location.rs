@@ -35,7 +35,7 @@ pub struct LocationBuilder {
     loc_in_shard: Option<usize>,
 }
 
-impl<'a> LocationBuilder {
+impl LocationBuilder {
     /// Set the partial location's shard id.
     pub fn set_shard_id(&mut self, shard_id: usize) {
         self.shard_id = Some(shard_id);
@@ -69,7 +69,7 @@ impl<'a> LocationBuilder {
     }
 }
 
-impl<'a> TryFrom<LocationBuilder> for Location {
+impl TryFrom<LocationBuilder> for Location {
     type Error = IncompleteLocation;
 
     fn try_from(value: LocationBuilder) -> Result<Self, Self::Error> {
