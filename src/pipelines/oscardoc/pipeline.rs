@@ -475,7 +475,7 @@ impl Pipeline<()> for OscarDoc {
 
             // add ut1 blocklists for categories
             if let Some(path) = &self.blocklist {
-                let bl = MultipleBlocklist::from_dir(&path)?;
+                let bl = MultipleBlocklist::from_dir(path)?;
                 annotator.add(Box::new(ContentDetector::new(bl)));
             }
 
