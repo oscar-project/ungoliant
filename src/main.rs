@@ -36,10 +36,15 @@ async fn main() -> Result<(), error::Error> {
     match opt {
         cli::Ungoliant::Download(e) => {
             let paths = File::open(e.paths_file)?;
-            let mut dl = Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?;
+
+            let mut dl = if e.error {
+                Downloader::from_errors_file(&paths, e.n_tasks.unwrap_or(4))?
+            } else {
+                Downloader::from_paths_file(&paths, e.n_tasks.unwrap_or(4))?
+            };
             let results = dl.download(&e.dst, e.offset).await;
 
-            let mut error_file = File::create("errors.txt")?;
+            let mut error_file = File::create("download_errors.tsv")?;
 
             // write eventual download errors
             for failure in results.iter().filter(|result| result.is_err()) {
@@ -51,15 +56,26 @@ async fn main() -> Result<(), error::Error> {
                 //     _ => (),
                 // };
                 if let download::Error::Download(e) = failure.as_ref().unwrap_err() {
-                    write!(error_file, "{}\t{}", e.err.url().unwrap(), e.id)?;
+                    write!(error_file, "{}\t{}\n", e.err.url().unwrap(), e.id)?;
                 }
             }
         }
 
         cli::Ungoliant::Pipeline(p) => {
             let mut schema_filepath = p.dst.clone();
-            let p =
-                pipelines::OscarDocNew::new(p.src, p.dst, p.lid_path, p.blocklist, p.kenlms_path);
+
+            // todo: oscardocnew implements from?
+            let p = pipelines::OscarDocNew::new(
+                p.src,
+                p.dst,
+                p.lid_path,
+                p.blocklist,
+                p.kenlms_path,
+                p.split.map(|size_mbytes| size_mbytes * 1_000_000),
+                p.comp,
+                #[cfg(feature = "checksum")]
+                p.checksum,
+            );
             p.run()?;
 
             schema_filepath.push("metadata_schema.json");

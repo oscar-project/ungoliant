@@ -123,7 +123,9 @@ pub struct Split {
 ///     <dst>           download destination
 /// ```
 pub struct Download {
-    #[structopt(parse(from_os_str), help = "path to wet.paths file")]
+    #[structopt(short, long, help = "is an error file passed to the command.")]
+    pub error: bool,
+    #[structopt(parse(from_os_str), help = "path to wet.paths or error file")]
     pub paths_file: PathBuf,
     #[structopt(parse(from_os_str), help = "download destination")]
     pub dst: PathBuf,
@@ -184,4 +186,17 @@ pub struct Pipeline {
         help = "Optional path to kenlm folder. for the language xx, you have to have a xx.binary file."
     )]
     pub kenlms_path: Option<PathBuf>,
+
+    #[structopt(
+        help = "Split size (in MBytes). Default: No splitting",
+        long = "split_size"
+    )]
+    pub split: Option<u64>,
+
+    #[structopt(short = "c", long = "comp", help = "Enables zstd compression")]
+    pub comp: bool,
+
+    #[cfg(feature = "checksum")]
+    #[structopt(long = "checksum", help = "compute checksums")]
+    pub checksum: bool,
 }
