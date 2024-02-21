@@ -45,7 +45,7 @@ unic-ucd = "0.9.0"
 oxilangtag = {version="0.1.3", features=["serde"]}
 language-tags = "0.3.2"
 lazy_static = "1.4.0"
-oscar-io = "0.2.2"
+oscar-io = "0.4.0"
 #tlsh = {git="https://github.com/Uinelj/tlsh-rs", branch="fix-q3-panic"}
 tlsh-fixed = "0.1.1"
 
