@@ -14,4 +14,3 @@ pub mod record;
 pub mod sentence;
 
 pub use filter::Filter;
-pub use filter::FilterMut;

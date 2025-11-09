@@ -27,6 +27,7 @@ pub enum LocationKind {
 /// guarantee some integrity.
 // TODO: Add methods to ensure that we add only once?
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Default)]
 pub struct LocationBuilder {
     shard_id: Option<usize>,
     record_id: Option<String>,
@@ -69,17 +70,6 @@ impl<'a> LocationBuilder {
     }
 }
 
-impl<'a> Default for LocationBuilder {
-    fn default() -> Self {
-        Self {
-            shard_id: None,
-            record_id: None,
-            line_start: None,
-            line_end: None,
-            loc_in_shard: None,
-        }
-    }
-}
 
 impl<'a> TryFrom<LocationBuilder> for Location {
     type Error = IncompleteLocation;
@@ -123,6 +113,7 @@ impl<'a> TryFrom<LocationBuilder> for Location {
 /// that the record has 10 lines and we only keep the first 5,
 /// We'd get `line_start=0, line_end=4, loc_in_shard=99`.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub struct Location {
     shard_id: usize,
     record_id: String,
@@ -177,17 +168,6 @@ impl Location {
     }
 }
 
-impl Default for Location {
-    fn default() -> Self {
-        Self {
-            shard_id: Default::default(),
-            record_id: Default::default(),
-            line_start: Default::default(),
-            line_end: Default::default(),
-            loc_in_shard: Default::default(),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

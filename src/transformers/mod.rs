@@ -32,7 +32,6 @@ pub use kenlm::AdultDetectorBuilder;
 #[cfg(feature = "kenlm")]
 pub use kenlm::Models;
 pub use noisy::Noisy;
-pub use sentence_filter::Conv;
 pub use sentence_filter::RemoveShortSentences;
 pub use sentence_filter::ShortSentences;
 pub use tiny::TinyDocument;
