@@ -254,7 +254,7 @@ impl OscarDoc {
         let multilingual = StrictMultilingual::default().detect(ids);
 
         let ids: Vec<_> = ids
-            .into_iter()
+            .iter()
             .map(|id| id.clone().map(|_id| _id.into_inner()))
             .collect();
 
@@ -387,7 +387,7 @@ impl OscarDoc {
 
                 // divide the documents iterator into two iterators
                 let (docs, locations): (Vec<_>, Vec<_>) =
-                    docs.into_iter().map(|(doc, loc)| (doc, loc)).unzip();
+                    docs.into_iter().unzip();
 
                 // clone metadata
                 let metadata_cloned = docs.iter().map(|doc| doc.metadata().clone()).collect();
@@ -404,10 +404,7 @@ impl OscarDoc {
                 Ok(())
             })
             // only collect errors
-            .filter_map(|x| match x {
-                Ok(_) => None,
-                Err(e) => Some(e),
-            })
+            .filter_map(|x| x.err())
             .collect();
 
         for error in errors {
@@ -475,7 +472,7 @@ impl Pipeline<()> for OscarDoc {
 
             // add ut1 blocklists for categories
             if let Some(path) = &self.blocklist {
-                let bl = MultipleBlocklist::from_dir(&path)?;
+                let bl = MultipleBlocklist::from_dir(path)?;
                 annotator.add(Box::new(ContentDetector::new(bl)));
             }
 
@@ -494,7 +491,7 @@ impl Pipeline<()> for OscarDoc {
         // for each shard result, sort by lang and write concurrently.
         shards_results.for_each(|(idx, shard_result)| {
             if let Ok((shard_id, shard_result)) = shard_result {
-                let mut hm = Self::sort_by_lang(shard_result);
+                let hm = Self::sort_by_lang(shard_result);
 
                 // run kenlms after identification so that shard results are already
                 // sorted by language.

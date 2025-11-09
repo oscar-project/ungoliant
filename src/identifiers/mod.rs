@@ -8,5 +8,4 @@ pub(crate) mod model;
 mod multilingual;
 mod tag_convert;
 
-pub use multilingual::Multilingual;
 pub use multilingual::StrictMultilingual;

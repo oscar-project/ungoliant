@@ -88,7 +88,7 @@ impl<'a> Download<'a> {
             .await?
             .error_for_status()?
             .bytes_stream()
-            .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e));
+            .map_err(futures::io::Error::other);
 
         Ok(resp)
     }
